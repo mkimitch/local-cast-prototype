@@ -1,0 +1,6 @@
+{
+  "name": "LocalCast",
+  "description": "Local-first personal audio briefing app prototype",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
