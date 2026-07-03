@@ -1,4 +1,4 @@
-import { BriefingSection, SourceItem } from './types';
+import { BriefingSection, SourceItem } from '../../types';
 
 export interface AiProvider {
   generateSourceSummary(items: SourceItem[]): Promise<string>;
@@ -42,19 +42,6 @@ export class MockAiProvider implements AiProvider {
   }
 }
 
-export class OpenAiPlaceholderProvider extends MockAiProvider {}
-export class GeminiPlaceholderProvider extends MockAiProvider {}
-export class LmStudioPlaceholderProvider extends MockAiProvider {}
-export class OllamaPlaceholderProvider extends MockAiProvider {}
-
 export function getAiProvider(providerId: string): AiProvider {
-  switch (providerId) {
-    case 'openai_placeholder': return new OpenAiPlaceholderProvider();
-    case 'gemini_placeholder': return new GeminiPlaceholderProvider();
-    case 'lmstudio_placeholder': return new LmStudioPlaceholderProvider();
-    case 'ollama_placeholder': return new OllamaPlaceholderProvider();
-    case 'mock':
-    default:
-      return new MockAiProvider();
-  }
+  return new MockAiProvider();
 }

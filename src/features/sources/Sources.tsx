@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Plus, Trash2, Power, PowerOff, Hash, Rss, AlertCircle, RefreshCw, CheckCircle2 } from 'lucide-react';
-import { sourceService } from '../services';
-import { Source, SourceType } from '../types';
+import { sourceService } from '../../services';
+import { Source, SourceType } from '../../types';
 
 export default function SourcesView() {
   const [sources, setSources] = useState<Source[]>([]);

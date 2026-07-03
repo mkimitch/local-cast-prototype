@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Play, Clock, CheckCircle, AlertTriangle } from 'lucide-react';
-import { briefingService, sourceService } from '../services';
-import { BriefingRun, Source } from '../types';
+import { briefingService, sourceService } from '../../services';
+import { BriefingRun, Source } from '../../types';
 
 interface RunsProps {
   onNavigateToRun: (id: string) => void;

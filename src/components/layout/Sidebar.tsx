@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { LayoutDashboard, Rss, Mic, Settings, Headphones, CloudOff, CloudLightning, Cloud, Sun, Moon, PanelLeftClose, PanelLeft } from 'lucide-react';
-import { ViewState } from '../App';
+import { ViewState } from '../../App';
 
 interface SidebarProps {
   currentView: ViewState;

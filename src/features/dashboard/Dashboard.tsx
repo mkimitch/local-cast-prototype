@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Play, Activity, Clock, Rss, Calendar, RefreshCw, AlertCircle } from 'lucide-react';
-import { sourceService, briefingService, providerService } from '../services';
-import { Source, BriefingRun, AppSettings } from '../types';
-import { ViewState } from '../App';
+import { sourceService, briefingService, providerService } from '../../services';
+import { Source, BriefingRun, AppSettings } from '../../types';
+import { ViewState } from '../../App';
 
 interface DashboardProps {
   onNavigateToRun: (id: string) => void;

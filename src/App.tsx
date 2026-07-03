@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import Sidebar from './components/Sidebar';
-import Dashboard from './views/Dashboard';
-import SourcesView from './views/Sources';
-import RunsView from './views/Runs';
-import BriefingDetailView from './views/BriefingDetail';
-import SettingsView from './views/Settings';
-import AudioPlayer from './components/AudioPlayer';
+import Sidebar from './components/layout/Sidebar';
+import Dashboard from './features/dashboard/Dashboard';
+import SourcesView from './features/sources/Sources';
+import RunsView from './features/briefings/Runs';
+import BriefingDetailView from './features/briefings/BriefingDetail';
+import SettingsView from './features/settings/Settings';
+import AudioPlayer from './features/audio/AudioPlayer';
 import { BriefingRun } from './types';
 import { useAppearanceSettings } from './hooks/useAppearanceSettings';
 

@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Play, Pause, SkipBack, SkipForward, X, Volume2, Maximize2, Minimize2 } from 'lucide-react';
-import { BriefingRun } from '../types';
+import { BriefingRun } from '../../types';
 import OrbVisualizer, { ORB_THEMES, OrbThemeName } from './OrbVisualizer';
-import { providerService } from '../services';
+import { providerService } from '../../services';
 
 interface AudioPlayerProps {
   run: BriefingRun;

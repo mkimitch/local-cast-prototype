@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Save, Server, Mic, Key, Palette, Eye, Type, Layout, Moon, Sun, Monitor } from 'lucide-react';
-import { providerService } from '../services';
-import { AppSettings } from '../types';
-import { ORB_THEMES, OrbThemeName } from '../components/OrbVisualizer';
+import { providerService } from '../../services';
+import { AppSettings } from '../../types';
+import { ORB_THEMES, OrbThemeName } from '../audio/OrbVisualizer';
 
 export default function SettingsView() {
   const [settings, setSettings] = useState<AppSettings | null>(null);

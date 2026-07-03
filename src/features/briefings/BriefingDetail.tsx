@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { ArrowLeft, PlayCircle, Clock, CheckCircle2, FileText, Loader2, Play, Download } from 'lucide-react';
-import { briefingService } from '../services';
-import { BriefingRun } from '../types';
+import { briefingService } from '../../services';
+import { BriefingRun } from '../../types';
 
 interface BriefingDetailProps {
   runId: string;
