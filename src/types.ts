@@ -56,6 +56,11 @@ export interface AppSettings {
   scheduleTime?: string; // HH:mm format
   isScheduleActive?: boolean;
   orbTheme?: string;
+  theme: 'system' | 'light' | 'dark';
+  contrastMode: 'normal' | 'high';
+  colorVisionMode: 'default' | 'protanopia' | 'deuteranopia' | 'tritanopia' | 'achromatopsia';
+  textSize: 'small' | 'normal' | 'large' | 'extra-large';
+  density: 'compact' | 'normal' | 'comfortable';
 }
 
 export interface BriefingRun {

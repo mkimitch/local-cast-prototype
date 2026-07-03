@@ -18,7 +18,16 @@ export type OrbThemeName =
   | 'quantumBlue'
   | 'reactorGreen'
   | 'ultraviolet'
-  | 'thermalVision';
+  | 'thermalVision'
+  | 'cubeHelix'
+  | 'cubeHelixMono';
+
+export type CubeHelixThemeConfig = {
+  gamma: number;
+  hue: number;
+  rotations: number;
+  start: number;
+};
 
 export type OrbTheme = {
   accent: string;
@@ -30,6 +39,53 @@ export type OrbTheme = {
   rim: string;
   rings: string;
   ticks: string;
+  cubeHelix?: CubeHelixThemeConfig;
+};
+
+export function getCubeHelixColor(t: number, config: CubeHelixThemeConfig): string {
+  const { start, rotations, hue, gamma } = config;
+  const fract = Math.pow(t, gamma);
+  const angle = 2 * Math.PI * (start / 3.0 + 1.0 + rotations * t);
+  const amp = hue * fract * (1 - fract) / 2.0;
+
+  let r = fract + amp * (-0.14861 * Math.cos(angle) + 1.78277 * Math.sin(angle));
+  let g = fract + amp * (-0.29227 * Math.cos(angle) - 0.90649 * Math.sin(angle));
+  let b = fract + amp * (+1.97294 * Math.cos(angle));
+
+  r = Math.max(0, Math.min(1, r));
+  g = Math.max(0, Math.min(1, g));
+  b = Math.max(0, Math.min(1, b));
+
+  return `rgb(${Math.round(r * 255)}, ${Math.round(g * 255)}, ${Math.round(b * 255)})`;
+}
+
+function generateCubeHelixTheme(config: CubeHelixThemeConfig): OrbTheme {
+  return {
+    background: getCubeHelixColor(0.00, config), // maybe darken further if needed, but 0.00 is usually black
+    backgroundGlow: getCubeHelixColor(0.12, config),
+    rim: getCubeHelixColor(0.28, config),
+    mid: getCubeHelixColor(0.52, config),
+    coreSecondary: getCubeHelixColor(0.74, config),
+    core: getCubeHelixColor(0.92, config),
+    rings: getCubeHelixColor(0.70, config),
+    ticks: getCubeHelixColor(0.55, config),
+    accent: getCubeHelixColor(0.82, config),
+    cubeHelix: config
+  };
+}
+
+const cubeHelixConfig: CubeHelixThemeConfig = {
+  gamma: 1,
+  hue: 1,
+  rotations: -1.5,
+  start: 0.5
+};
+
+const cubeHelixMonoConfig: CubeHelixThemeConfig = {
+  gamma: 1,
+  hue: 0,
+  rotations: -1.5,
+  start: 0.5
 };
 
 export const ORB_THEMES: Record<OrbThemeName, OrbTheme> = {
@@ -231,6 +287,8 @@ export const ORB_THEMES: Record<OrbThemeName, OrbTheme> = {
     ticks: '#ff9f7a',
     accent: '#ffcc66',
   },
+  cubeHelix: generateCubeHelixTheme(cubeHelixConfig),
+  cubeHelixMono: generateCubeHelixTheme(cubeHelixMonoConfig)
 };
 
 export interface OrbVisualizerProps {
@@ -441,6 +499,48 @@ export default function OrbVisualizer({
       orbGrad.addColorStop(1, t.rim);
       ctx.fillStyle = orbGrad;
       ctx.fill();
+
+      if (t.cubeHelix) {
+        // Conic gradient / spiral layer for CubeHelix themes
+        if (typeof ctx.createConicGradient === 'function') {
+          const rotationOffset = time * 0.5 * motionScale;
+          const conicGrad = ctx.createConicGradient(rotationOffset, 0, 0);
+          conicGrad.addColorStop(0, getAlphaColor(t.coreSecondary, 0.4 + currentMid * 0.2));
+          conicGrad.addColorStop(0.25, getAlphaColor(t.mid, 0.6 + currentLow * 0.3));
+          conicGrad.addColorStop(0.5, getAlphaColor(t.accent, 0.3 + currentHigh * 0.2));
+          conicGrad.addColorStop(0.75, getAlphaColor(t.rim, 0.5 + currentMid * 0.2));
+          conicGrad.addColorStop(1, getAlphaColor(t.coreSecondary, 0.4 + currentMid * 0.2));
+          
+          ctx.globalCompositeOperation = 'overlay';
+          ctx.fillStyle = conicGrad;
+          ctx.fillRect(-baseRadius * 1.5, -baseRadius * 1.5, baseRadius * 3, baseRadius * 3);
+          ctx.globalCompositeOperation = 'source-over';
+        }
+        
+        // Helix spiral blobs
+        const drawSpiralBlob = (index: number, total: number) => {
+           const spiralAngle = time * 0.8 + (index / total) * Math.PI * 4;
+           const dist = baseRadius * 0.2 + (index / total) * baseRadius * 0.6;
+           const x = Math.cos(spiralAngle) * dist;
+           const y = Math.sin(spiralAngle) * dist;
+           const blobRadius = baseRadius * 0.5 * (1 - index / total * 0.5);
+           
+           const color = index % 3 === 0 ? t.coreSecondary : index % 3 === 1 ? t.mid : t.accent;
+           
+           const blobGrad = ctx.createRadialGradient(x, y, 0, x, y, blobRadius);
+           blobGrad.addColorStop(0, getAlphaColor(color, 0.6 + currentMid * 0.4));
+           blobGrad.addColorStop(1, getAlphaColor(color, 0));
+           
+           ctx.globalCompositeOperation = 'screen';
+           ctx.fillStyle = blobGrad;
+           ctx.fillRect(x - blobRadius, y - blobRadius, blobRadius * 2, blobRadius * 2);
+           ctx.globalCompositeOperation = 'source-over';
+        };
+        
+        for (let i = 0; i < 6; i++) {
+           drawSpiralBlob(i, 6);
+        }
+      }
 
       // Plasma blobs inside the orb
       const drawBlob = (angleOffset: number, speed: number, radiusScale: number, color: string, alpha: number) => {

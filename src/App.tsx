@@ -8,10 +8,13 @@ import BriefingDetailView from './views/BriefingDetail';
 import SettingsView from './views/Settings';
 import AudioPlayer from './components/AudioPlayer';
 import { BriefingRun } from './types';
+import { useAppearanceSettings } from './hooks/useAppearanceSettings';
 
 export type ViewState = 'dashboard' | 'sources' | 'runs' | 'settings';
 
 export default function App() {
+  useAppearanceSettings();
+  
   const [currentView, setCurrentView] = useState<ViewState>('dashboard');
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [playingRun, setPlayingRun] = useState<BriefingRun | null>(null);

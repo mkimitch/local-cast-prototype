@@ -10,4 +10,97 @@
 
 body {
   @apply bg-gray-50 text-gray-900 antialiased dark:bg-gray-950 dark:text-gray-100;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
+
+/* === Text Size === */
+html[data-text-size="small"] { font-size: 14px; }
+html[data-text-size="normal"] { font-size: 16px; }
+html[data-text-size="large"] { font-size: 18px; }
+html[data-text-size="extra-large"] { font-size: 20px; }
+
+/* === High Contrast === */
+html[data-contrast="high"] {
+  --color-gray-50: #ffffff;
+  --color-gray-100: #e5e5e5;
+  --color-gray-200: #cccccc;
+  --color-gray-300: #b3b3b3;
+  --color-gray-400: #999999;
+  --color-gray-500: #666666;
+  --color-gray-600: #4d4d4d;
+  --color-gray-700: #333333;
+  --color-gray-800: #1a1a1a;
+  --color-gray-900: #000000;
+  --color-gray-950: #000000;
+  --color-blue-50: #e6f0ff;
+  --color-blue-100: #cce0ff;
+  --color-blue-200: #99c2ff;
+  --color-blue-300: #66a3ff;
+  --color-blue-400: #3385ff;
+  --color-blue-500: #0044cc; /* Darker for better contrast on light */
+  --color-blue-600: #003399;
+  --color-blue-700: #002266;
+  --color-blue-800: #001133;
+  --color-blue-900: #00081a;
+  --color-blue-950: #00040d;
+}
+
+html.dark[data-contrast="high"] {
+  --color-blue-500: #66a3ff; /* Lighter for better contrast on dark */
+  --color-blue-600: #99c2ff;
+}
+
+/* === Color Vision Modes === */
+/* Using SVG filters applied to the root, but the prompt says: 
+   "These modes should adjust the app's semantic color palette, not simply apply a visual filter over the entire UI." */
+
+html[data-color-vision="protanopia"] {
+  /* Shift reds to blues and greens to yellows to help red-blind users */
+  --color-red-500: #0055ff;
+  --color-red-600: #0044cc;
+  --color-green-500: #ffcc00;
+  --color-green-600: #e6b800;
+}
+
+html[data-color-vision="deuteranopia"] {
+  /* Shift greens to blues and reds to yellows to help green-blind users */
+  --color-green-500: #0055ff;
+  --color-green-600: #0044cc;
+  --color-red-500: #ffcc00;
+  --color-red-600: #e6b800;
+}
+
+html[data-color-vision="tritanopia"] {
+  /* Shift blues to greens and yellows to reds to help blue-blind users */
+  --color-blue-500: #00cc66;
+  --color-blue-600: #00994d;
+  --color-yellow-500: #ff3333;
+  --color-yellow-600: #cc0000;
+}
+
+html[data-color-vision="achromatopsia"] {
+  /* Convert semantic colors to distinguishable grayscale tones */
+  --color-blue-500: #666666;
+  --color-blue-600: #4d4d4d;
+  --color-red-500: #808080;
+  --color-red-600: #666666;
+  --color-green-500: #999999;
+  --color-green-600: #808080;
+  --color-yellow-500: #b3b3b3;
+  --color-yellow-600: #999999;
+}
+
+html.dark[data-color-vision="achromatopsia"] {
+  --color-blue-500: #999999;
+  --color-blue-600: #b3b3b3;
+}
+
+/* === Density === */
+html[data-density="compact"] {
+  --spacing: 0.2rem;
+}
+
+html[data-density="comfortable"] {
+  --spacing: 0.35rem;
+}
+
