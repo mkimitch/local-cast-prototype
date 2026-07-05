@@ -3,6 +3,7 @@ import type {RunStatus} from '../../src/types';
 import {createAiProvider} from '../ai/providerFactory';
 import {briefingStore} from '../services/briefingStore';
 import {sourceStore} from '../services/sourceStore';
+import {parseBriefingRunRequest} from '../validation';
 
 export const briefingRunsRouter = Router();
 
@@ -60,8 +61,13 @@ briefingRunsRouter.get('/briefing-runs', (_req, res) => {
 });
 
 briefingRunsRouter.post('/briefing-runs', (req, res) => {
-  const body = req.body as {sourceIds?: unknown};
-  const sourceIds = Array.isArray(body.sourceIds) ? body.sourceIds.filter((id): id is string => typeof id === 'string') : [];
+  const parsed = parseBriefingRunRequest(req.body);
+  if (parsed.ok === false) {
+    res.status(400).json({error: parsed.error});
+    return;
+  }
+
+  const {sourceIds} = parsed.value;
   const run = briefingStore.createRun(sourceIds);
 
   void progressRun(run.id);

@@ -7,7 +7,7 @@ LocalCast is a Vite + React + TypeScript prototype for a local-first personal au
 - Dashboard, sources, briefing runs, audio playback, settings, and accessibility preferences.
 - Mock-only frontend mode with in-browser mock services.
 - API-backed frontend mode pointed at a local Express server.
-- In-memory backend stores for sources, settings, and briefing runs.
+- SQLite-backed backend stores for sources, gathered source items, settings, briefing runs, sections, and placeholder audio assets.
 - Backend AI provider seam with `mock`, `gemini`, and `openai_compatible` providers.
 
 ## Run mock-only frontend
@@ -33,6 +33,8 @@ The API listens on `http://localhost:8787/api` by default. Health check:
 ```bash
 curl http://localhost:8787/api/health
 ```
+
+The backend allows `http://localhost:3000` by default for local CORS requests. To allow a different frontend origin, set `CORS_ORIGIN` to one or more comma-separated origins. Use `CORS_ORIGIN=*` only when you intentionally want unrestricted local API access.
 
 ## Run frontend against backend
 
@@ -62,6 +64,8 @@ Backend-only values are read by `server/config.ts` and are never exposed to brow
 
 ```env
 PORT=8787
+CORS_ORIGIN=http://localhost:3000
+DATABASE_PATH=data/localcast.sqlite
 AI_PROVIDER=mock
 AI_MODEL=mock-localcast
 AI_BASE_URL=
@@ -77,6 +81,12 @@ VITE_API_BASE_URL=http://localhost:8787/api
 ```
 
 `VITE_SERVICE_MODE=mock` uses `src/services/mock/*`. `VITE_SERVICE_MODE=api` uses `src/services/api/*`. If `VITE_SERVICE_MODE` is unset or any value other than `api`, the app falls back to mock mode.
+
+## Persistence
+
+The backend stores data in SQLite at `DATABASE_PATH`, defaulting to `data/localcast.sqlite`. Empty databases are bootstrapped with the same prototype sources, settings, and sample briefing run that the in-memory version used.
+
+Persisted tables include `sources`, `source_items`, `briefing_runs`, `briefing_run_sources`, `briefing_sections`, `audio_assets`, and `app_settings`. Source items are still synthetic until real RSS fetching is added.
 
 ## AI providers
 
@@ -107,6 +117,7 @@ Responses use the frontend contracts in `src/types.ts` for `Source`, `BriefingRu
 ```bash
 npm run lint
 npm run build
+npm run smoke:api
 ```
 
 Mock mode smoke check:
@@ -124,16 +135,23 @@ VITE_SERVICE_MODE=api VITE_API_BASE_URL=http://localhost:8787/api npm run dev:we
 
 Then add a source, start a briefing run, and confirm the detail screen polls through `queued`, `gathering`, `summarizing_sources`, `drafting`, `rendering_audio`, and `complete`.
 
+Frontend mode build checks:
+
+```bash
+npm run build
+VITE_SERVICE_MODE=api VITE_API_BASE_URL=http://localhost:8787/api npm run build
+```
+
 ## Current limitations
 
-- Stores are in memory and reset when the API server restarts.
-- RSS fetching, Gmail, Calendar, auth, SQLite persistence, real TTS, podcast RSS, Docker, deployment, and vector search are not implemented.
+- SQLite persistence is local-file only; there is no migration framework or multi-user concurrency model yet.
+- RSS fetching, Gmail, Calendar, auth, real TTS, podcast RSS, Docker, deployment, and vector search are not implemented.
 - Generated audio is still a placeholder asset.
 - The mock source gatherer creates synthetic source items from configured sources.
 
 ## Recommended next milestones
 
-1. Add durable SQLite persistence for sources, settings, briefing runs, and gathered source items.
+1. Add a lightweight migration path before evolving the SQLite schema further.
 2. Implement real RSS fetching and source item normalization.
 3. Add real TTS generation and serve generated audio assets.
 4. Add focused API tests once the contract stabilizes beyond the prototype milestone.
