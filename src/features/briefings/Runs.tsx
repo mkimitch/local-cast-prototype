@@ -38,66 +38,66 @@ export default function RunsView({ onNavigateToRun }: RunsProps) {
 
   const getStatusIcon = (status: BriefingRun['status']) => {
     switch (status) {
-      case 'complete': return <CheckCircle className="text-green-500" size={20} />;
-      case 'failed': return <AlertTriangle className="text-red-500" size={20} />;
-      default: return <Clock className="text-blue-500 animate-pulse" size={20} />;
+      case 'complete': return <CheckCircle className="icon-success" size={20} />;
+      case 'failed': return <AlertTriangle className="icon-danger" size={20} />;
+      default: return <Clock className="icon-primary is-pulsing" size={20} />;
     }
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8">
-      <div className="flex items-center justify-between">
+    <div className="page">
+      <div className="page-header page-header--responsive">
         <div>
-          <h1 className="text-3xl font-display font-semibold text-gray-900 dark:text-gray-50 tracking-tight">Briefing Runs</h1>
-          <p className="mt-2 text-gray-500 dark:text-gray-400">History of your generated personal podcasts.</p>
+          <h1 className="page-title">Briefing Runs</h1>
+          <p className="page-description">History of your generated personal podcasts.</p>
         </div>
         <button
           onClick={handleGenerate}
           disabled={activeSourcesCount === 0}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors text-sm font-medium shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+          className="button button--primary"
         >
           <Play size={16} />
           Generate New
         </button>
       </div>
 
-      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden">
-        <div className="divide-y divide-gray-100 dark:divide-gray-800">
+      <div className="card">
+        <div className="card-list">
           {runs.map(run => (
             <div 
               key={run.id} 
-              className="p-6 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors cursor-pointer"
+              className="run-row"
               onClick={() => onNavigateToRun(run.id)}
             >
-              <div className="flex items-center gap-5">
-                <div className="shrink-0 mt-1">
+              <div className="run-row__main">
+                <div className="run-row__status">
                   {getStatusIcon(run.status)}
                 </div>
                 <div>
-                  <h3 className="text-lg font-medium text-gray-900 dark:text-gray-50">{run.title}</h3>
-                  <div className="flex items-center gap-3 mt-1 text-sm text-gray-500 dark:text-gray-400">
-                    <span className="capitalize">{run.status.replace('_', ' ')}</span>
+                  <h3 className="run-row__title">{run.title}</h3>
+                  <div className="run-row__meta">
+                    <span className="run-row__status-text">{run.status.replace('_', ' ')}</span>
                     <span>•</span>
                     <span>Started {new Date(run.createdAt).toLocaleString()}</span>
                   </div>
                 </div>
               </div>
-              <div className="text-blue-600 dark:text-blue-400 font-medium text-sm px-4 py-2 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30">
+              <div className="run-row__cta">
                 View Details
               </div>
             </div>
           ))}
           {runs.length === 0 && (
-            <div className="p-12 text-center">
-              <div className="w-12 h-12 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-400 dark:text-gray-500">
+            <div className="empty-state empty-state--large">
+              <div className="empty-state__icon">
                 <Play size={24} />
               </div>
-              <h3 className="text-lg font-medium text-gray-900 dark:text-gray-50 mb-2">No runs yet</h3>
-              <p className="text-gray-500 dark:text-gray-400 mb-6 max-w-md mx-auto">Generate your first audio briefing based on your active sources.</p>
+              <h3 className="empty-state__title">No runs yet</h3>
+              <p className="empty-state__copy">Generate your first audio briefing based on your active sources.</p>
               <button
                 onClick={handleGenerate}
                 disabled={activeSourcesCount === 0}
-                className="px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 font-medium disabled:opacity-50"
+                className="button button--secondary"
               >
                 Start Generating
               </button>

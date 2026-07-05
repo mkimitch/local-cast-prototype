@@ -36,10 +36,10 @@ export default function App() {
   };
 
   return (
-    <div className={`flex h-screen w-full overflow-hidden font-sans bg-gray-50 dark:bg-gray-950 transition-all ${playingRun ? 'pb-20' : ''}`}>
+    <div className={`app-shell${playingRun ? ' app-shell--with-player' : ''}`}>
       <Sidebar currentView={currentView} onNavigate={navigateTo} />
       
-      <main className="flex-1 overflow-y-auto relative">
+      <main className="app-main">
         <AnimatePresence mode="wait">
           <motion.div
             key={currentView + (selectedRunId || '')}
@@ -47,7 +47,7 @@ export default function App() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.2 }}
-            className="min-h-full p-8"
+            className="view-frame"
           >
             {currentView === 'dashboard' && <Dashboard onNavigateToRun={navigateToRun} onNavigate={navigateTo} />}
             {currentView === 'sources' && <SourcesView />}

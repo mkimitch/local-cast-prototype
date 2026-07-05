@@ -26,42 +26,39 @@ export default function SettingsView() {
   };
 
   return (
-    <div className="max-w-3xl mx-auto space-y-8 pb-12">
-      <div className="flex justify-between items-end">
+    <div className="page page--narrow">
+      <div className="page-header page-header--bottom-aligned">
         <div>
-          <h1 className="text-3xl font-display font-semibold text-gray-900 dark:text-gray-50 tracking-tight">Settings</h1>
-          <p className="mt-2 text-gray-500 dark:text-gray-400">Configure AI providers, appearance, and local integrations.</p>
+          <h1 className="page-title">Settings</h1>
+          <p className="page-description">Configure AI providers, appearance, and local integrations.</p>
         </div>
-        <div className="h-8 flex items-center">
+        <div className="saving-status">
           {isSaving && (
-            <span className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-2 animate-pulse" role="status" aria-live="polite">
+            <span className="saving-status__content is-pulsing" role="status" aria-live="polite">
               <Save size={16} aria-hidden="true" /> Saving...
             </span>
           )}
         </div>
       </div>
 
-      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden">
-        <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-800 flex items-center gap-3">
-          <Eye size={20} className="text-blue-600 dark:text-blue-500" aria-hidden="true" />
-          <h2 className="font-semibold text-gray-900 dark:text-gray-50 text-lg">Appearance & Accessibility</h2>
+      <div className="card">
+        <div className="card__header card__header--plain">
+          <Eye size={20} className="icon-primary" aria-hidden="true" />
+          <h2 className="card__title">Appearance & Accessibility</h2>
         </div>
         
-        <div className="p-6 space-y-8">
+        <div className="card__body settings-stack">
           {/* Theme */}
           <fieldset>
-            <legend className="text-sm font-medium text-gray-900 dark:text-gray-200 mb-3 flex items-center gap-2">
-              <Sun size={16} className="text-gray-500" aria-hidden="true" /> Theme
+            <legend className="field-label">
+              <Sun size={16} className="icon-muted" aria-hidden="true" /> Theme
             </legend>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="choice-grid">
               {(['system', 'light', 'dark'] as const).map(theme => (
                 <label 
                   key={theme} 
-                  className={`flex flex-col items-center p-3 rounded-lg border cursor-pointer focus-within:ring-2 focus-within:ring-blue-500 transition-colors ${
-                    settings.theme === theme 
-                      ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300' 
-                      : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300'
-                  }`}
+                  className="choice-card"
+                  data-selected={settings.theme === theme ? 'true' : 'false'}
                 >
                   <input
                     type="radio"
@@ -69,38 +66,37 @@ export default function SettingsView() {
                     value={theme}
                     checked={settings.theme === theme}
                     onChange={(e) => updateSetting({...settings, theme: e.target.value as AppSettings['theme']})}
-                    className="sr-only"
                   />
-                  {theme === 'system' && <Monitor size={20} className="mb-2" aria-hidden="true" />}
-                  {theme === 'light' && <Sun size={20} className="mb-2" aria-hidden="true" />}
-                  {theme === 'dark' && <Moon size={20} className="mb-2" aria-hidden="true" />}
-                  <span className="text-sm font-medium capitalize">{theme}</span>
+                  {theme === 'system' && <Monitor size={20} aria-hidden="true" />}
+                  {theme === 'light' && <Sun size={20} aria-hidden="true" />}
+                  {theme === 'dark' && <Moon size={20} aria-hidden="true" />}
+                  <span className="choice-card__label">{theme}</span>
                 </label>
               ))}
             </div>
           </fieldset>
 
           {/* Contrast & Vision */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label htmlFor="contrastMode" className="block text-sm font-medium text-gray-900 dark:text-gray-200 mb-2">Contrast Mode</label>
+          <div className="content-grid content-grid--two">
+            <div className="field">
+              <label htmlFor="contrastMode" className="field-label">Contrast Mode</label>
               <select
                 id="contrastMode"
                 value={settings.contrastMode}
                 onChange={e => updateSetting({...settings, contrastMode: e.target.value as AppSettings['contrastMode']})}
-                className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-50 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5 outline-none"
+                className="control"
               >
                 <option value="normal">Normal</option>
                 <option value="high">High Contrast (WCAG 2.2 AAA)</option>
               </select>
             </div>
-            <div>
-              <label htmlFor="colorVisionMode" className="block text-sm font-medium text-gray-900 dark:text-gray-200 mb-2">Color Vision Optimization</label>
+            <div className="field">
+              <label htmlFor="colorVisionMode" className="field-label">Color Vision Optimization</label>
               <select
                 id="colorVisionMode"
                 value={settings.colorVisionMode}
                 onChange={e => updateSetting({...settings, colorVisionMode: e.target.value as AppSettings['colorVisionMode']})}
-                className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-50 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5 outline-none"
+                className="control"
               >
                 <option value="default">Default</option>
                 <option value="protanopia">Protanopia (Red-blind)</option>
@@ -112,16 +108,16 @@ export default function SettingsView() {
           </div>
 
           {/* Text Size & Density */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label htmlFor="textSize" className="flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-gray-200 mb-2">
-                <Type size={16} className="text-gray-500" aria-hidden="true" /> Text Size
+          <div className="content-grid content-grid--two">
+            <div className="field">
+              <label htmlFor="textSize" className="field-label">
+                <Type size={16} className="icon-muted" aria-hidden="true" /> Text Size
               </label>
               <select
                 id="textSize"
                 value={settings.textSize}
                 onChange={e => updateSetting({...settings, textSize: e.target.value as AppSettings['textSize']})}
-                className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-50 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5 outline-none"
+                className="control"
               >
                 <option value="small">Small</option>
                 <option value="normal">Normal</option>
@@ -129,15 +125,15 @@ export default function SettingsView() {
                 <option value="extra-large">Extra Large</option>
               </select>
             </div>
-            <div>
-              <label htmlFor="density" className="flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-gray-200 mb-2">
-                <Layout size={16} className="text-gray-500" aria-hidden="true" /> UI Density
+            <div className="field">
+              <label htmlFor="density" className="field-label">
+                <Layout size={16} className="icon-muted" aria-hidden="true" /> UI Density
               </label>
               <select
                 id="density"
                 value={settings.density}
                 onChange={e => updateSetting({...settings, density: e.target.value as AppSettings['density']})}
-                className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-50 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5 outline-none"
+                className="control"
               >
                 <option value="compact">Compact</option>
                 <option value="normal">Normal</option>
@@ -148,18 +144,18 @@ export default function SettingsView() {
         </div>
       </div>
 
-      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden">
-        <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-800 flex items-center gap-3">
-          <Server size={20} className="text-blue-600 dark:text-blue-500" />
-          <h2 className="font-semibold text-gray-900 dark:text-gray-50 text-lg">AI Providers (Transcription & Synthesis)</h2>
+      <div className="card">
+        <div className="card__header card__header--plain">
+          <Server size={20} className="icon-primary" />
+          <h2 className="card__title">AI Providers (Transcription & Synthesis)</h2>
         </div>
-        <div className="p-6 space-y-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-900 dark:text-gray-200 mb-2">Provider Engine</label>
+        <div className="card__body settings-stack">
+          <div className="field">
+            <label className="field-label">Provider Engine</label>
             <select 
               value={settings.aiProvider}
               onChange={e => updateSetting({...settings, aiProvider: e.target.value as AppSettings['aiProvider']})}
-              className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-50 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5"
+              className="control"
             >
               <option value="mock">Mock Provider</option>
               <option value="gemini_placeholder">Google Gemini</option>
@@ -170,25 +166,25 @@ export default function SettingsView() {
           </div>
 
           {settings.aiProvider !== 'mock' && (
-            <div className="space-y-4">
+            <div className="settings-stack">
               {(settings.aiProvider === 'lmstudio_placeholder' || settings.aiProvider === 'ollama_placeholder') && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-900 dark:text-gray-200 mb-2">Base URL</label>
+                <div className="field">
+                  <label className="field-label">Base URL</label>
                   <input 
                     type="text" 
                     placeholder="http://localhost:11434"
                     value={settings.aiConfig.baseUrl || ''}
                     onChange={e => setSettings({ ...settings, aiConfig: { ...settings.aiConfig, baseUrl: e.target.value }})}
                     onBlur={() => handleSave(settings)}
-                    className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-50 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5"
+                    className="control"
                   />
                 </div>
               )}
 
               {(settings.aiProvider === 'gemini_placeholder' || settings.aiProvider === 'openai_placeholder' || settings.aiProvider === 'lmstudio_placeholder') && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-900 dark:text-gray-200 mb-2 flex items-center gap-2">
-                    <Key size={16} className="text-gray-400 dark:text-gray-500" />
+                <div className="field">
+                  <label className="field-label">
+                    <Key size={16} className="icon-muted" />
                     API Key
                   </label>
                   <input 
@@ -197,21 +193,21 @@ export default function SettingsView() {
                     value={settings.aiConfig.apiKey || ''}
                     onChange={e => setSettings({ ...settings, aiConfig: { ...settings.aiConfig, apiKey: e.target.value }})}
                     onBlur={() => handleSave(settings)}
-                    className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-50 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5"
+                    className="control"
                   />
-                  <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">Keys are stored locally in your browser and never sent to our servers.</p>
+                  <p className="field-help">Keys are stored locally in your browser and never sent to our servers.</p>
                 </div>
               )}
 
-              <div>
-                <label className="block text-sm font-medium text-gray-900 dark:text-gray-200 mb-2">Model Name</label>
+              <div className="field">
+                <label className="field-label">Model Name</label>
                 <input 
                   type="text" 
                   placeholder="e.g. gemini-2.5-flash"
                   value={settings.aiConfig.model || ''}
                   onChange={e => setSettings({ ...settings, aiConfig: { ...settings.aiConfig, model: e.target.value }})}
                   onBlur={() => handleSave(settings)}
-                  className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-50 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5"
+                  className="control"
                 />
               </div>
             </div>
@@ -219,18 +215,18 @@ export default function SettingsView() {
         </div>
       </div>
 
-      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden">
-        <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-800 flex items-center gap-3">
-          <Mic size={20} className="text-blue-600 dark:text-blue-500" />
-          <h2 className="font-semibold text-gray-900 dark:text-gray-50 text-lg">Text-to-Speech (TTS)</h2>
+      <div className="card">
+        <div className="card__header card__header--plain">
+          <Mic size={20} className="icon-primary" />
+          <h2 className="card__title">Text-to-Speech (TTS)</h2>
         </div>
-        <div className="p-6 space-y-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-900 dark:text-gray-200 mb-2">Voice Engine</label>
+        <div className="card__body settings-stack">
+          <div className="field">
+            <label className="field-label">Voice Engine</label>
             <select 
               value={settings.ttsProvider}
               onChange={e => updateSetting({...settings, ttsProvider: e.target.value as AppSettings['ttsProvider']})}
-              className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-50 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5"
+              className="control"
             >
               <option value="local">Web Speech API (Browser Local)</option>
               <option value="openai">OpenAI TTS</option>
@@ -239,9 +235,9 @@ export default function SettingsView() {
           </div>
           
           {settings.ttsProvider !== 'local' && (
-            <div>
-              <label className="block text-sm font-medium text-gray-900 dark:text-gray-200 mb-2 flex items-center gap-2">
-                <Key size={16} className="text-gray-400 dark:text-gray-500" />
+            <div className="field">
+              <label className="field-label">
+                <Key size={16} className="icon-muted" />
                 API Key
               </label>
               <input 
@@ -250,57 +246,50 @@ export default function SettingsView() {
                 value={settings.ttsConfig.apiKey || ''}
                 onChange={e => setSettings({ ...settings, ttsConfig: { ...settings.ttsConfig, apiKey: e.target.value }})}
                 onBlur={() => handleSave(settings)}
-                className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-50 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5"
+                className="control"
               />
             </div>
           )}
         </div>
       </div>
 
-      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden">
-        <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-800 flex items-center gap-3">
-          <Palette size={20} className="text-blue-600 dark:text-blue-500" />
-          <h2 className="font-semibold text-gray-900 dark:text-gray-50 text-lg">Voice Visualizer Theme</h2>
+      <div className="card">
+        <div className="card__header card__header--plain">
+          <Palette size={20} className="icon-primary" />
+          <h2 className="card__title">Voice Visualizer Theme</h2>
         </div>
-        <div className="p-6">
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+        <div className="card__body">
+          <div className="orb-theme-grid">
             {(Object.entries(ORB_THEMES) as [OrbThemeName, typeof ORB_THEMES[OrbThemeName]][]).map(([themeName, themeConfig]) => (
               <button
                 key={themeName}
                 onClick={() => updateSetting({ ...settings, orbTheme: themeName })}
-                className={`group relative flex flex-col items-center gap-3 p-3 rounded-xl border transition-all duration-300 ${
-                  (settings.orbTheme || 'amber') === themeName 
-                    ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-900/20 ring-1 ring-blue-500' 
-                    : 'border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700'
-                }`}
+                className="orb-theme-option"
+                data-active={(settings.orbTheme || 'amber') === themeName ? 'true' : 'false'}
               >
                 <div 
-                  className="w-16 h-16 rounded-full shadow-inner flex items-center justify-center relative overflow-hidden ring-1 ring-black/5 dark:ring-white/10"
+                  className="orb-theme-preview"
                   style={{ backgroundColor: themeConfig.background }}
                 >
                   <div 
-                    className={`absolute inset-0 opacity-50 transition-transform duration-700 ease-out group-hover:scale-150 ${
-                      (settings.orbTheme || 'amber') === themeName ? 'scale-125' : ''
-                    }`} 
+                    className="orb-theme-preview__glow" 
                     style={{ background: `radial-gradient(circle, ${themeConfig.backgroundGlow} 0%, transparent 70%)` }}
                   ></div>
                   <div 
-                    className={`w-8 h-8 rounded-full z-10 transition-all duration-700 ease-out group-hover:scale-125 ${
-                      (settings.orbTheme || 'amber') === themeName ? 'scale-110 shadow-lg' : ''
-                    }`}
+                    className="orb-theme-preview__core"
                     style={{ 
                       background: `radial-gradient(circle, ${themeConfig.core} 0%, ${themeConfig.coreSecondary} 30%, ${themeConfig.mid} 70%, ${themeConfig.rim} 100%)`,
                       boxShadow: `0 0 10px ${themeConfig.accent}`
                     }}
                   ></div>
                 </div>
-                <span className="text-xs font-medium text-gray-700 dark:text-gray-300 text-center">
+                <span className="orb-theme-label">
                   {themeName.charAt(0).toUpperCase() + themeName.slice(1).replace(/([A-Z])/g, ' $1').trim()}
                 </span>
                 
                 {(settings.orbTheme || 'amber') === themeName && (
-                  <div className="absolute -top-2 -right-2 w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center border-2 border-white dark:border-gray-900 shadow-sm">
-                    <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
+                  <div className="orb-theme-check" aria-hidden="true">
+                    <div className="orb-theme-check__dot"></div>
                   </div>
                 )}
               </button>

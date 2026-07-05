@@ -1,4 +1,4 @@
-import { Source, BriefingRun, AppSettings } from '../../types';
+import type {AppSettings, BriefingRun, Source} from '../../types';
 
 export interface SourceService {
   getSources(): Promise<Source[]>;
@@ -18,3 +18,8 @@ export interface ProviderService {
   saveSettings(settings: AppSettings): Promise<void>;
   onSettingsChanged(callback: (settings: AppSettings) => void): () => void;
 }
+
+export {ApiBriefingService} from './ApiBriefingService';
+export {ApiProviderService} from './ApiProviderService';
+export {ApiSourceService} from './ApiSourceService';
+export {apiBaseUrl, getServiceMode, HttpClientError} from './httpClient';

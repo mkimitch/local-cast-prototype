@@ -578,7 +578,7 @@ export default function OrbVisualizer({
   }, []); // Run setup once
 
   return (
-    <div ref={containerRef} className={`relative overflow-hidden ${className}`} style={{ backgroundColor: ORB_THEMES[theme]?.background || '#000' }}>
+    <div ref={containerRef} className={`orb-visualizer ${className}`.trim()} style={{ backgroundColor: ORB_THEMES[theme]?.background || '#000' }}>
       <canvas
         ref={canvasRef}
         style={{ width: '100%', height: '100%', display: 'block' }}

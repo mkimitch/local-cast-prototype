@@ -76,32 +76,34 @@ export default function Dashboard({ onNavigateToRun, onNavigate }: DashboardProp
     await providerService.saveSettings(newSettings);
   };
 
-  if (isLoading || !settings) return <div className="animate-pulse flex space-x-4"><div className="flex-1 space-y-6 py-1"><div className="h-2 bg-slate-200 rounded"></div></div></div>;
+  if (isLoading || !settings) return <div className="loading-skeleton" aria-label="Loading dashboard" />;
 
   return (
-    <div className="max-w-5xl mx-auto space-y-8">
-      <div>
-        <h1 className="text-3xl font-display font-semibold text-gray-900 dark:text-gray-50 tracking-tight">Dashboard</h1>
-        <p className="mt-2 text-gray-500 dark:text-gray-400">Welcome to LocalCast. Manage your personal audio briefings.</p>
+    <div className="page page--wide">
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">Dashboard</h1>
+          <p className="page-description">Welcome to LocalCast. Manage your personal audio briefings.</p>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="bg-white dark:bg-gray-900 p-6 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm md:col-span-1">
-          <div className="flex items-center gap-3 text-gray-500 dark:text-gray-400 mb-3">
+      <div className="metrics-grid">
+        <div className="card metric-card">
+          <div className="metric-card__label">
             <Rss size={20} />
-            <h3 className="font-medium">Active Sources</h3>
+            <h3>Active Sources</h3>
           </div>
-          <div className="flex items-end justify-between">
-            <p className="text-3xl font-semibold text-gray-900 dark:text-gray-50">{sources.length}</p>
-            <div className="flex flex-col gap-1 items-end">
+          <div className="metric-card__value-row">
+            <p className="metric-card__value">{sources.length}</p>
+            <div className="metric-card__badges">
               {sources.some(s => s.status === 'syncing') && (
-                <div className="flex items-center gap-1.5 text-xs font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-2 py-1 rounded">
-                  <RefreshCw size={12} className="animate-spin" />
+                <div className="badge badge--primary">
+                  <RefreshCw size={12} className="is-spinning" />
                   <span>Syncing</span>
                 </div>
               )}
               {sources.some(s => s.status === 'error') && (
-                <div className="flex items-center gap-1.5 text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/30 px-2 py-1 rounded">
+                <div className="badge badge--danger">
                   <AlertCircle size={12} />
                   <span>Failed</span>
                 </div>
@@ -110,38 +112,41 @@ export default function Dashboard({ onNavigateToRun, onNavigate }: DashboardProp
           </div>
           <button 
             onClick={() => onNavigate('sources')}
-            className="mt-4 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium"
+            className="button button--link metric-card__link"
           >
             Manage sources &rarr;
           </button>
         </div>
 
-        <div className="bg-white dark:bg-gray-900 p-6 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm md:col-span-1">
-          <div className="flex items-center gap-3 text-gray-500 dark:text-gray-400 mb-3">
+        <div className="card metric-card">
+          <div className="metric-card__label">
             <Activity size={20} />
-            <h3 className="font-medium">Total Runs</h3>
+            <h3>Total Runs</h3>
           </div>
-          <p className="text-3xl font-semibold text-gray-900 dark:text-gray-50">{runs.length}</p>
+          <p className="metric-card__value">{runs.length}</p>
           <button 
             onClick={() => onNavigate('runs')}
-            className="mt-4 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium"
+            className="button button--link metric-card__link"
           >
             View history &rarr;
           </button>
         </div>
 
-        <div className="bg-white dark:bg-gray-900 p-6 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm md:col-span-1 flex flex-col justify-between">
+        <div className="card metric-card schedule-card">
           <div>
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-3 text-gray-500 dark:text-gray-400">
+            <div className="schedule-card__header">
+              <div className="metric-card__label">
                 <Calendar size={20} />
-                <h3 className="font-medium">Schedule</h3>
+                <h3>Schedule</h3>
               </div>
               <button 
                 onClick={toggleSchedule}
-                className={`w-11 h-6 rounded-full transition-colors relative ${settings.isScheduleActive ? 'bg-blue-600 dark:bg-blue-500' : 'bg-gray-200 dark:bg-gray-700'}`}
+                className="switch"
+                data-active={settings.isScheduleActive ? 'true' : 'false'}
+                aria-pressed={settings.isScheduleActive}
+                aria-label="Toggle schedule"
               >
-                <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${settings.isScheduleActive ? 'left-6' : 'left-1'}`} />
+                <span className="switch__thumb" />
               </button>
             </div>
             
@@ -150,20 +155,20 @@ export default function Dashboard({ onNavigateToRun, onNavigate }: DashboardProp
                 type="time" 
                 value={settings.scheduleTime || '07:00'}
                 onChange={e => updateScheduleTime(e.target.value)}
-                className="mt-2 w-full text-lg font-medium text-gray-900 dark:text-gray-50 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md px-3 py-1.5 focus:ring-blue-500 focus:border-blue-500"
+                className="control control--time"
               />
             ) : (
-              <p className="text-sm text-gray-400 dark:text-gray-500 mt-2">Off</p>
+              <p className="schedule-card__off">Off</p>
             )}
           </div>
         </div>
 
-        <div className="bg-blue-600 p-6 rounded-xl border border-blue-700 shadow-sm text-white flex flex-col justify-center md:col-span-1">
-          <h3 className="font-medium text-blue-100 mb-2">Ready to listen?</h3>
+        <div className="hero-action-card">
+          <h3 className="hero-action-card__title">Ready to listen?</h3>
           <button 
             onClick={handleQuickGenerate}
             disabled={sources.length === 0}
-            className="w-full py-2.5 px-4 bg-white text-blue-600 rounded-lg font-medium hover:bg-blue-50 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="button button--inverse"
           >
             <Play size={18} />
             Generate
@@ -171,32 +176,32 @@ export default function Dashboard({ onNavigateToRun, onNavigate }: DashboardProp
         </div>
       </div>
 
-      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden">
-        <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/50">
-          <h2 className="font-medium text-gray-900 dark:text-gray-50">Recent Briefings</h2>
+      <div className="card">
+        <div className="card__header">
+          <h2 className="card__title">Recent Briefings</h2>
         </div>
-        <div className="divide-y divide-gray-100 dark:divide-gray-800">
+        <div className="card-list">
           {runs.slice(0, 5).map(run => (
-            <div key={run.id} className="p-6 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-              <div className="flex items-center gap-4">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${run.status === 'complete' ? 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400' : 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400'}`}>
+            <div key={run.id} className="briefing-row">
+              <div className="briefing-row__main">
+                <div className="run-avatar" data-status={run.status === 'complete' ? 'complete' : 'pending'}>
                   {run.status === 'complete' ? <Play size={20} /> : <Clock size={20} />}
                 </div>
                 <div>
-                  <h3 className="font-medium text-gray-900 dark:text-gray-50">{run.title}</h3>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 capitalize">{run.status.replace('_', ' ')} • {new Date(run.createdAt).toLocaleDateString()}</p>
+                  <h3 className="briefing-row__title">{run.title}</h3>
+                  <p className="briefing-row__meta briefing-row__meta--status">{run.status.replace('_', ' ')} • {new Date(run.createdAt).toLocaleDateString()}</p>
                 </div>
               </div>
               <button
                 onClick={() => onNavigateToRun(run.id)}
-                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+                className="button button--secondary"
               >
                 View
               </button>
             </div>
           ))}
           {runs.length === 0 && (
-            <div className="p-8 text-center text-gray-500 dark:text-gray-400">
+            <div className="empty-state">
               No briefings generated yet.
             </div>
           )}

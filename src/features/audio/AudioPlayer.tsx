@@ -80,56 +80,61 @@ export default function AudioPlayer({ run, isPlaying, onTogglePlay, onClose }: A
   return (
     <>
       {isExpanded && (
-        <div className="fixed inset-0 z-[60] flex flex-col animate-in fade-in duration-300" style={{ backgroundColor: ORB_THEMES[orbTheme].background }}>
-          <div className="absolute inset-0 z-0">
+        <div className="player-expanded" style={{ backgroundColor: ORB_THEMES[orbTheme].background }}>
+          <div className="player-expanded__visualizer">
             <OrbVisualizer 
               isActive={isPlaying} 
               audioLevel={audioData.level} 
               frequencies={audioData.frequencies}
               theme={orbTheme}
-              className="w-full h-full"
+              className="orb-visualizer--fill"
             />
           </div>
           
-          <div className="relative z-10 flex-1 flex flex-col justify-between p-6 md:p-12 pointer-events-none">
-            <div className="flex justify-between items-start w-full pointer-events-auto">
-              <div className="text-white max-w-2xl">
-                <h2 className="text-3xl md:text-4xl font-display font-bold mb-2">{run.title}</h2>
-                <p className="text-white/70 text-lg line-clamp-2">{run.summary}</p>
+          <div className="player-expanded__content">
+            <div className="player-expanded__header">
+              <div className="player-expanded__copy">
+                <h2 className="player-expanded__title">{run.title}</h2>
+                <p className="player-expanded__summary">{run.summary}</p>
               </div>
-              <div className="flex items-center gap-4">
-                <button onClick={() => setIsExpanded(false)} className="p-3 bg-white/5 hover:bg-white/10 backdrop-blur-md rounded-full text-white transition-colors">
+              <div>
+                <button onClick={() => setIsExpanded(false)} className="icon-button player-expanded__close" aria-label="Minimize player">
                   <Minimize2 size={24} />
                 </button>
               </div>
             </div>
             
-            <div className="w-full max-w-3xl mx-auto pb-8 pointer-events-auto">
-              <div className="flex flex-col items-center gap-8">
-                <div className="w-full flex items-center gap-4 text-sm font-medium text-white/60">
+            <div className="player-expanded__controls">
+              <div className="player-expanded__controls-inner">
+                <div className="player-progress player-progress--expanded">
                   <span>0:00</span>
-                  <div className="flex-1 h-1.5 bg-black/40 backdrop-blur-sm rounded-full overflow-hidden cursor-pointer border border-white/5">
+                  <div className="player-progress__track">
                     <div 
-                      className="h-full rounded-full transition-all duration-500 relative shadow-[0_0_10px_rgba(255,255,255,0.5)]"
-                      style={{ width: `${progress}%`, backgroundColor: ORB_THEMES[orbTheme].core }}
+                      className="player-progress__fill"
+                      style={{
+                        width: `${progress}%`,
+                        backgroundColor: ORB_THEMES[orbTheme].core,
+                        boxShadow: '0 0 10px rgb(255 255 255 / 0.5)'
+                      }}
                     ></div>
                   </div>
                   <span>{durationStr}</span>
                 </div>
                 
-                <div className="flex items-center gap-8">
-                  <button className="text-white/60 hover:text-white transition-colors"><SkipBack size={28} /></button>
+                <div className="player-expanded__transport">
+                  <button className="player-expanded__side-button" aria-label="Skip back"><SkipBack size={28} /></button>
                   <button 
                     onClick={onTogglePlay}
-                    className="w-20 h-20 bg-white rounded-full flex items-center justify-center hover:scale-105 transition-transform"
+                    className="player-expanded__play"
+                    aria-label={isPlaying ? 'Pause briefing' : 'Play briefing'}
                     style={{ 
                       color: ORB_THEMES[orbTheme].background,
                       boxShadow: `0 0 40px color-mix(in oklch, ${ORB_THEMES[orbTheme].accent} 20%, transparent)`
                     }}
                   >
-                    {isPlaying ? <Pause size={32} /> : <Play size={32} className="ml-1" />}
+                    {isPlaying ? <Pause size={32} /> : <Play size={32} />}
                   </button>
-                  <button className="text-white/60 hover:text-white transition-colors"><SkipForward size={28} /></button>
+                  <button className="player-expanded__side-button" aria-label="Skip forward"><SkipForward size={28} /></button>
                 </div>
               </div>
             </div>
@@ -137,60 +142,61 @@ export default function AudioPlayer({ run, isPlaying, onTogglePlay, onClose }: A
         </div>
       )}
 
-      <div className={`fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 shadow-[0_-4px_20px_-10px_rgba(0,0,0,0.1)] transition-transform duration-300 ${isExpanded ? 'translate-y-full' : 'translate-y-0'}`}>
-        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
+      <div className={`audio-player${isExpanded ? ' audio-player--hidden' : ''}`}>
+        <div className="audio-player__inner">
           
-          <div className="flex items-center gap-4 w-1/4 min-w-[200px]">
-            <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg flex items-center justify-center shrink-0 shadow-sm relative overflow-hidden group">
+          <div className="audio-player__meta">
+            <div className="audio-player__thumb">
                {isPlaying ? (
                  <OrbVisualizer 
                   isActive={isPlaying} 
                   audioLevel={audioData.level} 
                   frequencies={audioData.frequencies}
                   theme={orbTheme}
-                  className="w-full h-full opacity-60 group-hover:opacity-100 transition-opacity"
+                  className="audio-player__thumb-orb"
                  />
                ) : (
                  <Volume2 size={24} />
                )}
             </div>
-            <div className="min-w-0">
-              <h4 className="font-semibold text-gray-900 dark:text-gray-50 text-sm truncate">{run.title}</h4>
-              <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">{run.summary || 'Daily Audio Briefing'}</p>
+            <div className="audio-player__copy">
+              <h4 className="audio-player__title">{run.title}</h4>
+              <p className="audio-player__summary">{run.summary || 'Daily Audio Briefing'}</p>
             </div>
           </div>
 
-          <div className="flex-1 max-w-2xl flex flex-col items-center gap-2">
-            <div className="flex items-center gap-6 text-gray-800 dark:text-gray-200">
-              <button className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors"><SkipBack size={20} /></button>
+          <div className="audio-player__center">
+            <div className="audio-player__controls">
+              <button className="audio-player__control" aria-label="Skip back"><SkipBack size={20} /></button>
               <button 
                 onClick={onTogglePlay}
-                className="w-10 h-10 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 rounded-full flex items-center justify-center hover:scale-105 transition-transform shadow-md"
+                className="audio-player__play"
+                aria-label={isPlaying ? 'Pause briefing' : 'Play briefing'}
               >
-                {isPlaying ? <Pause size={20} /> : <Play size={20} className="ml-0.5" />}
+                {isPlaying ? <Pause size={20} /> : <Play size={20} />}
               </button>
-              <button className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors"><SkipForward size={20} /></button>
+              <button className="audio-player__control" aria-label="Skip forward"><SkipForward size={20} /></button>
             </div>
             
-            <div className="w-full flex items-center gap-3 text-xs font-medium text-gray-500 dark:text-gray-400">
+            <div className="player-progress">
               <span>0:00</span>
-              <div className="flex-1 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden cursor-pointer">
+              <div className="player-progress__track">
                 <div 
-                  className="h-full bg-blue-600 dark:bg-blue-500 rounded-full transition-all duration-500 relative"
+                  className="player-progress__fill"
                   style={{ width: `${progress}%` }}
                 >
-                  <div className="absolute right-0 top-1/2 -translate-y-1/2 w-2 h-2 bg-white rounded-full shadow-sm scale-0 opacity-0 group-hover:scale-100 group-hover:opacity-100 transition-all"></div>
+                  <div className="player-progress__thumb"></div>
                 </div>
               </div>
               <span>{durationStr}</span>
             </div>
           </div>
 
-          <div className="w-1/4 flex justify-end items-center gap-3 text-gray-500 dark:text-gray-400">
+          <div className="audio-player__actions">
             <select
               value={playbackSpeed}
               onChange={(e) => setPlaybackSpeed(Number(e.target.value))}
-              className="text-xs font-medium bg-transparent border-none focus:ring-0 cursor-pointer hover:text-gray-900 dark:hover:text-gray-100 outline-none pr-1 appearance-none text-center"
+              className="control control--minimal"
               title="Playback Speed"
             >
               <option value={0.5}>0.5x</option>
@@ -201,10 +207,10 @@ export default function AudioPlayer({ run, isPlaying, onTogglePlay, onClose }: A
               <option value={1.75}>1.75x</option>
               <option value={2}>2x</option>
             </select>
-            <button onClick={() => setIsExpanded(true)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors">
+            <button onClick={() => setIsExpanded(true)} className="icon-button" aria-label="Expand player">
               <Maximize2 size={18} />
             </button>
-            <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors">
+            <button onClick={onClose} className="icon-button" aria-label="Close player">
               <X size={18} />
             </button>
           </div>

@@ -4,7 +4,10 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --port=3000 --host=0.0.0.0",
+    "dev": "npm run dev:web",
+    "dev:web": "vite --port=3000 --host=0.0.0.0",
+    "dev:api": "tsx server/index.ts",
+    "dev:all": "sh -c 'npm run dev:api & api_pid=$!; trap \"kill $api_pid 2>/dev/null\" INT TERM EXIT; VITE_SERVICE_MODE=api npm run dev:web'",
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
@@ -12,7 +15,6 @@
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
-    "@tailwindcss/vite": "^4.1.14",
     "@vitejs/plugin-react": "^5.0.4",
     "lucide-react": "^0.546.0",
     "react": "^19.0.1",
@@ -26,7 +28,6 @@
     "@types/node": "^22.14.0",
     "autoprefixer": "^10.4.21",
     "esbuild": "^0.25.0",
-    "tailwindcss": "^4.1.14",
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
     "vite": "^6.2.3",
