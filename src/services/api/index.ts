@@ -1,9 +1,11 @@
-import type {AppSettings, BriefingRun, Source} from '../../types';
+import type {AppSettings, BriefingRun, Source, SourceItem} from '../../types';
 
 export interface SourceService {
   getSources(): Promise<Source[]>;
+  getSourceItems(sourceId: string): Promise<SourceItem[]>;
   addSource(source: Omit<Source, 'id' | 'addedAt'>): Promise<Source>;
   toggleSource(id: string, isActive: boolean): Promise<void>;
+  syncSource(id: string): Promise<void>;
   deleteSource(id: string): Promise<void>;
 }
 

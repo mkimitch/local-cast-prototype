@@ -1,7 +1,25 @@
 import React, { useEffect, useState } from 'react';
-import { Plus, Trash2, Power, PowerOff, Hash, Rss, AlertCircle, RefreshCw, CheckCircle2 } from 'lucide-react';
+import { Plus, Trash2, Power, PowerOff, Hash, Rss, AlertCircle, RefreshCw, CheckCircle2, ExternalLink, List, X } from 'lucide-react';
 import { sourceService } from '../../services';
-import { Source, SourceType } from '../../types';
+import { Source, SourceItem, SourceType } from '../../types';
+
+const formatDateTime = (value?: string): string => {
+  if (!value) return 'Not available';
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Not available';
+
+  return date.toLocaleString();
+};
+
+const excerpt = (value: string, maxLength = 240): string => {
+  const normalized = value.replace(/\s+/g, ' ').trim();
+  return normalized.length > maxLength ? `${normalized.slice(0, maxLength).trim()}...` : normalized;
+};
+
+const errorMessage = (error: unknown): string => (
+  error instanceof Error ? error.message : 'Unable to load source items.'
+);
 
 export default function SourcesView() {
   const [sources, setSources] = useState<Source[]>([]);
@@ -11,6 +29,11 @@ export default function SourcesView() {
   const [newUrlOrDesc, setNewUrlOrDesc] = useState('');
   const [newCategory, setNewCategory] = useState('');
   const [filterCategory, setFilterCategory] = useState<string>('All');
+  const [syncingSourceIds, setSyncingSourceIds] = useState<string[]>([]);
+  const [selectedSourceId, setSelectedSourceId] = useState<string>();
+  const [sourceItems, setSourceItems] = useState<SourceItem[]>([]);
+  const [isLoadingSourceItems, setIsLoadingSourceItems] = useState(false);
+  const [sourceItemsError, setSourceItemsError] = useState<string>();
 
   const loadSources = async () => {
     const data = await sourceService.getSources();
@@ -48,11 +71,52 @@ export default function SourcesView() {
 
   const handleDelete = async (id: string) => {
     await sourceService.deleteSource(id);
+    if (selectedSourceId === id) {
+      setSelectedSourceId(undefined);
+      setSourceItems([]);
+      setSourceItemsError(undefined);
+    }
     loadSources();
+  };
+
+  const loadSourceItems = async (sourceId: string) => {
+    setIsLoadingSourceItems(true);
+    setSourceItemsError(undefined);
+
+    try {
+      setSourceItems(await sourceService.getSourceItems(sourceId));
+    } catch (error) {
+      setSourceItems([]);
+      setSourceItemsError(errorMessage(error));
+    } finally {
+      setIsLoadingSourceItems(false);
+    }
+  };
+
+  const handleViewItems = (sourceId: string) => {
+    setSelectedSourceId(sourceId);
+    loadSourceItems(sourceId);
+  };
+
+  const handleSync = async (id: string) => {
+    setSyncingSourceIds(current => current.includes(id) ? current : [...current, id]);
+
+    try {
+      await sourceService.syncSource(id);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setSyncingSourceIds(current => current.filter(sourceId => sourceId !== id));
+      if (selectedSourceId === id) {
+        await loadSourceItems(id);
+      }
+      await loadSources();
+    }
   };
 
   const categories = ['All', ...Array.from(new Set(sources.map(s => s.category).filter(Boolean) as string[]))];
   const filteredSources = filterCategory === 'All' ? sources : sources.filter(s => s.category === filterCategory);
+  const selectedSource = sources.find(source => source.id === selectedSourceId);
 
   return (
     <div className="page">
@@ -182,7 +246,7 @@ export default function SourcesView() {
                   {source.status && source.isActive && (
                     <>
                       <span aria-hidden="true">•</span>
-                      <div className="source-row__status" data-status={source.status}>
+                      <div className="source-row__status" data-status={source.status} title={source.lastSyncError}>
                         {source.status === 'healthy' && <CheckCircle2 size={12} />}
                         {source.status === 'error' && <AlertCircle size={12} />}
                         {source.status === 'syncing' && <RefreshCw size={12} className="is-spinning" />}
@@ -190,9 +254,46 @@ export default function SourcesView() {
                       </div>
                     </>
                   )}
+                  {source.itemCount !== undefined && (
+                    <>
+                      <span aria-hidden="true">•</span>
+                      <div>{source.itemCount} items</div>
+                    </>
+                  )}
+                  {source.lastSyncedAt && (
+                    <>
+                      <span aria-hidden="true">•</span>
+                      <div>Synced {formatDateTime(source.lastSyncedAt)}</div>
+                    </>
+                  )}
+                  {source.nextSyncAfter && (
+                    <>
+                      <span aria-hidden="true">•</span>
+                      <div>Retry after {formatDateTime(source.nextSyncAfter)}</div>
+                    </>
+                  )}
                 </div>
               </div>
               <div className="source-row__actions">
+                <button
+                  onClick={() => handleViewItems(source.id)}
+                  className={`icon-button${selectedSourceId === source.id ? ' icon-button--success' : ' icon-button--muted'}`}
+                  title="View source items"
+                  aria-label="View source items"
+                >
+                  <List size={18} />
+                </button>
+                {source.type === 'rss' && (
+                  <button
+                    onClick={() => handleSync(source.id)}
+                    className="icon-button icon-button--muted"
+                    title="Sync RSS feed"
+                    aria-label="Sync RSS feed"
+                    disabled={syncingSourceIds.includes(source.id) || source.status === 'syncing'}
+                  >
+                    <RefreshCw size={18} className={syncingSourceIds.includes(source.id) || source.status === 'syncing' ? 'is-spinning' : undefined} />
+                  </button>
+                )}
                 <button
                   onClick={() => handleToggle(source.id, source.isActive)}
                   className={`icon-button${source.isActive ? ' icon-button--success' : ' icon-button--muted'}`}
@@ -219,6 +320,73 @@ export default function SourcesView() {
           )}
         </div>
       </div>
+
+      {selectedSource && (
+        <div className="card card--padded source-items-panel fade-slide-in">
+          <div className="source-items-panel__header">
+            <div>
+              <h2 className="source-items-panel__title">{selectedSource.name} items</h2>
+              <p className="source-items-panel__description">Review the latest stored source items before they are used in briefings.</p>
+            </div>
+            <button
+              onClick={() => {
+                setSelectedSourceId(undefined);
+                setSourceItems([]);
+                setSourceItemsError(undefined);
+              }}
+              className="icon-button icon-button--muted"
+              aria-label="Close source item review"
+              title="Close"
+            >
+              <X size={18} />
+            </button>
+          </div>
+
+          {isLoadingSourceItems && (
+            <div className="empty-state">Loading source items...</div>
+          )}
+
+          {!isLoadingSourceItems && sourceItemsError && (
+            <div className="empty-state">{sourceItemsError}</div>
+          )}
+
+          {!isLoadingSourceItems && !sourceItemsError && sourceItems.length === 0 && (
+            <div className="empty-state">No source items have been stored for this source yet.</div>
+          )}
+
+          {!isLoadingSourceItems && !sourceItemsError && sourceItems.length > 0 && (
+            <div className="source-items-list">
+              {sourceItems.map(item => (
+                <article key={item.id} className="source-item-row">
+                  <div className="source-item-row__header">
+                    <div>
+                      <h3 className="source-item-row__title">{item.title}</h3>
+                      <div className="source-item-row__meta">
+                        <span>{selectedSource.name}</span>
+                        {item.author && <span>{item.author}</span>}
+                        <span>Published {formatDateTime(item.publishedAt)}</span>
+                        <span>Gathered {formatDateTime(item.gatheredAt)}</span>
+                      </div>
+                    </div>
+                    {item.url && (
+                      <a
+                        href={item.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="source-item-row__link"
+                      >
+                        <ExternalLink size={16} />
+                        Open
+                      </a>
+                    )}
+                  </div>
+                  <p className="source-item-row__excerpt">{excerpt(item.content)}</p>
+                </article>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

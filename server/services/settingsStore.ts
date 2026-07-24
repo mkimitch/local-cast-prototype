@@ -1,6 +1,6 @@
 import type {AppSettings} from '../../src/types';
 import {serverConfig} from '../config';
-import {db} from '../database';
+import {db} from '../database/index';
 
 const aiProviders: AppSettings['aiProvider'][] = ['mock', 'openai_placeholder', 'gemini_placeholder', 'lmstudio_placeholder', 'ollama_placeholder'];
 const ttsProviders: AppSettings['ttsProvider'][] = ['local', 'openai', 'elevenlabs'];
