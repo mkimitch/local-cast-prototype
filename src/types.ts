@@ -1,5 +1,6 @@
 export type SourceType = 'rss' | 'manual_topic' | 'local_file' | 'gmail_placeholder' | 'calendar_placeholder';
 export type SourceStatus = 'healthy' | 'error' | 'syncing';
+export type SourceSyncStatus = 'success' | 'error';
 
 export interface Source {
   id: string;
@@ -11,6 +12,12 @@ export interface Source {
   isActive: boolean;
   status?: SourceStatus;
   addedAt: string;
+  lastSyncedAt?: string;
+  lastSyncStatus?: SourceSyncStatus;
+  lastSyncError?: string;
+  consecutiveSyncFailures?: number;
+  nextSyncAfter?: string;
+  itemCount?: number;
 }
 
 export interface SourceItem {
@@ -19,6 +26,7 @@ export interface SourceItem {
   title: string;
   content: string;
   url?: string;
+  author?: string;
   publishedAt?: string;
   gatheredAt: string;
 }

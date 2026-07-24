@@ -2,7 +2,7 @@ import {Router} from 'express';
 import type {RunStatus} from '../../src/types';
 import {createAiProvider} from '../ai/providerFactory';
 import {briefingStore} from '../services/briefingStore';
-import {sourceStore} from '../services/sourceStore';
+import {buildBriefingSourceItems} from '../services/sourceItemGatherer';
 import {parseBriefingRunRequest} from '../validation';
 
 export const briefingRunsRouter = Router();
@@ -17,7 +17,7 @@ const progressRun = async (runId: string): Promise<void> => {
     setStatus('gathering');
 
     const sourceIds = briefingStore.getRunSourceIds(runId);
-    const sourceItems = sourceStore.buildSourceItems(sourceIds);
+    const sourceItems = await buildBriefingSourceItems(sourceIds);
     const aiProvider = createAiProvider();
 
     await delay(700);

@@ -1,5 +1,5 @@
 import type {AudioAsset, BriefingRun, BriefingSection, RunStatus} from '../../src/types';
-import {db} from '../database';
+import {db} from '../database/index';
 import {sourceStore} from './sourceStore';
 
 const cloneRun = (run: BriefingRun): BriefingRun => ({

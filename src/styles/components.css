@@ -878,6 +878,93 @@
   gap: var(--space-2);
 }
 
+.source-items-panel {
+  margin-top: var(--space-6);
+}
+
+.source-items-panel__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.source-items-panel__title {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.source-items-panel__description {
+  margin: var(--space-1) 0 0;
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+}
+
+.source-items-list {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.source-item-row {
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.source-item-row:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.source-item-row__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.source-item-row__title {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 0.95rem;
+  font-weight: 650;
+}
+
+.source-item-row__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  color: var(--color-text-faint);
+  font-size: 0.75rem;
+}
+
+.source-item-row__link {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: var(--space-1);
+  color: var(--color-primary-text);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.source-item-row__link:focus-visible {
+  border-radius: var(--radius-sm);
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.source-item-row__excerpt {
+  margin: var(--space-3) 0 0;
+  color: var(--color-text-soft);
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
 .run-row {
   cursor: pointer;
 }
@@ -1798,6 +1885,11 @@ html.dark .orb-theme-preview {
   .source-row__actions,
   .run-row__cta {
     align-self: flex-start;
+  }
+
+  .source-items-panel__header,
+  .source-item-row__header {
+    flex-direction: column;
   }
 
   .steps {

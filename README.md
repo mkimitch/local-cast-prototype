@@ -8,6 +8,8 @@ LocalCast is a Vite + React + TypeScript prototype for a local-first personal au
 - Mock-only frontend mode with in-browser mock services.
 - API-backed frontend mode pointed at a local Express server.
 - SQLite-backed backend stores for sources, gathered source items, settings, briefing runs, sections, and placeholder audio assets.
+- Lightweight SQLite migrations applied at API startup.
+- Server-side RSS/Atom ingestion with sync metadata, backoff, and source item review.
 - Backend AI provider seam with `mock`, `gemini`, and `openai_compatible` providers.
 
 ## Run mock-only frontend
@@ -66,6 +68,8 @@ Backend-only values are read by `server/config.ts` and are never exposed to brow
 PORT=8787
 CORS_ORIGIN=http://localhost:3000
 DATABASE_PATH=data/localcast.sqlite
+RSS_SYNC_ON_START=false
+RSS_SYNC_INTERVAL_MINUTES=
 AI_PROVIDER=mock
 AI_MODEL=mock-localcast
 AI_BASE_URL=
@@ -86,7 +90,37 @@ VITE_API_BASE_URL=http://localhost:8787/api
 
 The backend stores data in SQLite at `DATABASE_PATH`, defaulting to `data/localcast.sqlite`. Empty databases are bootstrapped with the same prototype sources, settings, and sample briefing run that the in-memory version used.
 
-Persisted tables include `sources`, `source_items`, `briefing_runs`, `briefing_run_sources`, `briefing_sections`, `audio_assets`, and `app_settings`. Source items are still synthetic until real RSS fetching is added.
+Migrations run at API startup through `server/database/migrations.ts` and are recorded in `schema_migrations`. The current migrations create the initial schema, add RSS item identity columns/indexes, and add RSS sync metadata columns without dropping existing local data.
+
+Persisted tables include `schema_migrations`, `sources`, `source_items`, `briefing_runs`, `briefing_run_sources`, `briefing_sections`, `audio_assets`, and `app_settings`. RSS source items are fetched server-side and stored in `source_items`; manual topic source items are still generated from the source instructions during briefing creation.
+
+To reset local development data, stop the API server and remove the SQLite files:
+
+```bash
+rm -f data/localcast.sqlite data/localcast.sqlite-wal data/localcast.sqlite-shm
+```
+
+The next API startup recreates the schema and seed data.
+
+## RSS ingestion
+
+RSS and Atom feeds are fetched by the backend only. Use the Sources screen sync button in API mode, or call the API directly:
+
+```bash
+curl -X POST http://localhost:8787/api/sources/:id/sync
+curl -X POST http://localhost:8787/api/sources/sync
+curl -X POST 'http://localhost:8787/api/sources/sync?force=true'
+curl http://localhost:8787/api/sources/:id/items
+curl 'http://localhost:8787/api/source-items?sourceId=src-1&q=ai&limit=25&offset=0'
+```
+
+Fetched items capture title, content/summary, URL, author when available, published time, gathered time, and an internal external identity. Duplicate prevention uses a stable hash of RSS guid/id/link/title data and a unique `(source_id, external_id)` SQLite index.
+
+RSS source responses include optional sync health fields: `lastSyncedAt`, `lastSyncStatus`, `lastSyncError`, `consecutiveSyncFailures`, `nextSyncAfter`, and computed `itemCount`. Failed feeds use simple backoff: first failure retries after 15 minutes, second after 1 hour, and later failures after 6 hours. Sync-all skips sources still in backoff unless `force=true` is provided.
+
+`GET /api/source-items` and `GET /api/sources/:id/items` support `limit`, `offset`, `q`, `from`, and `to`; `GET /api/source-items` also supports `sourceId`.
+
+Optional scheduler prep is disabled by default. Set `RSS_SYNC_ON_START=true` to run a backoff-aware sync when the API starts. Set `RSS_SYNC_INTERVAL_MINUTES` to a positive number to run the same sync-all path on an interval.
 
 ## AI providers
 
@@ -101,6 +135,10 @@ The Settings screen may display provider and model preferences for the prototype
 - `GET /api/health`
 - `GET /api/sources`
 - `POST /api/sources`
+- `POST /api/sources/sync`
+- `POST /api/sources/:id/sync`
+- `GET /api/source-items`
+- `GET /api/sources/:id/items`
 - `PATCH /api/sources/:id`
 - `DELETE /api/sources/:id`
 - `GET /api/briefing-runs`
@@ -135,6 +173,16 @@ VITE_SERVICE_MODE=api VITE_API_BASE_URL=http://localhost:8787/api npm run dev:we
 
 Then add a source, start a briefing run, and confirm the detail screen polls through `queued`, `gathering`, `summarizing_sources`, `drafting`, `rendering_audio`, and `complete`.
 
+RSS ingestion smoke check:
+
+1. Add an RSS source in API mode.
+2. Click the sync button on that source.
+3. Open the source item review panel from the Sources screen.
+4. Confirm `GET /api/sources/:id/items` returns stored source items.
+5. Start a briefing run using that RSS source.
+6. Confirm the generated summary references the stored RSS item titles.
+7. Try a broken RSS URL and confirm error metadata plus `nextSyncAfter` are shown in the API response.
+
 Frontend mode build checks:
 
 ```bash
@@ -144,14 +192,16 @@ VITE_SERVICE_MODE=api VITE_API_BASE_URL=http://localhost:8787/api npm run build
 
 ## Current limitations
 
-- SQLite persistence is local-file only; there is no migration framework or multi-user concurrency model yet.
-- RSS fetching, Gmail, Calendar, auth, real TTS, podcast RSS, Docker, deployment, and vector search are not implemented.
+- SQLite persistence is local-file only; migrations are intentionally lightweight and prototype-scoped.
+- RSS ingestion is primarily on demand; the optional interval hook is prototype-level scheduler prep, not a durable background job system.
+- RSS fetching does not yet use conditional HTTP caching, feed ETags, or full feed history management.
+- Gmail, Calendar, auth, real TTS, podcast RSS, Docker, deployment, and vector search are not implemented.
 - Generated audio is still a placeholder asset.
-- The mock source gatherer creates synthetic source items from configured sources.
+- Manual topic source items are generated from configured source instructions.
 
 ## Recommended next milestones
 
-1. Add a lightweight migration path before evolving the SQLite schema further.
-2. Implement real RSS fetching and source item normalization.
+1. Add feed fetch metadata such as ETag/Last-Modified and conditional requests.
+2. Add feed item retention controls and a source item detail view.
 3. Add real TTS generation and serve generated audio assets.
 4. Add focused API tests once the contract stabilizes beyond the prototype milestone.

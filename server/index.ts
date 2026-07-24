@@ -6,6 +6,7 @@ import {followUpRouter} from './routes/followUp';
 import {healthRouter} from './routes/health';
 import {settingsRouter} from './routes/settings';
 import {sourcesRouter} from './routes/sources';
+import {rssIngestionService} from './services/rssIngestion';
 
 const app = express();
 
@@ -55,7 +56,32 @@ app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
   res.status(500).json({error: message});
 });
 
+const runScheduledRssSync = async (reason: string): Promise<void> => {
+  try {
+    const result = await rssIngestionService.syncActiveSources({force: false});
+    console.log(
+      `RSS sync ${reason}: ${result.results.length} synced, ${result.skipped.length} skipped, ${result.errors.length} failed`,
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown RSS sync error';
+    console.error(`RSS sync ${reason} failed: ${message}`);
+  }
+};
+
 app.listen(serverConfig.port, () => {
   console.log(`LocalCast API listening on http://localhost:${serverConfig.port}/api`);
   console.log(`AI provider: ${serverConfig.aiProvider}`);
+
+  if (serverConfig.rssSyncOnStart) {
+    void runScheduledRssSync('on startup');
+  }
+
+  if (serverConfig.rssSyncIntervalMinutes) {
+    const interval = setInterval(
+      () => void runScheduledRssSync('on interval'),
+      serverConfig.rssSyncIntervalMinutes * 60 * 1000,
+    );
+
+    interval.unref();
+  }
 });

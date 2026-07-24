@@ -28,13 +28,24 @@ const corsOriginsFromEnv = (value?: string): string[] => {
   return origins.length > 0 ? origins : ['http://localhost:3000'];
 };
 
+const booleanFromEnv = (value?: string): boolean => value?.trim().toLowerCase() === 'true';
+
+const optionalPositiveNumberFromEnv = (value?: string): number | undefined => {
+	if (!value?.trim()) return undefined;
+
+	const parsed = Number(value);
+	return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+};
+
 export const serverConfig = {
 	port: portFromEnv(process.env.PORT),
 	corsOrigins: corsOriginsFromEnv(process.env.CORS_ORIGIN),
 	databasePath: process.env.DATABASE_PATH || 'data/localcast.sqlite',
+	rssSyncOnStart: booleanFromEnv(process.env.RSS_SYNC_ON_START),
+	rssSyncIntervalMinutes: optionalPositiveNumberFromEnv(process.env.RSS_SYNC_INTERVAL_MINUTES),
 	aiProvider: providerFromEnv(process.env.AI_PROVIDER),
 	aiModel: process.env.AI_MODEL || 'mock-localcast',
 	aiBaseUrl: process.env.AI_BASE_URL || '',
-  aiApiKey: process.env.AI_API_KEY || '',
-  geminiApiKey: process.env.GEMINI_API_KEY || '',
+	aiApiKey: process.env.AI_API_KEY || '',
+	geminiApiKey: process.env.GEMINI_API_KEY || '',
 };
