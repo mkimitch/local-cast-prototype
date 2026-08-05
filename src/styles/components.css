@@ -967,6 +967,9 @@
 
 .run-row {
   cursor: pointer;
+  width: 100%;
+  color: inherit;
+  text-align: left;
 }
 
 .run-row__status {

@@ -217,6 +217,33 @@ Date: 2026-08-05
 
 Agents may draft and test accurate concise UI copy without another product decision. The disclosure must say that an external text provider receives station direction and selected evidence, external TTS receives the final narration, and external follow-up receives the episode transcript/evidence plus the user’s question. It must distinguish these calls from local Ollama, LM Studio, and Piper processing.
 
+## D-024 — Production storage initialization is explicit and identity-bound
+
+Status: **ACCEPTED**
+Date: 2026-08-05
+
+Normal app and worker startup only verify existing storage; they never initialize fresh volumes. A profile-gated one-shot `storage-init` role is the sole authority to mark empty SQLite/media mounts, apply migrations, and bind both markers plus database metadata to one operator-supplied installation ID. Normal startup verifies database identity before applying migrations so a wrong mounted database is not mutated first.
+
+Database and media directories must be distinct after normalization and realpath resolution. Missing, partial, mismatched, unexpected non-empty, unwritable, or known-placeholder storage fails closed. This makes a lost volume visible instead of silently creating an empty LocalCast installation.
+
+## D-025 — Test providers are a separate non-production artifact boundary
+
+Status: **ACCEPTED**
+Date: 2026-08-05
+
+Deterministic transcript and MP3 providers live only under `server/testing` and have a dedicated test worker entrypoint. Production server entrypoints do not import them, Docker excludes the test tree, and production reconciles `NODE_ENV` with `LOCALCAST_RUNTIME_MODE` so runtime flags cannot switch a production image into test mode.
+
+Production without configured real providers starts honestly at `NOT CONFIGURED` and rejects generation. Contract-test fixtures must be repeatable, injectable, and byte-stable, but are never production behavior.
+
+## D-026 — Generation leases use precise heartbeats and process fencing
+
+Status: **ACCEPTED**
+Date: 2026-08-05
+
+The worker renews its owned lease during long phases and aborts local work if renewal loses ownership. Lease expiry uses lexicographic comparison of fixed-format UTC ISO timestamps to retain millisecond precision; SQLite `datetime()` is not used because it truncates sub-second values. Every worker process appends a random UUID to its configured label so a restarted process cannot impersonate an earlier lease owner.
+
+The persisted recovery policy requeues stale work, closes the prior attempt as `recovered`, and starts a new attempt from `syncing`. Graceful interruption requeues immediately as `interrupted`. Transcript/media publication remains idempotent across replay, with temporary media excluded from completed state.
+
 ## Open operator decisions
 
 These are genuine inputs that cannot be inferred safely. They do not block documentation bootstrap. A slice must stop before it needs an unresolved value.

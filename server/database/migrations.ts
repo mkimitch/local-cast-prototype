@@ -8,7 +8,7 @@ export interface MigrationDatabase {
 	transaction(fn: () => void): () => void;
 }
 
-interface Migration {
+export interface Migration {
 	id: string;
 	up: (db: MigrationDatabase) => void;
 }
@@ -140,9 +140,101 @@ const migrations: Migration[] = [
 			db.exec('CREATE INDEX IF NOT EXISTS idx_sources_next_sync_after ON sources(next_sync_after)');
 		},
 	},
+	{
+		id: '004_generation_jobs',
+		up: db => {
+			db.exec(`
+				CREATE TABLE IF NOT EXISTS localcast_metadata (
+					key TEXT PRIMARY KEY,
+					value TEXT NOT NULL,
+					updated_at TEXT NOT NULL
+				);
+
+				CREATE TABLE IF NOT EXISTS generation_jobs (
+					id TEXT PRIMARY KEY,
+					run_id TEXT NOT NULL UNIQUE REFERENCES briefing_runs(id) ON DELETE CASCADE,
+					idempotency_key TEXT UNIQUE,
+					payload_version INTEGER NOT NULL,
+					payload_json TEXT NOT NULL,
+					state TEXT NOT NULL CHECK (state IN ('queued', 'running', 'complete', 'failed')),
+					phase TEXT NOT NULL CHECK (phase IN ('queued', 'syncing', 'selecting', 'drafting', 'validating', 'rendering_audio', 'complete', 'failed')),
+					active_slot INTEGER NOT NULL DEFAULT 1 CHECK (active_slot = 1),
+					attempt_count INTEGER NOT NULL DEFAULT 0,
+					lease_owner TEXT,
+					lease_expires_at TEXT,
+					error_code TEXT,
+					error_message TEXT,
+					retryable INTEGER NOT NULL DEFAULT 0,
+					created_at TEXT NOT NULL,
+					updated_at TEXT NOT NULL,
+					started_at TEXT,
+					completed_at TEXT
+				);
+
+				CREATE UNIQUE INDEX IF NOT EXISTS idx_generation_jobs_active_slot
+					ON generation_jobs(active_slot)
+					WHERE state = 'running';
+
+				CREATE INDEX IF NOT EXISTS idx_generation_jobs_fifo
+					ON generation_jobs(state, datetime(created_at), id);
+
+				CREATE INDEX IF NOT EXISTS idx_generation_jobs_lease
+					ON generation_jobs(state, lease_expires_at);
+
+				CREATE TABLE IF NOT EXISTS generation_attempts (
+					id TEXT PRIMARY KEY,
+					job_id TEXT NOT NULL REFERENCES generation_jobs(id) ON DELETE CASCADE,
+					attempt_number INTEGER NOT NULL,
+					worker_id TEXT NOT NULL,
+					started_at TEXT NOT NULL,
+					finished_at TEXT,
+					outcome TEXT CHECK (outcome IN ('running', 'complete', 'failed', 'interrupted', 'recovered')),
+					error_code TEXT,
+					error_message TEXT,
+					UNIQUE (job_id, attempt_number)
+				);
+
+				CREATE TABLE IF NOT EXISTS generation_job_events (
+					id INTEGER PRIMARY KEY AUTOINCREMENT,
+					job_id TEXT NOT NULL REFERENCES generation_jobs(id) ON DELETE CASCADE,
+					attempt_number INTEGER,
+					phase TEXT NOT NULL CHECK (phase IN ('queued', 'syncing', 'selecting', 'drafting', 'validating', 'rendering_audio', 'complete', 'failed')),
+					detail TEXT,
+					created_at TEXT NOT NULL
+				);
+
+				CREATE INDEX IF NOT EXISTS idx_generation_job_events_order
+					ON generation_job_events(job_id, id);
+			`);
+
+			const rows = db.prepare('SELECT id, settings_json FROM app_settings').all() as Array<{id: string; settings_json: string}>;
+			const update = db.prepare('UPDATE app_settings SET settings_json = ?, updated_at = ? WHERE id = ?');
+			const now = new Date().toISOString();
+			const allowedKeys = ['orbTheme', 'theme', 'contrastMode', 'colorVisionMode', 'textSize', 'density'];
+
+			for (const row of rows) {
+				try {
+					const current = JSON.parse(row.settings_json) as Record<string, unknown>;
+					const sanitized = Object.fromEntries(allowedKeys.flatMap(key => current[key] === undefined ? [] : [[key, current[key]]]));
+					update.run(JSON.stringify(sanitized), now, row.id);
+				} catch {
+					update.run('{}', now, row.id);
+				}
+			}
+
+			db.prepare(`
+				UPDATE briefing_runs
+				SET status = 'failed', completed_at = COALESCE(completed_at, ?), summary = NULL
+				WHERE status NOT IN ('complete', 'failed')
+					AND NOT EXISTS (SELECT 1 FROM generation_jobs WHERE generation_jobs.run_id = briefing_runs.id)
+			`).run(now);
+		},
+	},
 ];
 
-export const applyMigrations = (db: MigrationDatabase): void => {
+export const migrationIds = migrations.map(migration => migration.id);
+
+export const applyMigrationPlan = (db: MigrationDatabase, plan: Migration[]): void => {
 	db.exec(`
 		CREATE TABLE IF NOT EXISTS schema_migrations (
 			id TEXT PRIMARY KEY,
@@ -152,10 +244,16 @@ export const applyMigrations = (db: MigrationDatabase): void => {
 
 	const appliedRows = db.prepare('SELECT id FROM schema_migrations').all() as Array<{id: string}>;
 	const appliedIds = new Set(appliedRows.map(row => row.id));
+	const knownIds = new Set(plan.map(migration => migration.id));
+	const unknownIds = [...appliedIds].filter(id => !knownIds.has(id));
+	if (unknownIds.length > 0) {
+		throw new Error(`Database schema is newer than this LocalCast build: ${unknownIds.join(', ')}`);
+	}
+
 	const insertMigration = db.prepare('INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)');
 
 	const runPending = db.transaction(() => {
-		for (const migration of migrations) {
+		for (const migration of plan) {
 			if (appliedIds.has(migration.id)) continue;
 
 			migration.up(db);
@@ -164,4 +262,12 @@ export const applyMigrations = (db: MigrationDatabase): void => {
 	});
 
 	runPending();
+};
+
+export const applyMigrations = (db: MigrationDatabase): void => applyMigrationPlan(db, migrations);
+
+export const migrationPlanThrough = (id: string): Migration[] => {
+	const index = migrations.findIndex(migration => migration.id === id);
+	if (index < 0) throw new Error(`Unknown migration target: ${id}`);
+	return migrations.slice(0, index + 1);
 };

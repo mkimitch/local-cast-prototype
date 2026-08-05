@@ -1,7 +1,7 @@
 # LocalCast autonomous build plan
 
-Status: bootstrap complete; implementation has not started
-Current slice: **0** after operator review
+Status: Slice 0 full gate green; checkpoint pending
+Current slice: **1 entry check**, blocked until O-002 is resolved
 Execution policy: one vertical slice, one green checkpoint commit
 
 ## How to use this plan
@@ -25,7 +25,7 @@ In the slice sections below, a row is "closed" only when every acceptance check 
 
 ## Verification ladder
 
-The current repository has only `lint`, frontend `build`, and `smoke:api`. Slice 0 must add deterministic test and production build scripts without weakening those checks.
+Slice 0 established the following credential-free verification ladder without weakening the original checks:
 
 Expected steady-state scripts:
 
@@ -65,7 +65,7 @@ chore(prototype): define autonomous build contract
 
 After this commit, stop for operator review. This one-time stop overrides automatic continuation.
 
-## Slice 0 — Baseline, environment contracts, persistence, jobs, and deterministic fakes
+## Slice 0 — Baseline, environment contracts, persistence, jobs, and deterministic fakes — COMPLETE 2026-08-05
 
 ### Outcome
 

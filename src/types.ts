@@ -1,4 +1,4 @@
-export type SourceType = 'rss' | 'manual_topic' | 'local_file' | 'gmail_placeholder' | 'calendar_placeholder';
+export type SourceType = 'rss' | 'manual_topic';
 export type SourceStatus = 'healthy' | 'error' | 'syncing';
 export type SourceSyncStatus = 'success' | 'error';
 
@@ -31,7 +31,7 @@ export interface SourceItem {
   gatheredAt: string;
 }
 
-export type RunStatus = 'queued' | 'gathering' | 'summarizing_sources' | 'drafting' | 'rendering_audio' | 'complete' | 'failed';
+export type RunStatus = 'queued' | 'syncing' | 'selecting' | 'drafting' | 'validating' | 'rendering_audio' | 'complete' | 'failed';
 
 export interface BriefingSection {
   id: string;
@@ -50,25 +50,24 @@ export interface AudioAsset {
   format: string;
 }
 
-export interface ProviderConfig {
-  apiKey?: string;
-  model?: string;
-  baseUrl?: string;
+export interface ProviderSummary {
+  adapter: string;
+  status: 'LIVE VERIFIED' | 'CONTRACT TESTED ONLY' | 'NOT CONFIGURED';
+  reason: string;
 }
 
 export interface AppSettings {
-  aiProvider: 'mock' | 'openai_placeholder' | 'gemini_placeholder' | 'lmstudio_placeholder' | 'ollama_placeholder';
-  aiConfig: ProviderConfig;
-  ttsProvider: 'local' | 'openai' | 'elevenlabs';
-  ttsConfig: ProviderConfig;
-  scheduleTime?: string; // HH:mm format
-  isScheduleActive?: boolean;
   orbTheme?: string;
   theme: 'system' | 'light' | 'dark';
   contrastMode: 'normal' | 'high';
   colorVisionMode: 'default' | 'protanopia' | 'deuteranopia' | 'tritanopia' | 'achromatopsia';
   textSize: 'small' | 'normal' | 'large' | 'extra-large';
   density: 'compact' | 'normal' | 'comfortable';
+  providers: {
+    text: ProviderSummary;
+    speech: ProviderSummary;
+  };
+  generationEnabled: boolean;
 }
 
 export interface BriefingRun {
@@ -80,4 +79,12 @@ export interface BriefingRun {
   summary?: string;
   sections: BriefingSection[];
   audioAsset?: AudioAsset;
+  job?: {
+    id: string;
+    phase: RunStatus;
+    attemptCount: number;
+    errorCode?: string;
+    errorMessage?: string;
+    retryable: boolean;
+  };
 }

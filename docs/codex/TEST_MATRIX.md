@@ -1,9 +1,9 @@
 # LocalCast acceptance test matrix
 
-Status: bootstrap baseline, 2026-08-05
-Legend: `PRESENT`, `PARTIAL`, `MISSING`, `CONFLICT`, `DECISION`
+Status: Slice 0 checkpoint evidence, 2026-08-05
+Legend: `GREEN`, `PRESENT`, `PARTIAL`, `MISSING`, `CONFLICT`, `DECISION`
 
-The status column describes the inspected baseline, not the target. Replace it with dated green evidence as slices complete. No row is complete because code appears plausible; the observable evidence column is the contract.
+The status column retains the inspected baseline for untouched rows and carries dated evidence as slices complete. No row is complete because code appears plausible; the observable evidence column is the contract.
 
 ## Evidence rules
 
@@ -16,9 +16,9 @@ The status column describes the inspected baseline, not the target. Replace it w
 
 ## Identity, trust, and primary workflow
 
-| ID | Requirement | Observable acceptance evidence | Slice | Baseline |
+| ID | Requirement | Observable acceptance evidence | Slice | Status/evidence |
 | --- | --- | --- | --- | --- |
-| ID-01 | Product is named/branded LocalCast, with no Huxe identity or compatibility claim. | Case-insensitive production-source/bundle/UI scan (excluding contract documents that state the prohibition) plus browser title/landmark E2E finds LocalCast and no Huxe/Google-AI-Studio scaffold naming; reviewer confirms original product copy. | 0/final | PARTIAL — UI says LocalCast, but `index.html` has a legacy Google AI Studio title |
+| ID-01 | Product is named/branded LocalCast, with no Huxe identity or compatibility claim. | Case-insensitive production-source/bundle/UI scan (excluding contract documents that state the prohibition) plus browser title/landmark E2E finds LocalCast and no Huxe/Google-AI-Studio scaffold naming; reviewer confirms original product copy. | 0/final | PARTIAL 2026-08-05 — Slice 0 title, UI, production bundle, and independent review are green; final all-artifact scan remains |
 | TRUST-01 | One user; every client reaching the application origin is explicitly treated as trusted; no hidden account boundary. | Deployment/UI docs state the model; API/schema/E2E show no accounts, sessions, roles, or per-user filtering; security review confirms Caddy/LAN is the main boundary. | 6 | PARTIAL |
 | SRC-01 | Add/edit/enable/delete/manually sync/inspect RSS 2.0 and Atom without article scraping. | Integration fixture covers RSS and Atom CRUD/sync/inspection; outbound-request spy proves only feed URLs are fetched and item links are never requested. | 2 | PARTIAL — RSS exists; Atom not explicitly tested |
 | SRC-02 | Save pasted notes with factual content and optional provenance. | API/unit validation plus keyboard E2E creates, edits, reloads, selects, and deletes a multiline note; empty/oversized/unsafe URL cases fail safely. | 1 | MISSING |
@@ -27,18 +27,18 @@ The status column describes the inspected baseline, not the target. Replace it w
 | SRC-05 | SQLite FTS5 searches supplied material with provenance. | Migration asserts FTS5; query tests cover feed/note insert/update/delete, punctuation, ranking, empty query, rebuild, and restart; browser search resolves provenance. | 2 | MISSING — runtime supports FTS5, schema uses `LIKE` |
 | SRC-06 | Historical evidence survives original source refresh/delete. | Complete fixture episode, mutate and delete originals, restart, then byte-compare transcript and source snapshots/citation rendering. | 2 | CONFLICT — current cascade/mutable item model |
 | STN-01 | Saved station persists name, topic, mode, selected feeds, and selected notes. | API/schema tests plus browser E2E create, edit, deep-link, reload, generate from, and delete a station. A fixture with selected and unselected feeds proves only selected URLs are synchronized and only their items can enter evidence. | 1/2 | MISSING |
-| STN-02 | Topic directions are not evidence or citations. | Database/provider fixture asserts station text has a distinct field, never creates a source item/snapshot, and cannot be returned as a citation ID. | 1 | CONFLICT — `manual_topic` becomes source material |
-| STN-03 | Topic never triggers search, tools, page fetches, or non-feed acquisition. | Provider request snapshot has tools/search disabled/absent; outbound-request fixture allows only configured feed/provider endpoints; adversarial station instruction cannot add a request. | 1/2 | CONFLICT — UI copy implies “gather,” though no search exists |
-| GEN-01 | Only explicit user action synchronizes and generates. | Fake-clock/process tests observe no jobs/fetches after startup or elapsed time; E2E proves only **Sync and generate** or explicit feed sync creates activity. | 0 | CONFLICT — browser and server interval hooks exist |
+| STN-02 | Topic directions are not evidence or citations. | Database/provider fixture asserts station text has a distinct field, never creates a source item/snapshot, and cannot be returned as a citation ID. | 1 | PARTIAL 2026-08-05 — legacy topic rows are preserved but cannot be created or enqueued; station/evidence model remains Slice 1 |
+| STN-03 | Topic never triggers search, tools, page fetches, or non-feed acquisition. | Provider request snapshot has tools/search disabled/absent; outbound-request fixture allows only configured feed/provider endpoints; adversarial station instruction cannot add a request. | 1/2 | PARTIAL 2026-08-05 — ambiguous acquisition copy and synthetic gatherer removed; provider/outbound proof remains |
+| GEN-01 | Only explicit user action synchronizes and generates. | Fake-clock/process tests observe no jobs/fetches after startup or elapsed time; E2E proves only **Sync and generate** or explicit feed sync creates activity. | 0 | GREEN 2026-08-05 — config rejects schedulers; API/process and browser elapsed-time tests observe zero fetches/items/jobs until explicit actions |
 | GEN-02 | Each job records an immutable request at enqueue and final evidence after selected-feed sync but before provider use. | Transaction test mutates station/notes after enqueue and preserves the captured request; fixture feed adds items during worker sync; selecting atomically freezes only selected-feed/current captured-note evidence; a barrier proves provider invocation starts only after commit. | 1/2 | MISSING |
 | GEN-03 | Brief mode targets 600–1,000 words without padding unsupported material. | Deterministic adequate fixture stays within budget; sparse fixture produces a shorter supported episode or typed insufficiency, never invented filler. | 3 | MISSING |
 | GEN-04 | Deep mode targets 1,800–3,000 words and is materially deeper than brief. | Same adequate evidence produces mode-persisted outputs with deep > brief and within budget; sparse evidence fails rather than padding. | 3 | MISSING |
 | GEN-05 | Insufficient supplied material fails honestly. | Empty, trivial, failed-feed-only-without-history, and direction-only fixtures terminate `INSUFFICIENT_SOURCE_MATERIAL`; provider/TTS spies see no publishable completion. A failed sync with adequate prior stored items may continue only with those item snapshots and an explicit sync warning; the error itself is never evidence. | 1/3 | CONFLICT — baseline creates placeholder/synthetic evidence |
-| GEN-06 | Persisted phases are queued/syncing/selecting/drafting/validating/rendering/terminal. | Job integration and browser E2E observe ordered persisted transitions, safe detail, restart continuity, and exactly one terminal state. | 0 | PARTIAL — different run statuses persist, execution is detached |
+| GEN-06 | Persisted phases are queued/syncing/selecting/drafting/validating/rendering/terminal. | Job integration and browser E2E observe ordered persisted transitions, safe detail, restart continuity, and exactly one terminal state. | 0 | GREEN 2026-08-05 — database events and browser reload/reopen observe all ordered phases and one terminal state |
 
 ## Grounding, library, and retry
 
-| ID | Requirement | Observable acceptance evidence | Slice | Baseline |
+| ID | Requirement | Observable acceptance evidence | Slice | Status/evidence |
 | --- | --- | --- | --- | --- |
 | GRD-01 | Text output is schema-validated into sections and atomic claims/support artifacts; malformed output fails. | Provider contracts cover invalid JSON, wrong types, missing claims/excerpts, oversized text, invalid enum, and extra unsafe data; none silently complete or fall back to prose. | 1/3 | CONFLICT — coercion/fallback exists |
 | GRD-02 | Every factual claim has valid episode-snapshot citations and exact supporting excerpts. | Unit/property tests cover unknown, duplicate-only, original-item, station, missing, wrong-snapshot, absent/non-matching excerpt, and valid multi-source support; only snapshot membership plus exact excerpt coverage passes. | 1/3 | CONFLICT — arbitrary IDs accepted |
@@ -52,7 +52,7 @@ The status column describes the inspected baseline, not the target. Replace it w
 
 ## Provider contracts and status
 
-| ID | Requirement | Observable acceptance evidence | Slice | Baseline |
+| ID | Requirement | Observable acceptance evidence | Slice | Status/evidence |
 | --- | --- | --- | --- | --- |
 | TXT-01 | Server-side OpenAI text adapter supports structured generation and claim-support validation. | Shared adapter contract fixture passes; minimal authorized live verify/generation/support pass succeeds with configured model and redacted evidence. Follow-up behavior is covered by `CHAT-*`. | 1 | MISSING — only generic compatible adapter |
 | TXT-02 | Ollama OpenAI-compatible adapter works with explicit URL/model. | OpenAI-compatible fixture verifies exact endpoint/auth/body/schema/errors and honest `CONTRACT TESTED ONLY`/`NOT CONFIGURED` status. An authorized local Ollama probe is optional evidence that upgrades the deployment to `LIVE VERIFIED`. | 6 | PARTIAL — generic adapter can target it but has no status/contracts |
@@ -62,29 +62,29 @@ The status column describes the inspected baseline, not the target. Replace it w
 | TTS-02 | Piper adapter safely produces speech. | Deterministic fake-executable contract covers arguments/stdin/timeouts/exit/output caps, WAV/MP3 normalization, and honest `CONTRACT TESTED ONLY`/`NOT CONFIGURED` status. An authorized pinned executable/model probe is optional `LIVE VERIFIED` evidence. | 6 | MISSING |
 | TTS-03 | Completed audio is non-empty decodable MP3 with measured metadata. | `ffprobe` or equivalent parser succeeds; persisted byte length/checksum/duration match file and HTTP metadata; browser decodes it. | 1 | CONFLICT — `#` metadata only |
 | TTS-04 | Audio publication is atomic. | Kill/fail renderer before validation/rename; no completed media route/feed entry exists and temp cleanup/recovery is deterministic. | 1/6 | MISSING |
-| PROV-01 | All provider configuration/secrets are server-side. | Browser bundle/storage/network/browser-facing API snapshot contains no key fields/values; server config validation tests cover each adapter; UI shows redacted labels only; outbound fixture asserts credentials appear only in the configured provider authorization header. | 0/1 | CONFLICT — API strips keys, but UI solicits them |
-| PROV-02 | Production never falls back to mock. | Production config matrix covers unset, unknown, fake, unavailable, and valid providers; generation is disabled/typed-failed and no mock output appears. Frontend production bundle has no mock default. | 0 | CONFLICT |
+| PROV-01 | All provider configuration/secrets are server-side. | Browser bundle/storage/network/browser-facing API snapshot contains no key fields/values; server config validation tests cover each adapter; UI shows redacted labels only; outbound fixture asserts credentials appear only in the configured provider authorization header. | 0/1 | PARTIAL 2026-08-05 — browser key fields and provider configuration removed; bundle/API scans green; real adapter authorization-header proof remains Slice 1 |
+| PROV-02 | Production never falls back to mock. | Production config matrix covers unset, unknown, fake, unavailable, and valid providers; generation is disabled/typed-failed and no mock output appears. Frontend production bundle has no mock default. | 0 | GREEN 2026-08-05 — unknown/fake/test overrides reject; unconfigured production returns typed 503 and no mock output |
 | PROV-03 | Status is exactly LIVE VERIFIED / CONTRACT TESTED ONLY / NOT CONFIGURED. | Unit/API/E2E matrix covers missing config, green contract/no probe, failed probe, successful probe, changed config invalidating prior live result, safe reason, and timestamp. | 1/6 | MISSING |
-| PROV-04 | Fakes are deterministic and impossible in production. | Fake repeatability/failure-injection tests pass; production build/runtime test rejects fake flag/provider and image scan contains no selectable fake route. | 0 | CONFLICT — mocks are default |
+| PROV-04 | Fakes are deterministic and impossible in production. | Fake repeatability/failure-injection tests pass; production build/runtime test rejects fake flag/provider and image scan contains no selectable fake route. | 0 | GREEN 2026-08-05 — transcript/MP3 replay is stable; phase failures inject; production runtime rejects test flags; artifact/image scans exclude fake implementation |
 | PROV-05 | UI discloses every external provider data flow before verify/use. | Keyboard E2E captures disclosure before the first external call; outbound spy proves no call before action; copy separately names station/evidence sent to text generation, final narration sent to TTS, and episode transcript/evidence plus question sent to follow-up. | 1/5 | CONFLICT — current “stay on device” copy is misleading |
 
 ## Persistence and jobs
 
-| ID | Requirement | Observable acceptance evidence | Slice | Baseline |
+| ID | Requirement | Observable acceptance evidence | Slice | Status/evidence |
 | --- | --- | --- | --- | --- |
-| DATA-01 | Ordered additive migrations; no silent reset. | Migrate empty DB and snapshots at migrations 001/002/003; verify old data, new schema/migration records, repeat no-op, and failure rollback. | 0 | PRESENT/PARTIAL — three migrations are ordered and transactional |
-| DATA-02 | Foreign keys/WAL/busy timeout/version/integrity/FTS checks. | Startup/integration assertions cover PRAGMAs, expected schema version, `quick_check`, `foreign_key_check`, FTS capability, corruption/wrong-version failure, and clean close. | 0/6 | PARTIAL — FK/WAL exist |
-| DATA-03 | Production requires correct writable persistent mounts and no demo seeding. | Container tests for missing, read-only, wrong, initialized, and fresh authorized volumes; fresh DB is empty, wrong volume fails clearly, sample episode never appears. | 0/6 | CONFLICT — directories auto-create and seed demos |
+| DATA-01 | Ordered additive migrations; no silent reset. | Migrate empty DB and snapshots at migrations 001/002/003; verify old data, new schema/migration records, repeat no-op, and failure rollback. | 0 | GREEN 2026-08-05 — frozen 001/002/003 snapshots preserve data, scrub legacy secrets, reconcile orphan runs, repeat no-op, and roll back injected failure |
+| DATA-02 | Foreign keys/WAL/busy timeout/version/integrity/FTS checks. | Startup/integration assertions cover PRAGMAs, expected schema version, `quick_check`, `foreign_key_check`, FTS capability, corruption/wrong-version failure, and clean close. | 0/6 | PARTIAL 2026-08-05 — startup PRAGMAs/version/quick/FK/FTS/wrong-version and clean reopen are green; final restore matrix remains |
+| DATA-03 | Production requires correct writable persistent mounts and no demo seeding. | Container tests for missing, read-only, wrong, initialized, and fresh authorized volumes; fresh DB is empty, wrong volume fails clearly, sample episode never appears. | 0/6 | PARTIAL 2026-08-05 — explicit init plus missing/partial/wrong/unwritable/symlink/fresh-container/no-seed checks green; final deployment/restore evidence remains |
 | DATA-04 | FTS remains consistent through all lifecycle operations. | Transaction/migration/rebuild/backup/restore tests compare canonical SQL rows with FTS results after each insert/update/delete. | 2/6 | MISSING |
-| JOB-01 | Exactly one worker claims generation work. | Compose/process inspection plus DB concurrency test starts competing claim loops and observes one lease owner; API does not execute work. | 0 | CONFLICT — API detached promises |
-| JOB-02 | At most one active generation; later jobs stay FIFO queued. | Enqueue at least three jobs concurrently, block first provider, assert one active lease and FIFO start order after release. | 0 | MISSING |
-| JOB-03 | Restart recovers stale running work safely. | Kill worker at every phase, advance lease clock, restart, assert persisted attempt/requeue/resume policy and no publishable partial output. | 0/6 | MISSING |
-| JOB-04 | Enqueue/retry/restart are idempotent. | Duplicate request/idempotency-key, double click, lease race, and retry replay tests assert one logical episode and one set of sections/citations/media/feed entry. | 0/3 | MISSING |
-| JOB-05 | Worker shutdown drains/releases safely and closes SQLite. | SIGTERM integration blocks provider at known point, asserts no new claim, bounded exit, safe lease state, clean DB, then successful recovery. | 0/6 | MISSING |
+| JOB-01 | Exactly one worker claims generation work. | Compose/process inspection plus DB concurrency test starts competing claim loops and observes one lease owner; API does not execute work. | 0 | GREEN 2026-08-05 — independent worker processes race on file SQLite, one owns the lease, and API remains queued without a worker |
+| JOB-02 | At most one active generation; later jobs stay FIFO queued. | Enqueue at least three jobs concurrently, block first provider, assert one active lease and FIFO start order after release. | 0 | GREEN 2026-08-05 — partial unique index, competing-process block, and three-job FIFO release test pass |
+| JOB-03 | Restart recovers stale running work safely. | Kill worker at every phase, advance lease clock, restart, assert persisted attempt/requeue/resume policy and no publishable partial output. | 0/6 | PARTIAL 2026-08-05 — real SIGKILL/restart at every phase plus post-publication replay yields one transcript/audio and retained attempts; final failure matrix remains |
+| JOB-04 | Enqueue/retry/restart are idempotent. | Duplicate request/idempotency-key, double click, lease race, and retry replay tests assert one logical episode and one set of sections/citations/media/feed entry. | 0/3 | PARTIAL 2026-08-05 — idempotency-key, double-submit guard, retry primitive, claim race, and crash replay are green; citation/feed retry evidence remains Slice 3/4 |
+| JOB-05 | Worker shutdown drains/releases safely and closes SQLite. | SIGTERM integration blocks provider at known point, asserts no new claim, bounded exit, safe lease state, clean DB, then successful recovery. | 0/6 | PARTIAL 2026-08-05 — active SIGTERM exits in bound, marks interrupted/requeues, quick-checks, and recovers; final non-cooperative/provider/Compose shutdown matrix remains |
 
 ## Media and private podcast feed
 
-| ID | Requirement | Observable acceptance evidence | Slice | Baseline |
+| ID | Requirement | Observable acceptance evidence | Slice | Status/evidence |
 | --- | --- | --- | --- | --- |
 | MEDIA-01 | Browser controls real audio and actual media events. | Playwright with fixture MP3 asserts play/pause/seek/skip/speed/elapsed/duration/error and keyboard control against `<audio>`/media state, not timers. | 1/3 | CONFLICT — simulated timers/visualizer |
 | MEDIA-02 | GET/HEAD return correct MP3 metadata and range capability. | Byte fixture integration asserts `audio/mpeg`, exact Content-Length, ETag/Last-Modified policy, `Accept-Ranges`, no body for HEAD, and checksum. | 1/4 | MISSING |
@@ -97,7 +97,7 @@ The status column describes the inspected baseline, not the target. Replace it w
 
 ## Follow-up chat
 
-| ID | Requirement | Observable acceptance evidence | Slice | Baseline |
+| ID | Requirement | Observable acceptance evidence | Slice | Status/evidence |
 | --- | --- | --- | --- | --- |
 | CHAT-01 | Chat requires one completed episode. | API/E2E rejects omitted, unknown, queued, failed, and deleted episode IDs; completed episode succeeds. | 5 | CONFLICT — `runId` is optional |
 | CHAT-02 | Server builds context only from immutable transcript/snapshots. | Client sends forged context, original sources are changed/deleted, and provider request snapshot still contains only immutable server-loaded episode evidence. | 5 | CONFLICT — caller context accepted, run title only |
@@ -107,21 +107,21 @@ The status column describes the inspected baseline, not the target. Replace it w
 
 ## Deployment, security, privacy, and operations
 
-| ID | Requirement | Observable acceptance evidence | Slice | Baseline |
+| ID | Requirement | Observable acceptance evidence | Slice | Status/evidence |
 | --- | --- | --- | --- | --- |
-| DEP-01 | Built UI/API/media/feed share one Express origin. | Production smoke requests UI route/reload, API, media, and feed from one base URL; no Vite server or cross-origin API URL is needed. | 0/4 | MISSING |
+| DEP-01 | Built UI/API/media/feed share one Express origin. | Production smoke requests UI route/reload, API, media, and feed from one base URL; no Vite server or cross-origin API URL is needed. | 0/4 | PARTIAL 2026-08-05 — built UI/assets/API share Express origin with relative browser API; media/feed routes remain Slice 4 |
 | DEP-02 | Supported deployment is behind Caddy; app port is not reachable from another LAN host. | Authorized topology check through HTTPS Caddy succeeds; direct LAN socket/curl fails; `PUBLIC_BASE_URL` controls absolute URLs; Caddy remains externally managed. | 4/6 | MISSING |
-| DEP-03 | Compose has non-root app + one worker, pinned image, health/readiness, persisted DB/media, graceful stop. | `docker compose config`, image inspection, temp-volume smoke, UID check, health/readiness transitions, process count, restart, and SIGTERM tests pass. | 0/6 | MISSING |
-| DEP-04 | Agents never mutate Caddy without authorization. | Git/diff and execution log contain no Caddy changes/commands; any operator action is separately recorded. | Every slice | DECISION |
+| DEP-03 | Compose has non-root app + one worker, pinned image, health/readiness, persisted DB/media, graceful stop. | `docker compose config`, image inspection, temp-volume smoke, UID check, health/readiness transitions, process count, restart, and SIGTERM tests pass. | 0/6 | PARTIAL 2026-08-05 — digest-pinned non-root/read-only app+worker, health, fresh refusal, explicit init, no host port, and recreation persistence green; final hardening remains |
+| DEP-04 | Agents never mutate Caddy without authorization. | Git/diff and execution log contain no Caddy changes/commands; any operator action is separately recorded. | Every slice | GREEN THROUGH SLICE 0 — no Caddy file or command touched |
 | SEC-01 | RSS SSRF policy validates DNS/IP and every redirect/rebinding path. | Dedicated fixtures simulate private/link-local/metadata addresses, redirect changes, multiple answers, and rebinding-safe connection policy; allowed exception hosts are explicit. | 2 | MISSING |
 | SEC-02 | Untrusted content is text; external links allow only HTTP(S). | DOM tests with HTML/script/event/Unicode/unsafe schemes show escaped text, inert bad links, `noopener noreferrer`, and no execution. | 2/6 | PARTIAL — React escapes text; URL scheme unvalidated |
 | SEC-03 | Prompts isolate source instructions and disable tools/search. | Provider request snapshots/adversarial fixtures prove delimiter/instruction hierarchy, no tool configuration, and invalid/unsupported output failure. | 1/3/5 | MISSING |
-| SEC-04 | Provider secrets stay server-side; podcast token has only the explicit transient copy/reveal exception. | Canary tests find no provider key in built assets, browser storage/network, browser-facing responses, logs, Git diff, image, or backup; a server fixture proves it appears only in the configured provider authorization header and trace tooling redacts it. Podcast-token canary appears only in the user-initiated dedicated response/clipboard and authorized feed request, never in bundles, persistent storage, routine APIs, logs, snapshots, image, or backup. | 1/4/6 | PARTIAL — API strips provider keys; UI still handles them |
+| SEC-04 | Provider secrets stay server-side; podcast token has only the explicit transient copy/reveal exception. | Canary tests find no provider key in built assets, browser storage/network, browser-facing responses, logs, Git diff, image, or backup; a server fixture proves it appears only in the configured provider authorization header and trace tooling redacts it. Podcast-token canary appears only in the user-initiated dedicated response/clipboard and authorized feed request, never in bundles, persistent storage, routine APIs, logs, snapshots, image, or backup. | 1/4/6 | PARTIAL 2026-08-05 — browser secret fields removed, legacy settings scrubbed, failure canaries redacted, and artifact scans green; real provider/podcast/backup proof remains |
 | SEC-05 | Same-origin/Host/proxy rules fail closed; absolute URLs use validated config. | Production integration covers wildcard/unexpected Origin, Host, Forwarded headers, direct port, and malicious host; feed URLs remain canonical. | 0/4/6 | PARTIAL — development CORS only |
 | SEC-06 | Inputs/outputs have size/time/resource bounds. | Boundary table tests JSON, note, question, feed, provider body, transcript, TTS, media ranges, concurrency, and subprocess limits at below/equal/above thresholds. | 1/2/5/6 | PARTIAL |
 | SEC-07 | Client/log errors are safe and correlated. | Inject every phase/provider/feed/media error; API shows stable code/correlation ID, logs omit bodies/secrets and retain diagnostic phase; no stack/internal path in client. | 3/6 | CONFLICT — global raw messages |
-| PRIV-01 | Loading production UI causes no third-party browser egress. | Playwright route interception/network log allows only canonical origin; fonts/assets are local and no analytics/CDN/provider request occurs before explicit server action. | 1/6 | CONFLICT — Google Fonts import |
-| PRIV-02 | UI/docs honestly explain LAN trust, local storage, backup, and external provider flow. | Copy review against network/storage behavior; E2E verifies disclosure placement; no “stays on device” claim when external inference is active. | 1/6 | CONFLICT |
+| PRIV-01 | Loading production UI causes no third-party browser egress. | Playwright route interception/network log allows only canonical origin; fonts/assets are local and no analytics/CDN/provider request occurs before explicit server action. | 1/6 | PARTIAL 2026-08-05 — production load is first-party only with system fonts; explicit provider-flow evidence remains |
+| PRIV-02 | UI/docs honestly explain LAN trust, local storage, backup, and external provider flow. | Copy review against network/storage behavior; E2E verifies disclosure placement; no “stays on device” claim when external inference is active. | 1/6 | PARTIAL 2026-08-05 — LAN/local-storage/server-configuration copy is honest; complete external-provider disclosure remains Slice 1/5 |
 | OPS-01 | Backup is DB-consistent and includes published media + manifest/checksums. | Live/quiesced backup test writes a new artifact while WAL is active; manifest version/count/checksums match a consistent point and excludes temp files/secrets. | 6 | MISSING |
 | OPS-02 | Restore validates and does not silently overwrite user data. | Restore to empty target succeeds; non-empty target refuses without explicit operator flag; corrupt/missing/wrong-version manifest fails before mutation. | 6 | MISSING |
 | OPS-03 | Restore proof covers DB/FTS/jobs/evidence/chat/feed/media. | Clean deployment from artifact passes integrity/FK/FTS queries and exact record/checksum comparison; corrupt/missing media is surfaced. | 6 | MISSING |
@@ -129,7 +129,7 @@ The status column describes the inspected baseline, not the target. Replace it w
 
 ## Accessibility and usability
 
-| ID | Requirement | Observable acceptance evidence | Slice | Baseline |
+| ID | Requirement | Observable acceptance evidence | Slice | Status/evidence |
 | --- | --- | --- | --- | --- |
 | A11Y-01 | Core flows meet WCAG 2.2 AA with zero unadjudicated applicable automated violations. | Playwright+axe covers all routes/states in light/dark/high-contrast and representative viewport sizes; every applicable violation is fixed, while any documented false positive has manual evidence; screen-reader spot check recorded. | 3/6 | PARTIAL |
 | A11Y-02 | Entire core workflow is keyboard-operable. | Keyboard-only E2E manages feed/note/station, sync/generate, progress/failure/retry, citations, audio, feed setup, and chat without pointer. | 3–6 | CONFLICT — clickable run divs and inert controls |
@@ -140,15 +140,15 @@ The status column describes the inspected baseline, not the target. Replace it w
 
 ## Architectural acceptance
 
-| ID | Requirement | Observable acceptance evidence | Slice | Baseline |
+| ID | Requirement | Observable acceptance evidence | Slice | Status/evidence |
 | --- | --- | --- | --- | --- |
-| ARC-01 | Preserve React/Vite/TypeScript, Express, feature layout, and service boundaries. | Architecture/diff review shows extension rather than rewrite; focused tests protect existing source/run/settings flows. | Every slice | PRESENT |
-| ARC-02 | Keep established npm single package/lockfile. | `package.json` has no incidental workspace migration; one `package-lock.json`; documented npm commands reproduce clean install/build. | 0/final | PRESENT |
-| ARC-03 | Zod validates new/touched external boundaries. | Unit tests exercise environment/API/provider schemas and inferred TS types; no unsafe cast bypass at new boundaries. | 0 onward | MISSING — handwritten validation |
+| ARC-01 | Preserve React/Vite/TypeScript, Express, feature layout, and service boundaries. | Architecture/diff review shows extension rather than rewrite; focused tests protect existing source/run/settings flows. | Every slice | GREEN THROUGH SLICE 0 — independent architecture review confirms extension rather than rewrite |
+| ARC-02 | Keep established npm single package/lockfile. | `package.json` has no incidental workspace migration; one `package-lock.json`; documented npm commands reproduce clean install/build. | 0/final | GREEN THROUGH SLICE 0 — npm single package and lockfile retained |
+| ARC-03 | Zod validates new/touched external boundaries. | Unit tests exercise environment/API/provider schemas and inferred TS types; no unsafe cast bypass at new boundaries. | 0 onward | PARTIAL 2026-08-05 — environment, job payload, and touched request contracts use strict Zod with boundary tests; ongoing per slice |
 | ARC-04 | React Router and TanStack Query manage URLs/server state incrementally. | Reload/back-forward/deep-link E2E plus query invalidation/poll-stop tests; no full component rewrite. | 0/3 | MISSING |
 | ARC-05 | `better-sqlite3`, explicit migrations, and FTS5 remain persistence stack. | Dependency/schema inspection and migration tests; no ORM/vector/Redis introduction. | 0/2 | PARTIAL — FTS absent |
-| ARC-06 | Vitest + Playwright + retained API smoke provide layered tests. | Scripts run unit/integration/browser/a11y/smoke suites from clean checkout; tests are deterministic and isolated. | 0 onward | MISSING — only smoke script |
-| ARC-07 | Reproducible server/client production artifact excludes dev data/secrets/mocks. | Two clean builds have controlled output; image/context scan excludes `.env`, DB/media, caches, source maps if disallowed, and selectable mock mode; production start smoke passes. | 0/6 | MISSING |
+| ARC-06 | Vitest + Playwright + retained API smoke provide layered tests. | Scripts run unit/integration/browser/a11y/smoke suites from clean checkout; tests are deterministic and isolated. | 0 onward | GREEN THROUGH SLICE 0 — full gate runs unit/integration/browser/API/production/Compose layers in isolated temp state |
+| ARC-07 | Reproducible server/client production artifact excludes dev data/secrets/mocks. | Two clean builds have controlled output; image/context scan excludes `.env`, DB/media, caches, source maps if disallowed, and selectable mock mode; production start smoke passes. | 0/6 | PARTIAL 2026-08-05 — locked build, context/image scan, no source maps/fakes/secrets/data, and production start green; final reproducibility/hardening remains |
 
 ## Explicit non-goal regression guards
 
@@ -160,14 +160,14 @@ The status column describes the inspected baseline, not the target. Replace it w
 | NG-04 | Full-page/article scraping | Feed fixture item links are never requested; no scraper/browser HTTP dependency or route exists. | 2/final | PRESENT |
 | NG-05 | Authentication/accounts | Routes/schema/UI/dependencies contain no account/session/role system; trusted-LAN warning is explicit. Podcast token is documented as feed-only. | 6 | PRESENT |
 | NG-06 | Public deployment | Runbook labels LAN-only; supported Compose exposes only Caddy attachment and direct/public exposure tests fail. | 6 | MISSING deployment |
-| NG-07 | Automatic scheduling | Fake-clock/startup tests observe zero automatic sync/generation; schedule types/config/UI/timers removed. | 0/final | CONFLICT |
+| NG-07 | Automatic scheduling | Fake-clock/startup tests observe zero automatic sync/generation; schedule types/config/UI/timers removed. | 0/final | GREEN THROUGH SLICE 0 — elapsed process/browser tests show zero automatic fetch/job and scheduler config is rejected |
 | NG-08 | Embeddings/vector databases | Dependency/schema/provider scans and tests show FTS5 only; no embedding calls. | 2/final | PRESENT |
-| NG-09 | Redis/distributed workers | Dependency/Compose/process/schema review shows SQLite queue and exactly one worker; no broker or scale replicas. | 0/final | PRESENT/MISSING worker |
+| NG-09 | Redis/distributed workers | Dependency/Compose/process/schema review shows SQLite queue and exactly one worker; no broker or scale replicas. | 0/final | GREEN THROUGH SLICE 0 — SQLite queue and exactly one Compose worker; no broker/dependency |
 | NG-10 | Multiple speakers | Transcript/audio config and UI expose one voice per installation/episode; no diarization/dialogue synthesis. | 1/6 | PRESENT |
 | NG-11 | Voice cloning | Provider config accepts only provider/Piper voice identifiers; no upload/training/reference-audio flow or dependency. | 1/6 | PRESENT |
 | NG-12 | Native mobile apps | Tracked files/build scripts contain only responsive web app and podcast feed; no iOS/Android/native project. | final | PRESENT |
 | NG-13 | Analytics/telemetry | Browser/server network/log dependency scan shows no analytics endpoint/SDK/tracker; production network trace stays first-party except explicit server provider/feed calls. | 6 | PRESENT |
-| NG-14 | Provider keys in browser | Canary-secret bundle/storage/network/API scan is empty; settings UI has no secret fields. | 0/1/final | CONFLICT |
+| NG-14 | Provider keys in browser | Canary-secret bundle/storage/network/API scan is empty; settings UI has no secret fields. | 0/1/final | PARTIAL 2026-08-05 — settings has no secret inputs, API rejects legacy key fields, production bundle scan green; live provider canary remains Slice 1/final |
 
 ## Gate summaries by slice
 

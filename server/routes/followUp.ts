@@ -1,5 +1,5 @@
 import {Router} from 'express';
-import {createAiProvider} from '../ai/providerFactory';
+import {createAiProvider, ProviderNotConfiguredError} from '../ai/providerFactory';
 import {briefingStore} from '../services/briefingStore';
 import {parseFollowUpRequest} from '../validation';
 
@@ -24,6 +24,10 @@ followUpRouter.post('/follow-up', async (req, res, next) => {
     const answer = await createAiProvider().answerFollowUpQuestion({question, context, run});
     res.json({answer});
   } catch (error) {
+	if (error instanceof ProviderNotConfiguredError) {
+		res.status(503).json({code: 'PROVIDER_NOT_CONFIGURED', error: 'A supported text provider is not configured'});
+		return;
+	}
     next(error);
   }
 });

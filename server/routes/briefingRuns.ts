@@ -1,86 +1,77 @@
 import {Router} from 'express';
-import type {RunStatus} from '../../src/types';
-import {createAiProvider} from '../ai/providerFactory';
+import type {BriefingRun} from '../../src/types';
+import {providerSummaryForConfig, serverConfig} from '../config';
+import {generationJobStore} from '../jobs/index';
+import {IdempotencyConflictError, JobStateError} from '../jobs/generationJobStore';
 import {briefingStore} from '../services/briefingStore';
-import {buildBriefingSourceItems} from '../services/sourceItemGatherer';
-import {parseBriefingRunRequest} from '../validation';
+import {parseBriefingRunRequest, parseIdempotencyKey} from '../validation';
 
 export const briefingRunsRouter = Router();
 
-const delay = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms));
+const withJob = (run: BriefingRun): BriefingRun => {
+	const job = generationJobStore.getByRunId(run.id);
+	if (!job) return run;
 
-const progressRun = async (runId: string): Promise<void> => {
-  const setStatus = (status: RunStatus) => briefingStore.updateStatus(runId, status);
-
-  try {
-    await delay(500);
-    setStatus('gathering');
-
-    const sourceIds = briefingStore.getRunSourceIds(runId);
-    const sourceItems = await buildBriefingSourceItems(sourceIds);
-    const aiProvider = createAiProvider();
-
-    await delay(700);
-    setStatus('summarizing_sources');
-    const summary = await aiProvider.generateSourceSummary(sourceItems);
-
-    await delay(700);
-    setStatus('drafting');
-    const sections = await aiProvider.generateBriefingScript({
-      sourceItems,
-      sourceSummaries: [summary],
-      sourceIds,
-      requestedAt: new Date().toISOString(),
-    });
-
-    await delay(700);
-    setStatus('rendering_audio');
-
-    await delay(700);
-    briefingStore.updateRun(runId, {
-      status: 'complete',
-      completedAt: new Date().toISOString(),
-      summary,
-      sections,
-      audioAsset: {id: `audio-${Date.now()}`, url: '#', durationMs: 124000, format: 'mp3'},
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown briefing generation error';
-    console.error(`[briefing-run:${runId}] ${message}`);
-    briefingStore.updateRun(runId, {
-      status: 'failed',
-      completedAt: new Date().toISOString(),
-      summary: message,
-      sections: [],
-    });
-  }
+	return {
+		...run,
+		job: {
+			id: job.id,
+			phase: job.phase,
+			attemptCount: job.attemptCount,
+			errorCode: job.errorCode,
+			errorMessage: job.errorMessage,
+			retryable: job.retryable,
+		},
+	};
 };
 
 briefingRunsRouter.get('/briefing-runs', (_req, res) => {
-  res.json(briefingStore.listRuns());
+	res.json(briefingStore.listRuns().map(withJob));
 });
 
 briefingRunsRouter.post('/briefing-runs', (req, res) => {
-  const parsed = parseBriefingRunRequest(req.body);
-  if (parsed.ok === false) {
-    res.status(400).json({error: parsed.error});
-    return;
-  }
+	const providerStatus = providerSummaryForConfig(serverConfig);
+	if (!providerStatus.generationEnabled) {
+		res.status(503).json({code: 'PROVIDER_NOT_CONFIGURED', error: 'Text and speech providers are not configured'});
+		return;
+	}
 
-  const {sourceIds} = parsed.value;
-  const run = briefingStore.createRun(sourceIds);
+	const parsed = parseBriefingRunRequest(req.body);
+	if (parsed.ok === false) {
+		res.status(400).json({error: parsed.error});
+		return;
+	}
 
-  void progressRun(run.id);
+	const idempotency = parseIdempotencyKey(req.get('Idempotency-Key'));
+	if (idempotency.ok === false) {
+		res.status(400).json({error: idempotency.error});
+		return;
+	}
 
-  res.status(201).json(run);
+	try {
+		const result = generationJobStore.enqueue(parsed.value.sourceIds, idempotency.value);
+		const run = briefingStore.getRun(result.job.runId);
+		if (!run) throw new Error('Queued run could not be loaded');
+		res.status(result.created ? 201 : 200).json(withJob(run));
+	} catch (error) {
+		if (error instanceof IdempotencyConflictError) {
+			res.status(409).json({code: 'IDEMPOTENCY_CONFLICT', error: error.message});
+			return;
+		}
+		if (error instanceof JobStateError) {
+			res.status(400).json({code: 'INVALID_GENERATION_REQUEST', error: error.message});
+			return;
+		}
+		throw error;
+	}
 });
 
 briefingRunsRouter.get('/briefing-runs/:id', (req, res) => {
-  const run = briefingStore.getRun(req.params.id);
-  if (!run) {
-    res.status(404).json({error: 'Briefing run not found'});
-    return;
-  }
+	const run = briefingStore.getRun(req.params.id);
+	if (!run) {
+		res.status(404).json({error: 'Briefing run not found'});
+		return;
+	}
 
-  res.json(run);
+	res.json(withJob(run));
 });

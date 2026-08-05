@@ -12,8 +12,9 @@ Before changing code, read these files in order:
 4. `docs/codex/PLAN.md`
 5. `docs/codex/STATE.md`
 6. `docs/codex/TEST_MATRIX.md`
+7. `docs/codex/BUILD_LOG.md`
 
-The latest user instruction wins over repository documents. `SPEC.md` defines product scope, `DECISIONS.md` records architectural choices, `PLAN.md` defines slice order, `STATE.md` is the execution ledger, and `TEST_MATRIX.md` defines observable completion evidence. Do not silently reinterpret conflicts; record them and stop if they materially affect the current slice.
+The latest user instruction wins over repository documents. `SPEC.md` defines product scope, `DECISIONS.md` records architectural choices, `PLAN.md` defines slice order, `STATE.md` is the current execution ledger, `TEST_MATRIX.md` defines observable completion evidence, and `BUILD_LOG.md` retains checkpoint commands and repair history. Do not silently reinterpret conflicts; record them and stop if they materially affect the current slice.
 
 ## Hard preflight
 

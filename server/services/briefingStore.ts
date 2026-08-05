@@ -1,6 +1,5 @@
 import type {AudioAsset, BriefingRun, BriefingSection, RunStatus} from '../../src/types';
 import {db} from '../database/index';
-import {sourceStore} from './sourceStore';
 
 const cloneRun = (run: BriefingRun): BriefingRun => ({
 	...run,
@@ -34,32 +33,6 @@ type AudioAssetRow = {
 	format: string;
 };
 
-const initialRun: BriefingRun = {
-	id: 'run-1',
-	title: 'Morning Briefing',
-	status: 'complete',
-	createdAt: new Date(Date.now() - 86400000).toISOString(),
-	completedAt: new Date(Date.now() - 86400000 + 300000).toISOString(),
-	summary: "A quick overview of today's top stories in AI and tech startups.",
-	audioAsset: {id: 'audio-1', url: '#', durationMs: 270000, format: 'mp3'},
-	sections: [
-		{
-			id: 'sec-1',
-			title: 'Technology & Startups',
-			type: 'news_summary',
-			spokenText:
-				"In today's top news from TechCrunch, several major funding rounds were announced in the autonomous vehicle space. Analysts note that this signals a resurgence in hard-tech investments. Meanwhile, the AI sector continues to dominate headlines with the release of new models focused on reasoning over pure generation.",
-			sourceItemIds: ['src-1', 'src-2'],
-			importanceScore: 8,
-			followUpPrompts: ['What were the specific funding rounds mentioned?', 'Can you elaborate on the new reasoning models?'],
-		},
-	],
-};
-
-const initialRunSourceIds = ['src-1', 'src-2'];
-
-const createId = (prefix: string): string => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-
 const parseStringArray = (value: string): string[] => {
 	try {
 		const parsed = JSON.parse(value) as unknown;
@@ -87,25 +60,6 @@ const audioAssetFromRow = (row: AudioAssetRow): AudioAsset => ({
 });
 
 class BriefingStore {
-	constructor() {
-		sourceStore.listSources();
-		this.seedRunsIfEmpty();
-	}
-
-	private seedRunsIfEmpty(): void {
-		const row = db.prepare('SELECT COUNT(*) AS count FROM briefing_runs').get() as {count: number};
-		if (row.count > 0) return;
-
-		const seed = db.transaction(() => {
-			this.insertRun(initialRun);
-			this.replaceRunSourceIds(initialRun.id, initialRunSourceIds);
-			this.replaceSections(initialRun.id, initialRun.sections);
-			if (initialRun.audioAsset) this.replaceAudioAsset(initialRun.id, initialRun.audioAsset);
-		});
-
-		seed();
-	}
-
 	listRuns(): BriefingRun[] {
 		const rows = db.prepare('SELECT * FROM briefing_runs ORDER BY datetime(created_at) DESC').all() as BriefingRunRow[];
 		return rows.map(row => cloneRun(this.hydrateRun(row)));
@@ -114,24 +68,6 @@ class BriefingStore {
 	getRun(id: string): BriefingRun | undefined {
 		const row = db.prepare('SELECT * FROM briefing_runs WHERE id = ?').get(id) as BriefingRunRow | undefined;
 		return row ? cloneRun(this.hydrateRun(row)) : undefined;
-	}
-
-	createRun(sourceIds: string[]): BriefingRun {
-		const run: BriefingRun = {
-			id: createId('run'),
-			title: `Briefing - ${new Date().toLocaleDateString()}`,
-			status: 'queued',
-			createdAt: new Date().toISOString(),
-			sections: [],
-		};
-
-		const create = db.transaction(() => {
-			this.insertRun(run);
-			this.replaceRunSourceIds(run.id, sourceIds);
-		});
-
-		create();
-		return cloneRun(run);
 	}
 
 	updateRun(id: string, patch: Partial<BriefingRun>): BriefingRun | undefined {
@@ -202,27 +138,6 @@ class BriefingStore {
 			sections: sectionRows.map(sectionFromRow),
 			audioAsset: audioRow ? audioAssetFromRow(audioRow) : undefined,
 		};
-	}
-
-	private insertRun(run: BriefingRun): void {
-		db.prepare(`
-			INSERT INTO briefing_runs (id, title, status, created_at, completed_at, summary)
-			VALUES (@id, @title, @status, @createdAt, @completedAt, @summary)
-		`).run({
-			id: run.id,
-			title: run.title,
-			status: run.status,
-			createdAt: run.createdAt,
-			completedAt: run.completedAt ?? null,
-			summary: run.summary ?? null,
-		});
-	}
-
-	private replaceRunSourceIds(runId: string, sourceIds: string[]): void {
-		db.prepare('DELETE FROM briefing_run_sources WHERE run_id = ?').run(runId);
-
-		const insert = db.prepare('INSERT OR IGNORE INTO briefing_run_sources (run_id, source_id) VALUES (?, ?)');
-		for (const sourceId of sourceIds) insert.run(runId, sourceId);
 	}
 
 	private replaceSections(runId: string, sections: BriefingSection[]): void {

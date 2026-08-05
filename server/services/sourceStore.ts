@@ -64,39 +64,6 @@ type SourceItemRow = {
 	gathered_at: string;
 };
 
-const initialSources: Source[] = [
-	{
-		id: 'src-1',
-		type: 'rss',
-		name: 'TechCrunch',
-		url: 'https://techcrunch.com/feed',
-		category: 'Tech',
-		isActive: true,
-		status: 'healthy',
-		addedAt: new Date(Date.now() - 86400000 * 5).toISOString(),
-	},
-	{
-		id: 'src-2',
-		type: 'manual_topic',
-		name: 'AI Agents Research',
-		description: 'Latest breakthroughs in autonomous AI systems',
-		category: 'Tech',
-		isActive: true,
-		status: 'syncing',
-		addedAt: new Date(Date.now() - 86400000 * 2).toISOString(),
-	},
-	{
-		id: 'src-3',
-		type: 'rss',
-		name: 'The Verge',
-		url: 'https://www.theverge.com/rss/index.xml',
-		category: 'News',
-		isActive: false,
-		status: 'error',
-		addedAt: new Date(Date.now() - 86400000 * 10).toISOString(),
-	},
-];
-
 const createId = (prefix: string): string => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
 const sourceSelectSql = `
@@ -139,38 +106,6 @@ const clampLimit = (value: number | undefined): number => Math.min(Math.max(valu
 const clampOffset = (value: number | undefined): number => Math.max(value || 0, 0);
 
 class SourceStore {
-	constructor() {
-		this.seedSourcesIfEmpty();
-	}
-
-	private seedSourcesIfEmpty(): void {
-		const row = db.prepare('SELECT COUNT(*) AS count FROM sources').get() as {count: number};
-		if (row.count > 0) return;
-
-		const insert = db.prepare(`
-			INSERT INTO sources (id, type, name, url, description, category, is_active, status, added_at)
-			VALUES (@id, @type, @name, @url, @description, @category, @isActive, @status, @addedAt)
-		`);
-
-		const seed = db.transaction(() => {
-			for (const source of initialSources) {
-				insert.run({
-					id: source.id,
-					type: source.type,
-					name: source.name,
-					url: source.url ?? null,
-					description: source.description ?? null,
-					category: source.category ?? null,
-					isActive: source.isActive ? 1 : 0,
-					status: source.status ?? null,
-					addedAt: source.addedAt,
-				});
-			}
-		});
-
-		seed();
-	}
-
 	listSources(): Source[] {
 		const rows = db.prepare(`${sourceSelectSql} ORDER BY datetime(s.added_at) DESC`).all() as SourceRow[];
 		return rows.map(row => cloneSource(sourceFromRow(row)));
@@ -378,34 +313,6 @@ class SourceStore {
 
 		persist();
 		return result;
-	}
-
-	createManualSourceItem(source: Source): SourceItem {
-		const now = new Date().toISOString();
-		const item: SourceItem = {
-			id: createId(`item-${source.id}`),
-			sourceId: source.id,
-			title: source.name,
-			content: source.description || `Manual topic source: ${source.name}`,
-			url: source.url,
-			publishedAt: now,
-			gatheredAt: now,
-		};
-
-		db.prepare(`
-			INSERT INTO source_items (id, source_id, external_id, title, content, url, author, published_at, gathered_at)
-			VALUES (@id, @sourceId, NULL, @title, @content, @url, NULL, @publishedAt, @gatheredAt)
-		`).run({
-			id: item.id,
-			sourceId: item.sourceId,
-			title: item.title,
-			content: item.content,
-			url: item.url ?? null,
-			publishedAt: item.publishedAt ?? null,
-			gatheredAt: item.gatheredAt,
-		});
-
-		return item;
 	}
 
 	getSource(id: string): Source | undefined {

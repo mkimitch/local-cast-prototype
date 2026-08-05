@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Plus, Trash2, Power, PowerOff, Hash, Rss, AlertCircle, RefreshCw, CheckCircle2, ExternalLink, List, X } from 'lucide-react';
 import { sourceService } from '../../services';
-import { Source, SourceItem, SourceType } from '../../types';
+import { Source, SourceItem } from '../../types';
 
 const formatDateTime = (value?: string): string => {
   if (!value) return 'Not available';
@@ -24,7 +24,6 @@ const errorMessage = (error: unknown): string => (
 export default function SourcesView() {
   const [sources, setSources] = useState<Source[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [newType, setNewType] = useState<SourceType>('rss');
   const [newName, setNewName] = useState('');
   const [newUrlOrDesc, setNewUrlOrDesc] = useState('');
   const [newCategory, setNewCategory] = useState('');
@@ -49,10 +48,9 @@ export default function SourcesView() {
     if (!newName.trim()) return;
     
     await sourceService.addSource({
-      type: newType,
+      type: 'rss',
       name: newName.trim(),
-      url: newType === 'rss' ? newUrlOrDesc.trim() : undefined,
-      description: newType === 'manual_topic' ? newUrlOrDesc.trim() : undefined,
+      url: newUrlOrDesc.trim(),
       category: newCategory.trim() || undefined,
       isActive: true
     });
@@ -123,7 +121,7 @@ export default function SourcesView() {
       <div className="page-header page-header--responsive">
         <div>
           <h1 className="page-title">Sources</h1>
-          <p className="page-description">Manage the content feeds and topics that fuel your briefings.</p>
+          <p className="page-description">Manage supplied RSS and Atom feeds for your briefings.</p>
         </div>
         <div className="page-actions">
           {categories.length > 1 && (
@@ -143,7 +141,7 @@ export default function SourcesView() {
             className="button button--dark"
           >
             <Plus size={16} />
-            Add Source
+            Add RSS Feed
           </button>
         </div>
       </div>
@@ -151,36 +149,27 @@ export default function SourcesView() {
       {showAddForm && (
         <div className="card card--padded fade-slide-in">
           <div className="form-card-header">
-            <h2 className="form-card-title">Add New Source</h2>
+            <h2 className="form-card-title">Add RSS Feed</h2>
             <button onClick={() => setShowAddForm(false)} className="icon-button" aria-label="Close add source form">×</button>
           </div>
           <form onSubmit={handleAdd} className="form-stack">
-            <div className="radio-group">
-              <label className="radio-option">
-                <input type="radio" checked={newType === 'rss'} onChange={() => setNewType('rss')} />
-                <span>RSS Feed</span>
-              </label>
-              <label className="radio-option">
-                <input type="radio" checked={newType === 'manual_topic'} onChange={() => setNewType('manual_topic')} />
-                <span>Topic / Instructions</span>
-              </label>
-            </div>
-            
             <div className="form-grid">
               <div className="field">
-                <label className="form-label">Source Name</label>
+                <label htmlFor="source-name" className="form-label">Source Name</label>
                 <input 
+                  id="source-name"
                   type="text" 
                   value={newName} 
                   onChange={e => setNewName(e.target.value)}
                   className="control" 
-                  placeholder={newType === 'rss' ? 'e.g. TechCrunch' : 'e.g. AI Research'}
+                  placeholder="e.g. Project updates"
                   required
                 />
               </div>
               <div className="field">
-                <label className="form-label">Category (Optional)</label>
+                <label htmlFor="source-category" className="form-label">Category (Optional)</label>
                 <input 
+                  id="source-category"
                   type="text" 
                   value={newCategory} 
                   onChange={e => setNewCategory(e.target.value)}
@@ -189,15 +178,16 @@ export default function SourcesView() {
                 />
               </div>
               <div className="field form-grid__wide">
-                <label className="form-label">
-                  {newType === 'rss' ? 'RSS URL' : 'Topic Instructions'}
+                <label htmlFor="source-location" className="form-label">
+                  RSS URL
                 </label>
                 <input 
+                  id="source-location"
                   type="text" 
                   value={newUrlOrDesc} 
                   onChange={e => setNewUrlOrDesc(e.target.value)}
                   className="control" 
-                  placeholder={newType === 'rss' ? 'https://...' : 'Describe what to gather...'}
+                  placeholder="https://example.com/feed.xml"
                   required
                 />
               </div>
@@ -214,7 +204,7 @@ export default function SourcesView() {
                 type="submit"
                 className="button button--primary"
               >
-                Save Source
+                Save RSS Feed
               </button>
             </div>
           </form>

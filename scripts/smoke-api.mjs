@@ -1,383 +1,292 @@
 import {spawn} from 'node:child_process';
+import {createServer} from 'node:http';
 import {fileURLToPath} from 'node:url';
 import Database from 'better-sqlite3';
 import fs from 'node:fs';
-import {createServer} from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const port = process.env.SMOKE_API_PORT || '8899';
-const baseUrl = `http://127.0.0.1:${port}/api`;
-const allowedOrigin = 'http://localhost:3000';
-const blockedOrigin = 'http://example.invalid';
-const databasePath = path.join(os.tmpdir(), `localcast-smoke-${process.pid}.sqlite`);
+const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'localcast-api-smoke-'));
+const databasePath = path.join(temporaryRoot, 'data', 'localcast.sqlite');
+const mediaPath = path.join(temporaryRoot, 'media');
+const allowedOrigin = 'http://localcast.test';
+const blockedOrigin = 'http://unexpected.test';
+const children = new Set();
+const output = [];
 
-let serverOutput = '';
-let server;
+let apiPort;
+let baseUrl;
 let rssServer;
-let rssFeedUrl;
-
-const rssFixture = `<?xml version="1.0" encoding="UTF-8" ?>
-<rss version="2.0">
-  <channel>
-    <title>LocalCast Smoke Feed</title>
-    <link>http://127.0.0.1/</link>
-    <description>Smoke test RSS feed</description>
-    <item>
-      <guid>smoke-item-1</guid>
-      <title>Smoke RSS Story One</title>
-      <link>http://127.0.0.1/stories/one</link>
-      <author>smoke@example.test</author>
-      <pubDate>Mon, 06 Jul 2026 12:00:00 GMT</pubDate>
-      <description>First real RSS item for the LocalCast smoke test.</description>
-    </item>
-    <item>
-      <guid>smoke-item-2</guid>
-      <title>Smoke RSS Story Two</title>
-      <link>http://127.0.0.1/stories/two</link>
-      <pubDate>Mon, 06 Jul 2026 12:05:00 GMT</pubDate>
-      <description>Second real RSS item for duplicate prevention checks.</description>
-    </item>
-  </channel>
-</rss>`;
-
-const startRssFixture = async () => {
-  rssServer = createServer((req, res) => {
-    if (req.url === '/feed.xml') {
-      res.writeHead(200, {'Content-Type': 'application/rss+xml; charset=utf-8'});
-      res.end(rssFixture);
-      return;
-    }
-
-    res.writeHead(404, {'Content-Type': 'text/plain'});
-    res.end('Not found');
-  });
-
-  await new Promise(resolve => rssServer.listen(0, '127.0.0.1', resolve));
-  const address = rssServer.address();
-  if (!address || typeof address === 'string') throw new Error('RSS fixture did not bind to a TCP port');
-  rssFeedUrl = `http://127.0.0.1:${address.port}/feed.xml`;
-};
-
-const stopRssFixture = async () => {
-  if (!rssServer) return;
-  await new Promise(resolve => rssServer.close(resolve));
-};
-
-const startServer = () => {
-	serverOutput = '';
-	server = spawn(path.join(repoRoot, 'node_modules/.bin/tsx'), ['server/index.ts'], {
-		cwd: repoRoot,
-		env: {
-			...process.env,
-			PORT: port,
-			DATABASE_PATH: databasePath,
-			AI_PROVIDER: 'mock',
-			AI_MODEL: 'mock-localcast',
-			CORS_ORIGIN: allowedOrigin,
-		},
-		stdio: ['ignore', 'pipe', 'pipe'],
-	});
-
-	server.stdout.on('data', chunk => {
-		serverOutput += chunk.toString();
-	});
-	server.stderr.on('data', chunk => {
-		serverOutput += chunk.toString();
-	});
-};
-
-const stopServer = async () => {
-	if (!server || server.exitCode !== null) return;
-
-	await new Promise(resolve => {
-		server.once('exit', resolve);
-		server.kill('SIGTERM');
-		setTimeout(resolve, 2000);
-	});
-};
+let feedRequestCount = 0;
 
 const assert = (condition, message) => {
-  if (!condition) throw new Error(message);
+	if (!condition) throw new Error(message);
 };
 
-const request = async (pathName, init = {}) => {
-  const response = await fetch(`${baseUrl}${pathName}`, init);
-  const text = await response.text();
-  const body = text ? JSON.parse(text) : undefined;
-  return {response, body};
+const reservePort = async () => {
+	const server = createServer();
+	await new Promise((resolve, reject) => {
+		server.once('error', reject);
+		server.listen(0, '127.0.0.1', resolve);
+	});
+	const address = server.address();
+	if (!address || typeof address === 'string') throw new Error('Could not reserve a local smoke-test port');
+	await new Promise(resolve => server.close(resolve));
+	return address.port;
 };
 
-const waitForServer = async () => {
-  const startedAt = Date.now();
+const fixtureFeed = `<?xml version="1.0" encoding="UTF-8" ?>
+<rss version="2.0"><channel>
+	<title>LocalCast fixture</title><link>http://127.0.0.1/</link><description>Fixture feed</description>
+	<item><guid>fixture-1</guid><title>Durable LocalCast Story</title><link>http://127.0.0.1/story</link><pubDate>Wed, 05 Aug 2026 12:00:00 GMT</pubDate><description>Supplied factual evidence for a deterministic briefing.</description></item>
+</channel></rss>`;
 
-  while (Date.now() - startedAt < 10000) {
-    if (server.exitCode !== null) {
-      throw new Error(`API server exited early.\n${serverOutput}`);
-    }
-
-    try {
-      const {response, body} = await request('/health', {headers: {Origin: allowedOrigin}});
-      if (response.ok && body?.ok === true) return;
-    } catch {
-      // Server is not listening yet.
-    }
-
-    await new Promise(resolve => setTimeout(resolve, 200));
-  }
-
-  throw new Error(`Timed out waiting for API server.\n${serverOutput}`);
+const startFeed = async () => {
+	rssServer = createServer((request, response) => {
+		if (request.url === '/feed.xml') {
+			feedRequestCount += 1;
+			response.writeHead(200, {'Content-Type': 'application/rss+xml; charset=utf-8'});
+			response.end(fixtureFeed);
+			return;
+		}
+		response.writeHead(404, {'Content-Type': 'text/plain'});
+		response.end('Not found');
+	});
+	await new Promise((resolve, reject) => {
+		rssServer.once('error', reject);
+		rssServer.listen(0, '127.0.0.1', resolve);
+	});
+	const address = rssServer.address();
+	if (!address || typeof address === 'string') throw new Error('RSS fixture failed to bind');
+	return `http://127.0.0.1:${address.port}/feed.xml`;
 };
 
-const pollRun = async runId => {
-  const startedAt = Date.now();
+const childEnvironment = (role, extra = {}) => ({
+	...process.env,
+	NODE_ENV: 'test',
+	LOCALCAST_RUNTIME_MODE: 'test',
+	LOCALCAST_PROCESS_ROLE: role,
+	LOCALCAST_HOST: '127.0.0.1',
+	PORT: String(apiPort),
+	DATABASE_PATH: databasePath,
+	MEDIA_PATH: mediaPath,
+	LOCALCAST_WEB_DIST_PATH: path.join(repoRoot, 'dist'),
+	LOCALCAST_TRUSTED_ORIGINS: allowedOrigin,
+	TEXT_PROVIDER: 'fake',
+	SPEECH_PROVIDER: 'fake',
+	LOCALCAST_ALLOW_FAKE_PROVIDERS: 'true',
+	RSS_SYNC_ON_START: '',
+	RSS_SYNC_INTERVAL_MINUTES: '',
+	...extra,
+});
 
-  while (Date.now() - startedAt < 10000) {
-    const {response, body} = await request(`/briefing-runs/${encodeURIComponent(runId)}`);
-    assert(response.ok, 'briefing run lookup should succeed');
-
-    if (body.status === 'complete' || body.status === 'failed') return body;
-    await new Promise(resolve => setTimeout(resolve, 300));
-  }
-
-  throw new Error('briefing run did not complete before timeout');
+const startProcess = (entryPoint, role, extra = {}) => {
+	const child = spawn(process.execPath, ['--import', 'tsx', entryPoint], {
+		cwd: repoRoot,
+		env: childEnvironment(role, extra),
+		stdio: ['ignore', 'pipe', 'pipe'],
+	});
+	children.add(child);
+	for (const stream of [child.stdout, child.stderr]) {
+		stream.on('data', chunk => output.push(chunk.toString()));
+	}
+	child.once('exit', () => children.delete(child));
+	return child;
 };
+
+const stopProcess = async child => {
+	if (!child || child.exitCode !== null) return;
+	child.kill('SIGTERM');
+	const result = await Promise.race([
+		new Promise(resolve => child.once('exit', () => resolve('exit'))),
+		new Promise(resolve => setTimeout(() => resolve('timeout'), 3_000)),
+	]);
+	if (result === 'timeout' && child.exitCode === null) {
+		child.kill('SIGKILL');
+		throw new Error(`Child process did not stop cleanly:\n${output.join('')}`);
+	}
+	if (child.exitCode !== 0) throw new Error(`Child process exited ${child.exitCode} during graceful shutdown:\n${output.join('')}`);
+};
+
+const request = async (pathname, init = {}) => {
+	const response = await fetch(`${baseUrl}${pathname}`, init);
+	const text = await response.text();
+	let body;
+	try {
+		body = text ? JSON.parse(text) : undefined;
+	} catch {
+		body = text;
+	}
+	return {response, body};
+};
+
+const waitForApi = async child => {
+	const deadline = Date.now() + 10_000;
+	while (Date.now() < deadline) {
+		if (child.exitCode !== null) throw new Error(`API exited before readiness:\n${output.join('')}`);
+		try {
+			const health = await request('/health', {headers: {Origin: allowedOrigin}});
+			if (health.response.ok && health.body?.ok === true) return;
+		} catch {
+			// The socket is not listening yet.
+		}
+		await new Promise(resolve => setTimeout(resolve, 100));
+	}
+	throw new Error(`API readiness timed out:\n${output.join('')}`);
+};
+
+const waitForRun = async (runId, terminal) => {
+	const deadline = Date.now() + 10_000;
+	while (Date.now() < deadline) {
+		const result = await request(`/briefing-runs/${encodeURIComponent(runId)}`);
+		assert(result.response.ok, 'briefing lookup should succeed while polling');
+		if (result.body.status === terminal) return result.body;
+		if (result.body.status === 'complete' || result.body.status === 'failed') {
+			throw new Error(`Run reached unexpected terminal state ${result.body.status}`);
+		}
+		await new Promise(resolve => setTimeout(resolve, 100));
+	}
+	throw new Error(`Run did not reach ${terminal} before timeout`);
+};
+
+let app;
+let worker;
 
 try {
-	await startRssFixture();
-	startServer();
-	await waitForServer();
+	apiPort = await reservePort();
+	baseUrl = `http://127.0.0.1:${apiPort}/api`;
+	const feedUrl = await startFeed();
+	app = startProcess('server/index.ts', 'app');
+	await waitForApi(app);
 
-  const health = await request('/health', {headers: {Origin: allowedOrigin}});
-  assert(health.response.headers.get('access-control-allow-origin') === allowedOrigin, 'allowed CORS origin should be reflected');
+	const health = await request('/health', {headers: {Origin: allowedOrigin}});
+	assert(health.response.headers.get('access-control-allow-origin') === allowedOrigin, 'trusted Origin should be reflected');
+	assert(health.body.providers.text.status === 'CONTRACT TESTED ONLY', 'test text provider should report contract-only status');
+	assert(health.body.providers.speech.status === 'CONTRACT TESTED ONLY', 'test speech provider should report contract-only status');
 
-  const blockedPreflight = await fetch(`${baseUrl}/health`, {
-    method: 'OPTIONS',
-    headers: {
-      Origin: blockedOrigin,
-      'Access-Control-Request-Method': 'GET',
-    },
-  });
-  assert(blockedPreflight.status === 403, 'blocked CORS preflight should return 403');
+	const blocked = await request('/health', {headers: {Origin: blockedOrigin}});
+	assert(blocked.response.status === 403 && blocked.body.code === 'ORIGIN_NOT_ALLOWED', 'unexpected Origin should fail closed');
 
-  const invalidSource = await request('/sources', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({type: 'rss'}),
-  });
-  assert(invalidSource.response.status === 400, 'invalid source create should return 400');
+	const initialSources = await request('/sources');
+	const initialRuns = await request('/briefing-runs');
+	assert(initialSources.body.length === 0 && initialRuns.body.length === 0, 'fresh runtime must not seed demo data');
 
-  await request('/sources/src-1', {
-    method: 'PATCH',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({isActive: false}),
-  });
+	const settings = await request('/settings');
+	assert(settings.body.generationEnabled === true, 'explicit test fakes should enable generation');
+	assert(!JSON.stringify(settings.body).match(/apiKey|secret|token/i), 'settings API must not expose secret fields');
+	const rejectedLegacySettings = await request('/settings', {
+		method: 'PUT',
+		headers: {'Content-Type': 'application/json'},
+		body: JSON.stringify({
+			theme: 'system', contrastMode: 'normal', colorVisionMode: 'default', textSize: 'normal', density: 'normal',
+			aiConfig: {apiKey: 'secret-canary'},
+		}),
+	});
+	assert(rejectedLegacySettings.response.status === 400, 'browser-facing settings must reject provider key fields');
 
-  const createdSource = await request('/sources', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({
-      type: 'manual_topic',
-      name: 'Smoke Topic',
-      description: 'Smoke test topic instructions',
-      isActive: true,
-    }),
-  });
-  assert(createdSource.response.status === 201, 'valid source create should return 201');
-  assert(typeof createdSource.body?.id === 'string', 'created source should include an id');
+	const rejectedTopic = await request('/sources', {
+		method: 'POST', headers: {'Content-Type': 'application/json'},
+		body: JSON.stringify({type: 'manual_topic', name: 'Direction', description: 'Focus on changes only', isActive: true}),
+	});
+	assert(rejectedTopic.response.status === 400, 'legacy topic-as-source creation must be rejected');
 
-  const createdRssSource = await request('/sources', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({
-      type: 'rss',
-      name: 'Smoke RSS',
-      url: rssFeedUrl,
-      isActive: true,
-    }),
-  });
-  assert(createdRssSource.response.status === 201, 'valid RSS source create should return 201');
+	const feed = await request('/sources', {
+		method: 'POST', headers: {'Content-Type': 'application/json'},
+		body: JSON.stringify({type: 'rss', name: 'Fixture RSS', url: feedUrl, isActive: true}),
+	});
+	assert(feed.response.status === 201, 'RSS source should persist');
+	await new Promise(resolve => setTimeout(resolve, 350));
+	const beforeExplicitSync = await request(`/sources/${encodeURIComponent(feed.body.id)}/items`);
+	const runsBeforeExplicitAction = await request('/briefing-runs');
+	assert(feedRequestCount === 0, 'elapsed time after startup must not trigger an automatic feed fetch');
+	assert(beforeExplicitSync.body.length === 0 && runsBeforeExplicitAction.body.length === 0, 'elapsed time after startup must not create items or generation jobs');
+	const synced = await request(`/sources/${encodeURIComponent(feed.body.id)}/sync`, {method: 'POST'});
+	assert(synced.response.ok && synced.body.insertedCount === 1, 'explicit RSS sync should store fixture evidence');
+	assert(feedRequestCount === 1, 'explicit feed sync should perform exactly one fixture fetch');
 
-  const syncedRssSource = await request(`/sources/${encodeURIComponent(createdRssSource.body.id)}/sync`, {method: 'POST'});
-  assert(syncedRssSource.response.ok, 'RSS source sync should succeed');
-  assert(syncedRssSource.body.insertedCount === 2, 'initial RSS sync should insert fixture items');
+	const enqueue = await request('/briefing-runs', {
+		method: 'POST',
+		headers: {'Content-Type': 'application/json', 'Idempotency-Key': 'smoke-idempotency-0001'},
+		body: JSON.stringify({sourceIds: [feed.body.id]}),
+	});
+	assert(enqueue.response.status === 201 && enqueue.body.status === 'queued', 'explicit action should durably enqueue work');
+	const replay = await request('/briefing-runs', {
+		method: 'POST',
+		headers: {'Content-Type': 'application/json', 'Idempotency-Key': 'smoke-idempotency-0001'},
+		body: JSON.stringify({sourceIds: [feed.body.id]}),
+	});
+	assert(replay.response.status === 200 && replay.body.job.id === enqueue.body.job.id, 'enqueue replay must be idempotent');
 
-  const sourcesAfterSuccessfulSync = await request('/sources');
-  const successfulRssSource = sourcesAfterSuccessfulSync.body.find(source => source.id === createdRssSource.body.id);
-  assert(successfulRssSource.status === 'healthy', 'successful RSS sync should mark source healthy');
-  assert(successfulRssSource.lastSyncStatus === 'success', 'successful RSS sync should record success status');
-  assert(typeof successfulRssSource.lastSyncedAt === 'string', 'successful RSS sync should record lastSyncedAt');
-  assert(successfulRssSource.consecutiveSyncFailures === 0, 'successful RSS sync should reset failure count');
-  assert(successfulRssSource.itemCount === 2, 'successful RSS sync should expose itemCount');
-  assert(!successfulRssSource.lastSyncError, 'successful RSS sync should clear lastSyncError');
-  assert(!successfulRssSource.nextSyncAfter, 'successful RSS sync should clear nextSyncAfter');
+	await new Promise(resolve => setTimeout(resolve, 350));
+	const beforeWorker = await request(`/briefing-runs/${encodeURIComponent(enqueue.body.id)}`);
+	assert(beforeWorker.body.status === 'queued' && beforeWorker.body.job.attemptCount === 0, 'API process must not execute detached work');
 
-  const syncedItems = await request(`/sources/${encodeURIComponent(createdRssSource.body.id)}/items`);
-  assert(syncedItems.response.ok, 'source item lookup should succeed');
-  assert(syncedItems.body.length === 2, 'RSS source should expose two stored source items');
-  assert(syncedItems.body.some(item => item.title === 'Smoke RSS Story One'), 'stored RSS items should include real feed titles');
+	worker = startProcess('server/testing/worker.ts', 'worker', {LOCALCAST_WORKER_ID: 'smoke-worker-success'});
+	const completed = await waitForRun(enqueue.body.id, 'complete');
+	assert(completed.sections.length > 0, 'worker should persist deterministic transcript sections');
+	assert(completed.sections.some(section => section.sourceItemIds.length > 0), 'deterministic output should contain a source citation');
+	assert(completed.audioAsset?.format === 'mp3', 'worker should persist an MP3 asset record');
+	const audioFile = path.join(mediaPath, path.basename(completed.audioAsset.url));
+	assert(fs.statSync(audioFile).size === 417, 'test speech adapter should publish deterministic fixture bytes');
+	await stopProcess(worker);
+	worker = undefined;
 
-  const searchedItems = await request(`/source-items?sourceId=${encodeURIComponent(createdRssSource.body.id)}&q=${encodeURIComponent('Story One')}&limit=1&offset=0`);
-  assert(searchedItems.response.ok, 'source item search should succeed');
-  assert(searchedItems.body.length === 1 && searchedItems.body[0].title === 'Smoke RSS Story One', 'source item q filter should narrow results');
+	const repeatEnqueue = await request('/briefing-runs', {
+		method: 'POST',
+		headers: {'Content-Type': 'application/json', 'Idempotency-Key': 'smoke-idempotency-repeat-0001'},
+		body: JSON.stringify({sourceIds: [feed.body.id]}),
+	});
+	worker = startProcess('server/testing/worker.ts', 'worker', {LOCALCAST_WORKER_ID: 'smoke-worker-repeat'});
+	const repeated = await waitForRun(repeatEnqueue.body.id, 'complete');
+	const normalizedSections = run => run.sections.map(({title, type, spokenText, sourceItemIds, importanceScore, followUpPrompts}) => ({
+		title, type, spokenText, sourceItemIds, importanceScore, followUpPrompts,
+	}));
+	assert(JSON.stringify(normalizedSections(repeated)) === JSON.stringify(normalizedSections(completed)), 'equivalent fake inputs must produce repeatable transcript content');
+	const repeatedAudioFile = path.join(mediaPath, path.basename(repeated.audioAsset.url));
+	assert(Buffer.compare(fs.readFileSync(audioFile), fs.readFileSync(repeatedAudioFile)) === 0, 'equivalent fake inputs must produce byte-identical MP3 fixtures');
+	await stopProcess(worker);
+	worker = undefined;
 
-  const rangedItems = await request(`/sources/${encodeURIComponent(createdRssSource.body.id)}/items?from=${encodeURIComponent('2026-07-06T12:03:00.000Z')}&to=${encodeURIComponent('2026-07-06T12:10:00.000Z')}`);
-  assert(rangedItems.response.ok, 'source item date range should succeed');
-  assert(rangedItems.body.length === 1 && rangedItems.body[0].title === 'Smoke RSS Story Two', 'source item date range should narrow results');
+	const failingEnqueue = await request('/briefing-runs', {
+		method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({sourceIds: [feed.body.id]}),
+	});
+	worker = startProcess('server/testing/worker.ts', 'worker', {
+		LOCALCAST_WORKER_ID: 'smoke-worker-failure',
+		LOCALCAST_FAKE_FAILURE_PHASE: 'drafting',
+	});
+	const failed = await waitForRun(failingEnqueue.body.id, 'failed');
+	assert(failed.job.errorCode === 'GENERATION_FAILED' && failed.job.retryable === true, 'injected failure should be safely retryable');
+	assert(!JSON.stringify(failed).match(/secret-canary|source-canary|provider-body-canary|private\/path-canary/), 'browser-facing failure must redact raw details');
+	await stopProcess(worker);
+	worker = undefined;
 
-  const syncedAgain = await request(`/sources/${encodeURIComponent(createdRssSource.body.id)}/sync`, {method: 'POST'});
-  assert(syncedAgain.response.ok, 'second RSS source sync should succeed');
-  assert(syncedAgain.body.insertedCount === 0, 'second RSS sync should not duplicate fixture items');
+	await stopProcess(app);
+	app = startProcess('server/index.ts', 'app');
+	await waitForApi(app);
+	const persisted = await request(`/briefing-runs/${encodeURIComponent(enqueue.body.id)}`);
+	assert(persisted.body.status === 'complete' && persisted.body.sections.length > 0, 'completed work must survive API restart');
 
-  const syncedItemsAgain = await request(`/sources/${encodeURIComponent(createdRssSource.body.id)}/items`);
-  assert(syncedItemsAgain.body.length === 2, 'RSS source item count should remain stable after duplicate sync');
-
-  const failedRssSource = await request('/sources', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({
-      type: 'rss',
-      name: 'Broken Smoke RSS',
-      url: rssFeedUrl.replace('/feed.xml', '/missing.xml'),
-      isActive: true,
-    }),
-  });
-  assert(failedRssSource.response.status === 201, 'broken RSS source create should return 201');
-
-  const failedSync = await request(`/sources/${encodeURIComponent(failedRssSource.body.id)}/sync`, {method: 'POST'});
-  assert(failedSync.response.status === 502, 'broken RSS source sync should return 502');
-
-  const sourcesAfterFailedSync = await request('/sources');
-  const failedSourceAfterSync = sourcesAfterFailedSync.body.find(source => source.id === failedRssSource.body.id);
-  assert(failedSourceAfterSync.status === 'error', 'failed RSS sync should mark source error');
-  assert(failedSourceAfterSync.lastSyncStatus === 'error', 'failed RSS sync should record error status');
-  assert(failedSourceAfterSync.lastSyncError.includes('HTTP 404'), 'failed RSS sync should store readable error');
-  assert(failedSourceAfterSync.consecutiveSyncFailures === 1, 'failed RSS sync should increment failure count');
-  assert(typeof failedSourceAfterSync.nextSyncAfter === 'string', 'failed RSS sync should store nextSyncAfter');
-
-  const syncAllSkipped = await request('/sources/sync', {method: 'POST'});
-  assert(syncAllSkipped.response.ok, 'sync-all should succeed with mixed source health');
-  assert(
-    syncAllSkipped.body.skipped.some(source => source.sourceId === failedRssSource.body.id),
-    'sync-all should skip a source whose backoff is still active',
-  );
-
-  const forcedSyncAll = await request('/sources/sync?force=true', {method: 'POST'});
-  assert(forcedSyncAll.response.ok, 'forced sync-all should complete with mixed results');
-  assert(
-    forcedSyncAll.body.errors.some(source => source.sourceId === failedRssSource.body.id),
-    'forced sync-all should retry and report the broken source error',
-  );
-
-  const sourcesAfterForcedSync = await request('/sources');
-  const failedSourceAfterForcedSync = sourcesAfterForcedSync.body.find(source => source.id === failedRssSource.body.id);
-  assert(failedSourceAfterForcedSync.consecutiveSyncFailures === 2, 'forced failed retry should increment failure count again');
-
-  const settings = await request('/settings', {
-    method: 'PUT',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({
-      aiProvider: 'mock',
-      aiConfig: {apiKey: 'do-not-return', model: 'mock-localcast'},
-      ttsProvider: 'local',
-      ttsConfig: {apiKey: 'do-not-return'},
-      theme: 'system',
-      contrastMode: 'normal',
-      colorVisionMode: 'default',
-      textSize: 'normal',
-      density: 'normal',
-    }),
-  });
-  assert(settings.response.ok, 'settings update should succeed');
-  assert(!('apiKey' in settings.body.aiConfig), 'settings response should not include aiConfig.apiKey');
-  assert(!('apiKey' in settings.body.ttsConfig), 'settings response should not include ttsConfig.apiKey');
-
-  const runCreate = await request('/briefing-runs', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({sourceIds: [createdSource.body.id]}),
-  });
-  assert(runCreate.response.status === 201, 'briefing run create should return 201');
-  assert(runCreate.body.status === 'queued', 'created run should start queued');
-
-  const completedRun = await pollRun(runCreate.body.id);
-  assert(completedRun.status === 'complete', 'mock briefing run should complete');
-  assert(Array.isArray(completedRun.sections) && completedRun.sections.length > 0, 'completed run should include sections');
-
-  const rssRunCreate = await request('/briefing-runs', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({sourceIds: [createdRssSource.body.id]}),
-  });
-  assert(rssRunCreate.response.status === 201, 'RSS briefing run create should return 201');
-
-  const completedRssRun = await pollRun(rssRunCreate.body.id);
-  assert(completedRssRun.status === 'complete', 'RSS briefing run should complete');
-  assert(completedRssRun.summary.includes('Smoke RSS Story One'), 'RSS briefing run should use stored real RSS item titles');
-
-  const followUp = await request('/follow-up', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({question: 'What changed?', runId: completedRun.id}),
-  });
-	assert(followUp.response.ok, 'follow-up should succeed');
-	assert(typeof followUp.body.answer === 'string' && followUp.body.answer.length > 0, 'follow-up should include an answer');
-
-	await stopServer();
-	startServer();
-	await waitForServer();
-
-	const persistedSources = await request('/sources');
-	assert(
-		persistedSources.body.some(source => source.id === createdSource.body.id),
-		'created source should persist across API restart',
-	);
-
-	const persistedRun = await request(`/briefing-runs/${encodeURIComponent(completedRun.id)}`);
-	assert(persistedRun.response.ok, 'created briefing run should persist across API restart');
-	assert(persistedRun.body.status === 'complete', 'persisted briefing run should keep completed status');
-	assert(Array.isArray(persistedRun.body.sections) && persistedRun.body.sections.length > 0, 'persisted run should include sections');
-
-	const persistedRssItems = await request(`/sources/${encodeURIComponent(createdRssSource.body.id)}/items`);
-	assert(persistedRssItems.response.ok, 'RSS source items should persist across API restart');
-	assert(persistedRssItems.body.length === 2, 'persisted RSS item count should remain stable');
-
-	const persistedSourcesAfterRestart = await request('/sources');
-	const persistedFailedSource = persistedSourcesAfterRestart.body.find(source => source.id === failedRssSource.body.id);
-	assert(persistedFailedSource.consecutiveSyncFailures === 2, 'failed sync metadata should persist across API restart');
-
-	await stopServer();
 	const sqlite = new Database(databasePath, {readonly: true});
 	try {
-		const migrations = sqlite.prepare('SELECT id FROM schema_migrations ORDER BY id').all().map(row => row.id);
-		assert(migrations.includes('001_initial_schema'), 'initial schema migration should be recorded');
-		assert(migrations.includes('002_source_item_identity'), 'source item identity migration should be recorded');
-		assert(migrations.includes('003_source_sync_metadata'), 'source sync metadata migration should be recorded');
-
-		const sourceItemColumns = sqlite.prepare('PRAGMA table_info(source_items)').all().map(row => row.name);
-		assert(sourceItemColumns.includes('external_id'), 'source_items should include external_id column');
-		assert(sourceItemColumns.includes('author'), 'source_items should include author column');
-
-		const sourceColumns = sqlite.prepare('PRAGMA table_info(sources)').all().map(row => row.name);
-		assert(sourceColumns.includes('last_synced_at'), 'sources should include last_synced_at column');
-		assert(sourceColumns.includes('last_sync_status'), 'sources should include last_sync_status column');
-		assert(sourceColumns.includes('last_sync_error'), 'sources should include last_sync_error column');
-		assert(sourceColumns.includes('consecutive_sync_failures'), 'sources should include consecutive_sync_failures column');
-		assert(sourceColumns.includes('next_sync_after'), 'sources should include next_sync_after column');
+		const events = sqlite.prepare('SELECT phase FROM generation_job_events WHERE job_id = ? ORDER BY id').all(enqueue.body.job.id).map(row => row.phase);
+		assert(JSON.stringify(events) === JSON.stringify(['queued', 'syncing', 'selecting', 'drafting', 'validating', 'rendering_audio', 'complete']), 'persisted phases must be complete and ordered');
+		assert(sqlite.prepare('SELECT COUNT(*) AS count FROM generation_jobs').get().count === 3, 'only explicit requests should create jobs');
+		assert(sqlite.prepare("SELECT COUNT(*) AS count FROM generation_jobs WHERE state = 'running'").get().count === 0, 'no active lease should remain after workers stop');
 	} finally {
 		sqlite.close();
 	}
 
-	console.log('API smoke checks passed');
+	assert(!output.join('').match(/secret-canary|source-canary|provider-body-canary|private\/path-canary/), 'process logs must redact injected raw details');
+	console.log('API and worker smoke checks passed');
 } finally {
-	await stopServer();
-	await stopRssFixture();
-	for (const suffix of ['', '-wal', '-shm']) {
+	for (const child of [...children]) {
 		try {
-			fs.unlinkSync(`${databasePath}${suffix}`);
+			await stopProcess(child);
 		} catch {
-			// Temporary database file may not exist if startup failed early.
+			// Preserve the primary smoke failure while still cleaning up owned children.
 		}
 	}
+	if (rssServer) await new Promise(resolve => rssServer.close(resolve));
+	fs.rmSync(temporaryRoot, {recursive: true, force: true});
 }

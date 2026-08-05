@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { LayoutDashboard, Rss, Mic, Settings, Headphones, CloudOff, CloudLightning, Cloud, Sun, Moon, PanelLeftClose, PanelLeft } from 'lucide-react';
+import { LayoutDashboard, Rss, Mic, Settings, Headphones, CloudOff, Cloud, Sun, Moon, PanelLeftClose, PanelLeft } from 'lucide-react';
 import { ViewState } from '../../App';
 
 interface SidebarProps {
@@ -91,14 +91,14 @@ export default function Sidebar({ currentView, onNavigate }: SidebarProps) {
       </nav>
 
       <div className="sidebar__footer">
-        <div className="connection-status" title={isOnline ? "Online & Synced" : "Offline"}>
+        <div className="connection-status" title={isOnline ? "Browser network available" : "Browser offline"}>
           {isOnline ? (
             <>
               <div className="status-dot" data-status="online">
                 <span className="status-dot__ping"></span>
                 <span className="status-dot__core"></span>
               </div>
-              {!isCollapsed && <span>Online & Synced</span>}
+              {!isCollapsed && <span>Network available</span>}
             </>
           ) : (
             <>
@@ -113,7 +113,7 @@ export default function Sidebar({ currentView, onNavigate }: SidebarProps) {
           <div className="local-note">
             <p className="local-note__label">Local-First</p>
             <p className="local-note__copy">
-              Your sources and generated transcripts stay on this device.
+              Your sources and generated transcripts stay on this LocalCast server unless you explicitly configure an external provider.
             </p>
           </div>
         )}

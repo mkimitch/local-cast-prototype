@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Save, Server, Mic, Key, Palette, Eye, Type, Layout, Moon, Sun, Monitor } from 'lucide-react';
+import { Save, Server, Palette, Eye, Type, Layout, Moon, Sun, Monitor } from 'lucide-react';
 import { providerService } from '../../services';
 import { AppSettings } from '../../types';
 import { ORB_THEMES, OrbThemeName } from '../audio/OrbVisualizer';
@@ -7,30 +7,58 @@ import { ORB_THEMES, OrbThemeName } from '../audio/OrbVisualizer';
 export default function SettingsView() {
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string>();
+
+  const loadSettings = async () => {
+    setError(undefined);
+    try {
+      setSettings(await providerService.getSettings());
+    } catch {
+      setError('LocalCast could not load settings from its local API.');
+    }
+  };
 
   useEffect(() => {
-    providerService.getSettings().then(setSettings);
+    void loadSettings();
   }, []);
-
-  if (!settings) return null;
 
   const handleSave = async (settingsToSave: AppSettings) => {
     setIsSaving(true);
-    await providerService.saveSettings(settingsToSave);
-    setTimeout(() => setIsSaving(false), 600);
+    setError(undefined);
+    try {
+      await providerService.saveSettings(settingsToSave);
+    } catch {
+      setError('LocalCast could not save appearance settings. Your previous server settings remain unchanged.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const updateSetting = (newSettings: AppSettings) => {
     setSettings(newSettings);
-    handleSave(newSettings);
+    void handleSave(newSettings);
   };
+
+  if (!settings) {
+    return (
+      <div className="page page--narrow">
+        <h1 className="page-title">Settings</h1>
+        {error ? (
+          <div className="empty-state" role="alert">
+            <p>{error}</p>
+            <button className="button button--secondary" onClick={() => void loadSettings()}>Try again</button>
+          </div>
+        ) : <p role="status">Loading settings...</p>}
+      </div>
+    );
+  }
 
   return (
     <div className="page page--narrow">
       <div className="page-header page-header--bottom-aligned">
         <div>
           <h1 className="page-title">Settings</h1>
-          <p className="page-description">Configure AI providers, appearance, and local integrations.</p>
+          <p className="page-description">Review server-side provider status and adjust appearance.</p>
         </div>
         <div className="saving-status">
           {isSaving && (
@@ -40,6 +68,8 @@ export default function SettingsView() {
           )}
         </div>
       </div>
+
+      {error && <p className="empty-state" role="alert">{error}</p>}
 
       <div className="card">
         <div className="card__header card__header--plain">
@@ -146,109 +176,36 @@ export default function SettingsView() {
 
       <div className="card">
         <div className="card__header card__header--plain">
-          <Server size={20} className="icon-primary" />
-          <h2 className="card__title">AI Providers (Transcription & Synthesis)</h2>
+          <Server size={20} className="icon-primary" aria-hidden="true" />
+          <h2 className="card__title">Provider Status</h2>
         </div>
         <div className="card__body settings-stack">
-          <div className="field">
-            <label className="field-label">Provider Engine</label>
-            <select 
-              value={settings.aiProvider}
-              onChange={e => updateSetting({...settings, aiProvider: e.target.value as AppSettings['aiProvider']})}
-              className="control"
-            >
-              <option value="mock">Mock Provider</option>
-              <option value="gemini_placeholder">Google Gemini</option>
-              <option value="openai_placeholder">OpenAI</option>
-              <option value="lmstudio_placeholder">LM Studio (Local)</option>
-              <option value="ollama_placeholder">Ollama (Local)</option>
-            </select>
-          </div>
-
-          {settings.aiProvider !== 'mock' && (
-            <div className="settings-stack">
-              {(settings.aiProvider === 'lmstudio_placeholder' || settings.aiProvider === 'ollama_placeholder') && (
-                <div className="field">
-                  <label className="field-label">Base URL</label>
-                  <input 
-                    type="text" 
-                    placeholder="http://localhost:11434"
-                    value={settings.aiConfig.baseUrl || ''}
-                    onChange={e => setSettings({ ...settings, aiConfig: { ...settings.aiConfig, baseUrl: e.target.value }})}
-                    onBlur={() => handleSave(settings)}
-                    className="control"
-                  />
+          <p className="field-help">
+            Provider credentials and endpoints are configured only on the LocalCast server. They are never entered or stored in this browser.
+          </p>
+          <dl className="content-grid content-grid--two">
+            {(['text', 'speech'] as const).map(kind => {
+              const provider = settings.providers[kind];
+              return (
+                <div className="card card--padded" key={kind}>
+                  <dt className="field-label">{kind === 'text' ? 'Text generation' : 'Speech generation'}</dt>
+                  <dd>
+                    <strong>{provider.adapter}</strong>
+                    <p>
+                      <span className={`badge ${provider.status === 'NOT CONFIGURED' ? 'badge--warning' : 'badge--primary'}`}>
+                        {provider.status}
+                      </span>
+                    </p>
+                    <p className="field-help">{provider.reason}</p>
+                  </dd>
                 </div>
-              )}
-
-              {(settings.aiProvider === 'gemini_placeholder' || settings.aiProvider === 'openai_placeholder' || settings.aiProvider === 'lmstudio_placeholder') && (
-                <div className="field">
-                  <label className="field-label">
-                    <Key size={16} className="icon-muted" />
-                    API Key
-                  </label>
-                  <input 
-                    type="password" 
-                    placeholder="sk-..."
-                    value={settings.aiConfig.apiKey || ''}
-                    onChange={e => setSettings({ ...settings, aiConfig: { ...settings.aiConfig, apiKey: e.target.value }})}
-                    onBlur={() => handleSave(settings)}
-                    className="control"
-                  />
-                  <p className="field-help">Keys are stored locally in your browser and never sent to our servers.</p>
-                </div>
-              )}
-
-              <div className="field">
-                <label className="field-label">Model Name</label>
-                <input 
-                  type="text" 
-                  placeholder="e.g. gemini-2.5-flash"
-                  value={settings.aiConfig.model || ''}
-                  onChange={e => setSettings({ ...settings, aiConfig: { ...settings.aiConfig, model: e.target.value }})}
-                  onBlur={() => handleSave(settings)}
-                  className="control"
-                />
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="card">
-        <div className="card__header card__header--plain">
-          <Mic size={20} className="icon-primary" />
-          <h2 className="card__title">Text-to-Speech (TTS)</h2>
-        </div>
-        <div className="card__body settings-stack">
-          <div className="field">
-            <label className="field-label">Voice Engine</label>
-            <select 
-              value={settings.ttsProvider}
-              onChange={e => updateSetting({...settings, ttsProvider: e.target.value as AppSettings['ttsProvider']})}
-              className="control"
-            >
-              <option value="local">Web Speech API (Browser Local)</option>
-              <option value="openai">OpenAI TTS</option>
-              <option value="elevenlabs">ElevenLabs</option>
-            </select>
-          </div>
-          
-          {settings.ttsProvider !== 'local' && (
-            <div className="field">
-              <label className="field-label">
-                <Key size={16} className="icon-muted" />
-                API Key
-              </label>
-              <input 
-                type="password" 
-                placeholder="Enter API Key"
-                value={settings.ttsConfig.apiKey || ''}
-                onChange={e => setSettings({ ...settings, ttsConfig: { ...settings.ttsConfig, apiKey: e.target.value }})}
-                onBlur={() => handleSave(settings)}
-                className="control"
-              />
-            </div>
+              );
+            })}
+          </dl>
+          {!settings.generationEnabled && (
+            <p className="empty-state" role="status">
+              Sync and generate remains disabled until both providers are configured and verified by the server.
+            </p>
           )}
         </div>
       </div>

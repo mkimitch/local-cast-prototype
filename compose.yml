@@ -1,0 +1,74 @@
+x-localcast-common: &localcast-common
+  image: localcast:${LOCALCAST_IMAGE_TAG:-prototype}
+  build:
+    context: .
+    dockerfile: Dockerfile
+  environment: &localcast-environment
+    NODE_ENV: production
+    LOCALCAST_RUNTIME_MODE: production
+    LOCALCAST_HOST: 0.0.0.0
+    PORT: "8787"
+    DATABASE_PATH: /var/lib/localcast/data/localcast.sqlite
+    MEDIA_PATH: /var/lib/localcast/media
+    LOCALCAST_WEB_DIST_PATH: /app/dist
+    LOCALCAST_INSTALLATION_ID: ${LOCALCAST_INSTALLATION_ID:?Set a unique LocalCast installation ID}
+    LOCALCAST_TRUSTED_ORIGINS: ${LOCALCAST_TRUSTED_ORIGINS:?Set the exact Caddy origin}
+    TEXT_PROVIDER: ${TEXT_PROVIDER:-not_configured}
+    SPEECH_PROVIDER: ${SPEECH_PROVIDER:-not_configured}
+    LOCALCAST_ALLOW_FAKE_PROVIDERS: "false"
+  volumes:
+    - localcast_data:/var/lib/localcast/data
+    - localcast_media:/var/lib/localcast/media
+  read_only: true
+  tmpfs:
+    - /tmp:size=64m,mode=1777
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  stop_grace_period: 30s
+
+services:
+  storage-init:
+    <<: *localcast-common
+    profiles: ["init"]
+    command: ["node", "dist-server/storageInit.js"]
+    environment:
+      <<: *localcast-environment
+      LOCALCAST_PROCESS_ROLE: storage-init
+    restart: "no"
+
+  app:
+    <<: *localcast-common
+    command: ["node", "dist-server/index.js"]
+    environment:
+      <<: *localcast-environment
+      LOCALCAST_PROCESS_ROLE: app
+    expose:
+      - "8787"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8787/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+      start_period: 2s
+    restart: unless-stopped
+
+  worker:
+    <<: *localcast-common
+    command: ["node", "dist-server/worker.js"]
+    environment:
+      <<: *localcast-environment
+      LOCALCAST_PROCESS_ROLE: worker
+      LOCALCAST_WORKER_ID: compose-worker
+    healthcheck:
+      test: ["CMD", "node", "-e", "const fs=require('node:fs');const cmd=fs.readFileSync('/proc/1/cmdline','utf8');if(!cmd.includes('worker.js')||!fs.existsSync(process.env.DATABASE_PATH))process.exit(1)"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+      start_period: 2s
+    restart: unless-stopped
+
+volumes:
+  localcast_data:
+  localcast_media:

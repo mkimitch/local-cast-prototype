@@ -11,6 +11,7 @@ node_modules/
 
 # Build / output (SvelteKit, Vercel, Netlify, etc.)
 dist/
+dist-server/
 build/
 .output/
 .svelte-kit/
@@ -74,6 +75,8 @@ pino-*.log
 coverage/
 .nyc_output/
 *.lcov
+test-results/
+playwright-report/
 
 # IDE & editor
 .vscode/*

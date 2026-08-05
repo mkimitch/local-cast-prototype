@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Play, Clock, CheckCircle, AlertTriangle } from 'lucide-react';
-import { briefingService, sourceService } from '../../services';
-import { BriefingRun, Source } from '../../types';
+import { briefingService, providerService, sourceService } from '../../services';
+import { AppSettings, BriefingRun } from '../../types';
 
 interface RunsProps {
   onNavigateToRun: (id: string) => void;
@@ -10,14 +10,24 @@ interface RunsProps {
 export default function RunsView({ onNavigateToRun }: RunsProps) {
   const [runs, setRuns] = useState<BriefingRun[]>([]);
   const [activeSourcesCount, setActiveSourcesCount] = useState(0);
+  const [settings, setSettings] = useState<AppSettings | null>(null);
+  const [loadError, setLoadError] = useState<string>();
+  const [isEnqueueing, setIsEnqueueing] = useState(false);
 
   const loadData = async () => {
-    const [allRuns, allSources] = await Promise.all([
-      briefingService.getRuns(),
-      sourceService.getSources()
-    ]);
-    setRuns(allRuns);
-    setActiveSourcesCount(allSources.filter(s => s.isActive).length);
+    try {
+      const [allRuns, allSources, appSettings] = await Promise.all([
+        briefingService.getRuns(),
+        sourceService.getSources(),
+        providerService.getSettings()
+      ]);
+      setRuns(allRuns);
+      setActiveSourcesCount(allSources.filter(s => s.isActive && s.type === 'rss').length);
+      setSettings(appSettings);
+      setLoadError(undefined);
+    } catch {
+      setLoadError('LocalCast could not load briefing runs from its local API.');
+    }
   };
 
   useEffect(() => {
@@ -30,11 +40,25 @@ export default function RunsView({ onNavigateToRun }: RunsProps) {
   }, []);
 
   const handleGenerate = async () => {
-    const allSources = await sourceService.getSources();
-    const activeSourceIds = allSources.filter(s => s.isActive).map(s => s.id);
-    const newRun = await briefingService.startRun(activeSourceIds);
-    onNavigateToRun(newRun.id);
+    if (isEnqueueing) return;
+    setIsEnqueueing(true);
+    try {
+      const allSources = await sourceService.getSources();
+      const activeSourceIds = allSources.filter(s => s.isActive && s.type === 'rss').map(s => s.id);
+      const newRun = await briefingService.startRun(activeSourceIds);
+      onNavigateToRun(newRun.id);
+    } catch {
+      setLoadError('LocalCast could not enqueue this briefing. Check provider status and try again.');
+      setIsEnqueueing(false);
+    }
   };
+
+  const canGenerate = Boolean(settings?.generationEnabled) && activeSourcesCount > 0;
+  const generationHelp = !settings?.generationEnabled
+    ? 'Generation is unavailable until text and speech providers are configured on the server.'
+    : activeSourcesCount === 0
+      ? 'Add and enable at least one source before generating.'
+      : 'Synchronize active sources and create a briefing.';
 
   const getStatusIcon = (status: BriefingRun['status']) => {
     switch (status) {
@@ -53,18 +77,23 @@ export default function RunsView({ onNavigateToRun }: RunsProps) {
         </div>
         <button
           onClick={handleGenerate}
-          disabled={activeSourcesCount === 0}
+          disabled={!canGenerate || isEnqueueing}
+          aria-describedby="runs-generation-help"
           className="button button--primary"
         >
           <Play size={16} />
-          Generate New
+          {isEnqueueing ? 'Enqueueing...' : 'Sync and generate'}
         </button>
       </div>
+
+      <p id="runs-generation-help" className="page-description">{generationHelp}</p>
+      {loadError && <p role="alert" className="empty-state">{loadError}</p>}
 
       <div className="card">
         <div className="card-list">
           {runs.map(run => (
-            <div 
+            <button
+              type="button"
               key={run.id} 
               className="run-row"
               onClick={() => onNavigateToRun(run.id)}
@@ -85,7 +114,7 @@ export default function RunsView({ onNavigateToRun }: RunsProps) {
               <div className="run-row__cta">
                 View Details
               </div>
-            </div>
+            </button>
           ))}
           {runs.length === 0 && (
             <div className="empty-state empty-state--large">
@@ -93,13 +122,14 @@ export default function RunsView({ onNavigateToRun }: RunsProps) {
                 <Play size={24} />
               </div>
               <h3 className="empty-state__title">No runs yet</h3>
-              <p className="empty-state__copy">Generate your first audio briefing based on your active sources.</p>
+              <p className="empty-state__copy">Create your first audio briefing from supplied material.</p>
               <button
                 onClick={handleGenerate}
-                disabled={activeSourcesCount === 0}
+                disabled={!canGenerate || isEnqueueing}
+                aria-describedby="runs-generation-help"
                 className="button button--secondary"
               >
-                Start Generating
+                {isEnqueueing ? 'Enqueueing...' : 'Sync and generate'}
               </button>
             </div>
           )}

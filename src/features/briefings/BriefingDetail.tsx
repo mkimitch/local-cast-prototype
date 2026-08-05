@@ -35,13 +35,16 @@ export default function BriefingDetailView({ runId, onBack, onPlay }: BriefingDe
   const isGenerating = run.status !== 'complete' && run.status !== 'failed';
 
   const steps = [
-    { id: 'gathering', label: 'Gathering Sources' },
-    { id: 'summarizing_sources', label: 'Summarizing Sources' },
+    { id: 'queued', label: 'Queued' },
+    { id: 'syncing', label: 'Synchronizing Sources' },
+    { id: 'selecting', label: 'Selecting Evidence' },
     { id: 'drafting', label: 'Drafting Transcript' },
+    { id: 'validating', label: 'Validating Citations' },
     { id: 'rendering_audio', label: 'Synthesizing Audio' }
   ];
 
   const currentStepIndex = steps.findIndex(s => s.id === run.status);
+  const currentStepLabel = steps.find(step => step.id === run.status)?.label;
 
   const exportJson = () => {
     if (!run) return;
@@ -96,6 +99,9 @@ export default function BriefingDetailView({ runId, onBack, onPlay }: BriefingDe
 
       {isGenerating && (
         <div className="card card--padded-lg generation-card">
+          <p className="sr-only" role="status" aria-live="polite">
+            {currentStepLabel ? `Generation phase: ${currentStepLabel}` : 'Generation in progress'}
+          </p>
           <h3 className="generation-card__title">
             <Loader2 size={18} className="icon-primary is-spinning" />
             Generation in Progress
@@ -122,6 +128,14 @@ export default function BriefingDetailView({ runId, onBack, onPlay }: BriefingDe
         </div>
       )}
 
+      {run.status === 'failed' && (
+        <div className="card card--padded-lg" role="alert">
+          <h2 className="card__title">Generation failed</h2>
+          <p>{run.job?.errorMessage || 'LocalCast could not complete this briefing.'}</p>
+          {run.job?.errorCode && <p className="field-help">Error code: {run.job.errorCode}</p>}
+        </div>
+      )}
+
       {run.status === 'complete' && (
         <>
           <div className="audio-ready-card">
@@ -131,9 +145,7 @@ export default function BriefingDetailView({ runId, onBack, onPlay }: BriefingDe
                   <PlayCircle size={24} />
                   Audio Briefing Ready
                 </div>
-                <div className="audio-ready-card__badge">
-                  Placeholder Audio
-                </div>
+                <div className="audio-ready-card__badge">Persisted audio</div>
               </div>
               
               <div className="audio-ready-card__body">

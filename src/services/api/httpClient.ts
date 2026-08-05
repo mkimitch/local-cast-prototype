@@ -1,18 +1,27 @@
-type ViteEnv = Record<string, string | undefined>;
+type ViteEnv = Record<string, string | boolean | undefined>;
 
 interface ViteImportMeta extends ImportMeta {
   env?: ViteEnv;
 }
 
-export type ServiceMode = 'mock' | 'api';
+export type ServiceMode = 'api';
 
 const env = ((import.meta as ViteImportMeta).env || {}) as ViteEnv;
 
-export const getServiceMode = (): ServiceMode => (
-  env.VITE_SERVICE_MODE?.toLowerCase() === 'api' ? 'api' : 'mock'
-);
+export const getServiceMode = (): ServiceMode => {
+  const configured = typeof env.VITE_SERVICE_MODE === 'string' ? env.VITE_SERVICE_MODE.toLowerCase() : undefined;
+  if (configured && configured !== 'api') {
+    throw new Error('LocalCast browser services must use the same-origin API');
+  }
+  return 'api';
+};
 
-export const apiBaseUrl = (env.VITE_API_BASE_URL || 'http://localhost:8787/api').replace(/\/+$/, '');
+const configuredBaseUrl = typeof env.VITE_API_BASE_URL === 'string' ? env.VITE_API_BASE_URL : '/api';
+if (env.PROD === true && !configuredBaseUrl.startsWith('/')) {
+  throw new Error('Production LocalCast API URL must be same-origin');
+}
+
+export const apiBaseUrl = configuredBaseUrl.replace(/\/+$/, '');
 
 export class HttpClientError extends Error {
   constructor(public readonly status: number, message: string, public readonly payload: unknown) {

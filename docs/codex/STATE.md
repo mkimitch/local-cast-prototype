@@ -1,12 +1,37 @@
 # LocalCast build state
 
-Last updated: 2026-08-05 17:01 CDT
+Last updated: 2026-08-05 18:33 CDT
 Branch: `codex/localcast-prototype`
 Pre-bootstrap HEAD: `910485b77ead63450660b0b97544889960e45e3f`
-Current checkpoint: bootstrap documentation commit containing this file
-Implementation slice: not started
-Next slice: **0 — Baseline, environment contracts, persistence, jobs, and deterministic fakes**
-Overall state: **STOPPED FOR OPERATOR REVIEW AS REQUESTED**
+Slice 0 base HEAD: `e720d5818ab15efccfa143c94d6514c0c9a2baad`
+Current checkpoint: Slice 0 green; checkpoint commit pending final diff review
+Implementation slice: **0 — COMPLETE**
+Next slice: **1 — entry blocked by O-002 (OpenAI credential, cloud-processing consent, model/voice, and minimal live-test budget)**
+Overall state: **SLICE 0 FULL GATE GREEN; CHECKPOINT PENDING**
+
+## Slice 0 result
+
+The credential-free production foundation is complete. It now has strict environment and role contracts, explicit identity-bound storage initialization, additive migration 004, SQLite health checks, durable FIFO generation jobs and attempts, one separate heartbeating worker, process-level crash/recovery and graceful-stop behavior, deterministic test-only providers, a same-origin production build, and an isolated non-root Compose topology.
+
+The rows closed by this slice are `GEN-01`, `GEN-06`, `DATA-01`, `JOB-01`, `JOB-02`, `PROV-02`, and `PROV-04`. Staged rows remain explicitly partial in `TEST_MATRIX.md`; this checkpoint does not claim real provider output, real MP3 behavior, podcast delivery, or follow-up grounding.
+
+Three final read-only reviewers independently audited architecture, runtime/deployment, and security/privacy/accessibility. The primary thread fixed all Slice 0 blockers they identified. No subagent wrote files.
+
+### Final verification evidence
+
+The exact credential-free phase gate ran from 2026-08-05 18:30:42 CDT:
+
+| Exact command | Result |
+| --- | --- |
+| `npm run verify` | PASS, exit 0 — lint; 31/31 unit; 31/31 integration; production web/server build; 2/2 Playwright; API/process smoke; production fail-closed/artifact smoke; Compose fresh-volume/init/topology/recreation smoke |
+| `npm audit --omit=dev` | PASS, exit 0 — `found 0 vulnerabilities` |
+| `git diff --check` | PASS, exit 0 — no whitespace errors after final documentation reconciliation at 2026-08-05 18:39:04 CDT |
+
+The Compose portion used an approved local Docker-engine escalation. It created only uniquely named `localcast-slice0-*` test resources and removed its containers, network, and volumes in `finally`. No Caddy command or change occurred. Detailed targeted results and the repair ledger are in `BUILD_LOG.md`.
+
+### Repair state
+
+No deterministic failure remains. Browser selector/reload repairs passed on the third evidence run; Compose probe repairs passed on the third evidence run; the lease precision and test-launcher findings each passed their first focused rerun. The three-attempt hard stop was not reached for an unresolved failure.
 
 ## Bootstrap result
 
@@ -125,11 +150,15 @@ See `DECISIONS.md` for the complete rationale and exceptions to the default stac
 
 ## Current blockers and repair ledger
 
-No implementation blocker is active because implementation has not started.
+No Slice 0 implementation blocker remains. Slice 1 cannot perform its required fixture-free OpenAI text/TTS chain without O-002.
 
-| Slice | Deterministic failure | Attempts | State |
+| Slice | Deterministic failure or entry block | Attempts | State |
 | --- | --- | --- | --- |
-| — | None | 0 | Not applicable |
+| 0 | Browser phase/reload scenario | 3 evidence-based repairs | GREEN |
+| 0 | Compose profile/probe scenario | 3 evidence-based runs, 2 repairs | GREEN |
+| 0 | Millisecond lease expiry | 1 repair | GREEN |
+| 0 | SIGKILL targeted the TypeScript launcher rather than worker child | 1 repair | GREEN |
+| 1 | O-002: no authorized OpenAI credential/cloud-processing consent/live-test budget | 0 repair attempts; external input required | ENTRY BLOCKED after Slice 0 checkpoint |
 
 Open operator decisions are listed in `DECISIONS.md`. Slice 1 requires an OpenAI credential and live-test budget. Slice 4 requires Caddy origin/topology/log handling and a real podcast client. Piper contract support can complete without a model; only an optional `LIVE VERIFIED` Piper check requires installation/model authorization.
 
@@ -144,4 +173,4 @@ Open operator decisions are listed in `DECISIONS.md`. Slice 1 requires an OpenAI
 
 ## Next action
 
-Stop for operator review of the bootstrap checkpoint. On explicit continuation, re-run the hard preflight and begin Slice 0 only. Do not begin product implementation from this bootstrap task.
+Review and commit the green Slice 0 diff as `feat(prototype): establish durable generation foundation`. Then enter Slice 1 and hard-stop on O-002 unless the operator supplies server-side OpenAI configuration, explicit consent to send the minimal synthetic live-check material to OpenAI, and a live-test spend boundary. Never place the credential in Git, documentation, logs, screenshots, or chat.
