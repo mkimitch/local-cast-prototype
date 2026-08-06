@@ -20,6 +20,7 @@ export default function StationsView() {
   const [editingNoteId, setEditingNoteId] = useState<string>();
   const [stationForm, setStationForm] = useState(emptyStation);
   const [editingStationId, setEditingStationId] = useState<string>();
+  const [runModes, setRunModes] = useState<Record<string, EpisodeMode>>({});
   const [error, setError] = useState<string>();
 
   const refreshNotes = async () => {
@@ -59,7 +60,7 @@ export default function StationsView() {
   });
 
   const generate = useMutation({
-    mutationFn: (station: Station) => briefingService.startStationRun(station.id, station.defaultMode),
+    mutationFn: ({station, mode}: {station: Station; mode: EpisodeMode}) => briefingService.startStationRun(station.id, mode),
     onSuccess: run => navigate(`/episodes/${encodeURIComponent(run.id)}`),
     onError: (value: Error) => setError(value.message),
   });
@@ -104,7 +105,7 @@ export default function StationsView() {
     <div className="page page--wide">
       <div className="page-header">
         <div>
-          <h1 className="page-title">Stations & Notes</h1>
+          <h1 tabIndex={-1} className="page-title">Stations & Notes</h1>
           <p className="page-description">Save supplied facts as notes, then use a station to direct synthesis without autonomous research.</p>
         </div>
       </div>
@@ -184,7 +185,7 @@ export default function StationsView() {
               <label className="form-label" htmlFor="station-mode">Default mode</label>
               <select id="station-mode" className="control" value={stationForm.defaultMode} onChange={event => setStationForm({...stationForm, defaultMode: event.target.value as EpisodeMode})}>
                 <option value="brief">Brief</option>
-                <option value="deep">Deep (not yet available)</option>
+                <option value="deep">Deep</option>
               </select>
             </div>
             <fieldset className="field">
@@ -228,11 +229,8 @@ export default function StationsView() {
                 const source = sources.data?.find(candidate => candidate.id === sourceId);
                 return !source || !source.isActive || source.feedUrlInvalid;
               });
-              const unavailableReason = station.defaultMode === 'deep'
-                ? 'Deep generation becomes available with the Slice 3 mode contract.'
-                : unavailableSource
-                  ? 'Remove or repair inactive feed selections before generating.'
-                  : undefined;
+              const unavailableReason = unavailableSource ? 'Remove or repair inactive feed selections before generating.' : undefined;
+              const runMode = runModes[station.id] || station.defaultMode;
               return <article key={station.id} id={`station-${station.id}`} className="briefing-row" aria-current={station.id === stationId ? 'true' : undefined}>
                 <div>
                   <h3 className="briefing-row__title"><Link to={`/stations/${encodeURIComponent(station.id)}`}>{station.name}</Link></h3>
@@ -242,10 +240,22 @@ export default function StationsView() {
                 <div className="page-actions">
                   <button className="icon-button" aria-label={`Edit station ${station.name}`} onClick={() => editStation(station)}><Pencil size={16} /></button>
                   <button className="icon-button" aria-label={`Delete station ${station.name}`} onClick={async () => { await stationService.deleteStation(station.id); await refreshStations(); if (station.id === stationId) navigate('/stations'); }}><Trash2 size={16} /></button>
+                  <label>
+                    <span className="sr-only">Generation mode for {station.name}</span>
+                    <select
+                      className="control control--minimal"
+                      aria-label={`Generation mode for ${station.name}`}
+                      value={runMode}
+                      onChange={event => setRunModes(current => ({...current, [station.id]: event.target.value as EpisodeMode}))}
+                    >
+                      <option value="brief">Brief</option>
+                      <option value="deep">Deep</option>
+                    </select>
+                  </label>
                   <button
                     className="button button--inverse"
                     disabled={!settings.data?.generationEnabled || generate.isPending || station.noteIds.length + station.sourceIds.length === 0 || Boolean(unavailableReason)}
-                    onClick={() => generate.mutate(station)}
+                    onClick={() => generate.mutate({station, mode: runMode})}
                   >
                     <Play size={16} aria-hidden="true" /> {generate.isPending ? 'Starting...' : 'Sync and generate'}
                   </button>

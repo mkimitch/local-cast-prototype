@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3';
 import {afterEach, describe, expect, it} from 'vitest';
-import {applyMigrationPlan, applyMigrations, migrationIds} from '../../server/database/migrations';
+import {applyMigrationPlan, applyMigrations, migrationIds, migrationPlanThrough} from '../../server/database/migrations';
 import type {Migration} from '../../server/database/migrations';
 import {GenerationJobStore} from '../../server/jobs/generationJobStore';
 import {installFrozenMigrationSnapshot} from '../fixtures/migrationSnapshots';
@@ -106,5 +106,37 @@ describe('additive migration history', () => {
 
 		expect(() => applyMigrations(db)).toThrow(/newer than this LocalCast build/);
 		expect((db.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get() as {count: number}).count).toBe(1);
+	});
+
+	it('backfills the versioned single-host transcript seam from migration 006', () => {
+		const db = database();
+		applyMigrationPlan(db, migrationPlanThrough('006_feed_ingestion_and_fts'));
+		db.prepare(`
+			INSERT INTO briefing_runs (id, title, status, created_at, mode, ai_generated)
+			VALUES ('run-006', 'Existing episode', 'complete', '2026-08-06T12:00:00.000Z', 'brief', 1)
+		`).run();
+		db.prepare(`
+			INSERT INTO briefing_sections (id, run_id, title, type, spoken_text, source_item_ids_json, importance_score, follow_up_prompts_json, sort_order)
+			VALUES ('section-006', 'run-006', 'Existing section', 'intro', 'Existing narration', '[]', 5, '[]', 0)
+		`).run();
+		db.prepare(`
+			INSERT INTO transcript_claims (id, run_id, section_id, kind, text, support_status, sort_order)
+			VALUES ('claim-006', 'run-006', 'section-006', 'transition', 'Existing narration', 'not_required', 0)
+		`).run();
+		db.prepare(`
+			INSERT INTO briefing_runs (id, title, status, created_at, mode, ai_generated)
+			VALUES ('run-monolithic', 'Legacy monolithic episode', 'complete', '2026-08-06T12:00:00.000Z', 'brief', 1)
+		`).run();
+		db.prepare(`
+			INSERT INTO briefing_sections (id, run_id, title, type, spoken_text, source_item_ids_json, importance_score, follow_up_prompts_json, sort_order)
+			VALUES ('section-monolithic', 'run-monolithic', 'Legacy section', 'intro', 'Legacy narration', '[]', 5, '[]', 0)
+		`).run();
+
+		applyMigrations(db);
+
+		expect(db.prepare('SELECT script_format_version FROM briefing_runs WHERE id = ?').get('run-006')).toEqual({script_format_version: 1});
+		expect(db.prepare('SELECT script_format_version FROM briefing_runs WHERE id = ?').get('run-monolithic')).toEqual({script_format_version: null});
+		expect(db.prepare('SELECT speaker_role, speaker_label, voice_profile FROM transcript_claims WHERE id = ?').get('claim-006')).toEqual({speaker_role: 'host', speaker_label: null, voice_profile: null});
+		expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'generation_retry_requests'").get()).toBeTruthy();
 	});
 });

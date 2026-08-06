@@ -7,6 +7,7 @@ import {GenerationJobStore} from '../../server/jobs/generationJobStore';
 import {GenerationError} from '../../server/jobs/types';
 import {parseNoteBody, parseStationBody} from '../../server/validation';
 import {createTestDatabase, insertSource} from '../helpers/database';
+import {fakeGeneratedSections} from '../../server/testing/fakeGenerationProcessor';
 
 const databases: Database.Database[] = [];
 const database = () => {
@@ -91,7 +92,7 @@ describe('notes, stations, and immutable generation evidence', () => {
 		expect((db.prepare('SELECT COUNT(*) AS count FROM episode_evidence_snapshots WHERE run_id = ?').get(job.runId) as {count: number}).count).toBe(0);
 	});
 
-	it('captures RSS-backed requests while keeping deep mode behind its Slice 3 contract', () => {
+	it('captures RSS-backed requests and persists an explicit deep-mode request', () => {
 		const db = database();
 		let id = 0;
 		const stations = new StationStore(db, () => '2026-08-05T12:00:00.000Z', () => `id-${++id}`);
@@ -121,9 +122,11 @@ describe('notes, stations, and immutable generation evidence', () => {
 			sourceUrl: 'https://example.test/feed.xml',
 			syncStatus: 'pending',
 		})]);
-		expect(() => jobs.enqueueStation(deepStation.id, 'deep')).toThrow(/Slice 3/);
-		expect(jobs.count()).toBe(1);
-		expect((db.prepare('SELECT COUNT(*) AS count FROM briefing_runs').get() as {count: number}).count).toBe(1);
+		const deepJob = jobs.enqueueStation(deepStation.id, 'deep').job;
+		const deepRequestId = deepJob.payload.version === 2 ? deepJob.payload.requestId : '';
+		expect(new EpisodeStore(db).getRequest(deepRequestId)).toMatchObject({mode: 'deep'});
+		expect(jobs.count()).toBe(2);
+		expect((db.prepare('SELECT COUNT(*) AS count FROM briefing_runs').get() as {count: number}).count).toBe(2);
 	});
 
 	it('clears optional source metadata and revisions stations when a selected source is deleted', () => {
@@ -161,23 +164,14 @@ describe('notes, stations, and immutable generation evidence', () => {
 		jobs.updatePhase(claimed.id, 'worker-a', 'drafting', 1_000);
 		jobs.updatePhase(claimed.id, 'worker-a', 'validating', 1_000);
 		jobs.updatePhase(claimed.id, 'worker-a', 'rendering_audio', 1_000);
+		const sections = fakeGeneratedSections(claimed, evidence, 'brief');
+		const publishedClaim = sections.flatMap(section => section.segments).find(segment => segment.kind === 'factual')!;
 		jobs.complete(claimed.id, 'worker-a', () => episodes.publishEpisode({
 			runId: claimed.runId,
 			request,
 			textProvider: 'OpenAI',
 			textModel: 'gpt-5.4-mini',
-			sections: [{
-				id: 'section-published',
-				title: 'Published facts',
-				type: 'news_summary',
-				segments: [{
-					id: 'claim-published',
-					kind: 'factual',
-					text: 'LocalCast generation begins only after an explicit action.',
-					citations: [{snapshotId: evidence[0]!.id, excerpt: 'LocalCast begins generation only after a person chooses Sync and generate.'}],
-					supportStatus: 'supported',
-				}],
-			}],
+			sections,
 			audio: {
 				id: `audio-${claimed.runId}`,
 				storageFilename: `episode-${claimed.runId}.mp3`,
@@ -194,7 +188,8 @@ describe('notes, stations, and immutable generation evidence', () => {
 
 		expect(jobs.get(queued.id)).toMatchObject({state: 'complete', phase: 'complete'});
 		expect(db.prepare('SELECT status, text_model, speech_model, speech_voice FROM briefing_runs WHERE id = ?').get(claimed.runId)).toEqual({status: 'complete', text_model: 'gpt-5.4-mini', speech_model: 'gpt-4o-mini-tts', speech_voice: 'marin'});
-		expect(db.prepare('SELECT snapshot_id, excerpt FROM episode_citations WHERE claim_id = ?').get('claim-published')).toEqual({snapshot_id: evidence[0]!.id, excerpt: 'LocalCast begins generation only after a person chooses Sync and generate.'});
+		expect(db.prepare('SELECT snapshot_id, excerpt FROM episode_citations WHERE claim_id = ?').get(publishedClaim.id)).toEqual({snapshot_id: evidence[0]!.id, excerpt: publishedClaim.text});
+		expect(db.prepare('SELECT speaker_role FROM transcript_claims WHERE id = ?').get(publishedClaim.id)).toEqual({speaker_role: 'host'});
 		expect(db.prepare('SELECT duration_ms, byte_length, sha256 FROM audio_assets WHERE run_id = ?').get(claimed.runId)).toEqual({duration_ms: 65_000, byte_length: 12_345, sha256: 'c'.repeat(64)});
 	});
 });

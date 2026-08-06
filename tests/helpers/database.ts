@@ -43,6 +43,7 @@ export const testConfig = (overrides: Partial<ServerConfig> = {}): ServerConfig 
 	openAiSpeechVoice: 'marin',
 	openAiSpeechFormat: 'mp3',
 	ffprobePath: 'ffprobe',
+	ffmpegPath: 'ffmpeg',
 	allowFakeProviders: true,
 	fakePhaseDelayMs: 0,
 	fakeAfterPublicationDelayMs: 0,

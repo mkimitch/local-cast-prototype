@@ -3,7 +3,7 @@ import {expect, test} from '@playwright/test';
 const origin = 'http://127.0.0.1:43180';
 
 test('explicit browser action observes durable ordered phases across reload', async ({page}) => {
-	test.setTimeout(45_000);
+	test.setTimeout(60_000);
 	await page.goto(`${origin}/stations`);
 	await expect(page.getByRole('note', {name: 'External provider disclosure'})).toBeVisible();
 	await page.getByLabel('Title').fill('Browser walking-skeleton note');
@@ -63,35 +63,65 @@ test('explicit browser action observes durable ordered phases across reload', as
 	]);
 	await expect(page.getByText('AI-generated LocalCast audio')).toBeVisible();
 	await expect(page.getByRole('heading', {name: 'Transcript & validated citations'})).toBeVisible();
-	await expect(page.getByRole('list', {name: 'Validated citations'})).toBeVisible();
+	await expect(page.getByRole('list', {name: /Validated citations for transcript segment/}).first()).toBeVisible();
 	await expect(page.getByText('Browser walking-skeleton note').last()).toBeVisible();
-	const audio = page.getByLabel(/Play AI-generated episode/).first();
+	const openPlayer = page.getByRole('button', {name: 'Open player'});
+	await openPlayer.click();
+	const audio = page.getByLabel(/AI-generated episode media for/);
 	const mediaPath = await audio.getAttribute('src');
 	expect(mediaPath).toMatch(/^\/media\/audio-run-/);
 	const media = await page.request.get(`${origin}${mediaPath}`);
 	expect(media.status()).toBe(200);
 	expect(media.headers()['content-type']).toContain('audio/mpeg');
 	expect(Number(media.headers()['content-length'])).toBeGreaterThan(1_000);
-	const playback = await audio.evaluate(async element => {
+	await audio.evaluate(async element => {
 		const mediaElement = element as HTMLAudioElement;
 		if (mediaElement.readyState < 1) await new Promise<void>((resolve, reject) => {
 			mediaElement.addEventListener('loadedmetadata', () => resolve(), {once: true});
 			mediaElement.addEventListener('error', () => reject(new Error('fixture MP3 did not decode')), {once: true});
 		});
-		await mediaElement.play();
-		await new Promise(resolve => setTimeout(resolve, 100));
-		const result = {duration: mediaElement.duration, paused: mediaElement.paused};
-		mediaElement.pause();
-		return result;
 	});
-	expect(playback.duration).toBeGreaterThan(0.4);
-	expect(playback.paused).toBe(false);
+	await page.getByRole('button', {name: 'Play episode'}).click();
+	await expect.poll(() => audio.evaluate(element => !(element as HTMLAudioElement).paused)).toBe(true);
+	await page.getByRole('button', {name: 'Pause episode'}).click();
+	await expect.poll(() => audio.evaluate(element => (element as HTMLAudioElement).paused)).toBe(true);
+	await audio.evaluate(element => {
+		element.dataset.seekEvents = '0';
+		element.addEventListener('seeking', () => {
+			element.dataset.seekEvents = String(Number(element.dataset.seekEvents || '0') + 1);
+		});
+	});
+	await page.getByRole('button', {name: 'Skip forward 30 seconds'}).click();
+	await expect.poll(() => audio.evaluate(element => Number(element.dataset.seekEvents || '0'))).toBeGreaterThan(0);
+	const forwardSeekEvents = await audio.evaluate(element => Number(element.dataset.seekEvents || '0'));
+	await page.getByRole('button', {name: 'Skip back 15 seconds'}).click();
+	await expect.poll(() => audio.evaluate(element => Number(element.dataset.seekEvents || '0'))).toBeGreaterThan(forwardSeekEvents);
+	await page.getByLabel('Playback speed').selectOption('1.5');
+	expect(await audio.evaluate(element => (element as HTMLAudioElement).playbackRate)).toBe(1.5);
+	await expect(page.getByRole('link', {name: /Download MP3 for/})).toHaveAttribute('href', mediaPath!);
+	await page.screenshot({path: '/tmp/localcast-slice3-desktop.png', fullPage: true});
+	await audio.evaluate(element => element.dispatchEvent(new Event('error')));
+	await expect(page.getByRole('alert').filter({hasText: 'Playback failed'})).toBeVisible();
+	await page.getByRole('button', {name: 'Close player'}).click();
+	await expect(openPlayer).toBeFocused();
 
 	const runs = await (await page.request.get(`${origin}/api/briefing-runs`)).json();
 	expect(runs).toHaveLength(1);
 	const eventsDatabaseEvidence = runs[0].job;
 	expect(eventsDatabaseEvidence.phase).toBe('complete');
 	expect(eventsDatabaseEvidence.attemptCount).toBe(1);
+
+	await page.getByRole('button', {name: 'Back to episodes'}).click();
+	await expect(page.getByRole('heading', {name: 'Episodes'})).toBeFocused();
+	await page.getByLabel('Status').selectOption('complete');
+	await page.getByLabel('Mode', {exact: true}).selectOption('brief');
+	await expect(page).toHaveURL(/status=complete.*mode=brief|mode=brief.*status=complete/);
+	await page.reload();
+	await expect(page.getByRole('heading', {name: 'Browser fixture station'})).toBeVisible();
+	await page.getByLabel('Mode', {exact: true}).selectOption('deep');
+	await expect(page.getByText('No episodes match these filters')).toBeVisible();
+	await page.goBack();
+	await expect(page.getByLabel('Mode', {exact: true})).toHaveValue('brief');
 });
 
 test('RSS and Atom source lifecycle, FTS search, and selected-feed generation stay explicit and grounded', async ({page}) => {

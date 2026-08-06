@@ -26,6 +26,7 @@
     "test:e2e": "playwright test",
     "e2e:server": "node scripts/start-e2e-server.mjs",
     "e2e:generation-server": "node scripts/start-e2e-generation-server.mjs",
+    "e2e:retry-server": "E2E_GENERATION_PORT=43183 E2E_FEED_PORT=43184 LOCALCAST_FAKE_PHASE_DELAY_MS=150 LOCALCAST_FAKE_FAILURE_PHASE=drafting LOCALCAST_FAKE_FAILURE_ATTEMPT=1 node scripts/start-e2e-generation-server.mjs",
     "smoke:api": "node scripts/smoke-api.mjs",
     "smoke:production": "node scripts/smoke-production.mjs",
     "smoke:compose": "node scripts/smoke-compose.mjs",
@@ -43,6 +44,7 @@
     "zod": "4.4.3"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.10.2",
     "@playwright/test": "1.62.1",
     "@types/better-sqlite3": "^7.6.13",
     "@types/express": "^4.17.21",

@@ -218,7 +218,7 @@ export default function SourcesView() {
     <div className="page">
       <div className="page-header page-header--responsive">
         <div>
-          <h1 className="page-title">Sources</h1>
+          <h1 tabIndex={-1} className="page-title">Sources</h1>
           <p className="page-description">Manage supplied RSS and Atom feeds. LocalCast fetches feed XML only; it never retrieves linked pages.</p>
         </div>
         <div className="page-actions">

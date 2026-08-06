@@ -25,5 +25,11 @@ export default defineConfig({
 			reuseExistingServer: false,
 			timeout: 30_000,
 		},
+		{
+			command: 'npm run e2e:retry-server',
+			url: 'http://127.0.0.1:43183/api/health',
+			reuseExistingServer: false,
+			timeout: 30_000,
+		},
 	],
 });

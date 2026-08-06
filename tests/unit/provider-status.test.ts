@@ -1,6 +1,7 @@
 import {afterEach, describe, expect, it} from 'vitest';
 import type Database from 'better-sqlite3';
 import {ProviderCheckStore} from '../../server/services/providerCheckStore';
+import {recordSpeechProviderSuccess} from '../../server/jobs/generationProcessor';
 import {createTestDatabase, testConfig} from '../helpers/database';
 
 const databases: Database.Database[] = [];
@@ -51,5 +52,18 @@ describe('provider verification status', () => {
 		});
 		const persisted = JSON.stringify(database.prepare('SELECT * FROM provider_checks').all());
 		expect(persisted).not.toMatch(/api.?key|authorization|credential-canary/i);
+	});
+
+	it('does not call a recovered speech cache hit live verification', () => {
+		const database = createTestDatabase();
+		databases.push(database);
+		const checks = new ProviderCheckStore(database, () => '2026-08-06T13:00:00.000Z');
+		const config = testConfig({textProvider: 'openai', speechProvider: 'openai', allowFakeProviders: false});
+		checks.recordContract(config);
+
+		recordSpeechProviderSuccess({liveRequestPerformed: false}, config, checks);
+		expect(checks.summary(config).speech).toMatchObject({status: 'CONTRACT TESTED ONLY', verifiedAt: undefined});
+		recordSpeechProviderSuccess({liveRequestPerformed: true}, config, checks);
+		expect(checks.summary(config).speech).toMatchObject({status: 'LIVE VERIFIED', verifiedAt: '2026-08-06T13:00:00.000Z'});
 	});
 });

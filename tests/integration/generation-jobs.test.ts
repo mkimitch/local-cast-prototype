@@ -104,12 +104,34 @@ describe('durable generation queue', () => {
 		store.claimNext('worker-a', 1_000);
 		store.fail(job.id, 'worker-a', {code: 'TEMPORARY_PROVIDER_FAILURE', message: 'Try again later', retryable: true});
 
-		const firstRetry = store.retry(job.id);
-		const repeatedRetry = store.retry(job.id);
+		const firstRetry = store.retry(job.id, 'retry-request-0001');
+		const repeatedRetry = store.retry(job.id, 'retry-request-0001');
 		expect(repeatedRetry.id).toBe(firstRetry.id);
 		expect(store.listAttempts(job.id)).toHaveLength(1);
-		expect(store.claimNext('worker-b', 1_000)).toMatchObject({id: job.id, attemptCount: 2});
+		const retried = store.claimNext('worker-b', 1_000)!;
+		expect(retried).toMatchObject({id: job.id, attemptCount: 2});
+		expect(store.retry(job.id, 'retry-request-0001')).toMatchObject({id: job.id, state: 'running', attemptCount: 2});
 		expect(store.claimNext('worker-c', 1_000)).toBeUndefined();
+		finish(store, retried, 'worker-b');
+		expect(store.retry(job.id, 'retry-request-0001')).toMatchObject({id: job.id, state: 'complete', attemptCount: 2});
+		expect(store.listAttempts(job.id)).toHaveLength(2);
+	});
+
+	it('does not turn a replayed retry request into a third attempt after attempt two fails', () => {
+		const db = database();
+		insertSource(db);
+		const store = new GenerationJobStore(db);
+		const job = store.enqueue(['source-1']).job;
+		store.claimNext('worker-a', 1_000);
+		store.fail(job.id, 'worker-a', {code: 'TEMPORARY_FAILURE', message: 'Try again', retryable: true});
+		store.retry(job.id, 'retry-request-original');
+		store.claimNext('worker-b', 1_000);
+		store.fail(job.id, 'worker-b', {code: 'TEMPORARY_FAILURE', message: 'Try again', retryable: true});
+
+		expect(store.retry(job.id, 'retry-request-original')).toMatchObject({state: 'failed', attemptCount: 2});
+		expect(store.get(job.id)).toMatchObject({state: 'failed', attemptCount: 2});
+		expect(store.retry(job.id, 'retry-request-new-action')).toMatchObject({state: 'queued', attemptCount: 2});
+		expect(store.claimNext('worker-c', 1_000)).toMatchObject({attemptCount: 3});
 	});
 
 	it('fails malformed persisted payloads safely and continues FIFO work', () => {

@@ -1,7 +1,7 @@
 # LocalCast autonomous build plan
 
-Status: Slice 2 green on 2026-08-06; the commit containing this plan is its checkpoint
-Current slice: **2 — COMPLETE; continue with Slice 3**
+Status: Slice 3 green on 2026-08-06; the commit containing this plan is its checkpoint
+Current slice: **3 — COMPLETE; Slice 4 entry is blocked on O-001 and O-004**
 Execution policy: one vertical slice, one green checkpoint commit
 
 ## How to use this plan
@@ -182,7 +182,7 @@ Stations can use safely synchronized RSS/Atom sources. Conditional requests, imm
 
 Suggested commit: `feat(prototype): harden feed ingestion and search`
 
-## Slice 3 — Brief/deep modes, citations, library, progress, failure, and retry UX
+## Slice 3 — Brief/deep modes, citations, library, progress, failure, and retry UX — COMPLETE 2026-08-06
 
 ### Outcome
 
@@ -197,6 +197,8 @@ Both episode modes are usable and honestly grounded. The library makes progress,
 - Make retry use the same immutable snapshot for provider/TTS failures and require a fresh generation action when inputs are insufficient.
 - Complete actual audio transport controls, errors, download, speed, seeking, and transcript synchronization where useful.
 - Add keyboard, live-region, focus, responsive, and reduced-motion coverage for every flow touched.
+
+OpenAI's per-request speech input bound requires long single-host narrations to be rendered as bounded transport chunks and assembled into one validated MP3. This is an implementation detail of the approved single-host format, not dialogue generation, multiple voices, per-turn production, crossfades, or the deferred two-host milestone.
 
 ### Targeted evidence
 

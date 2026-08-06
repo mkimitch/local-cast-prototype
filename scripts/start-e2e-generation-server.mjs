@@ -24,11 +24,15 @@ const environment = {
 	SPEECH_PROVIDER: 'fake',
 	LOCALCAST_ALLOW_FAKE_PROVIDERS: 'true',
 	LOCALCAST_RSS_PRIVATE_HOSTS: '127.0.0.1',
-	LOCALCAST_FAKE_PHASE_DELAY_MS: '2000',
+	LOCALCAST_FAKE_PHASE_DELAY_MS: process.env.LOCALCAST_FAKE_PHASE_DELAY_MS || '2000',
 	LOCALCAST_LEASE_MS: '5000',
 	LOCALCAST_WORKER_POLL_MS: '25',
 	LOCALCAST_SHUTDOWN_MS: '2000',
 };
+let application;
+let intentionalApplicationStop = false;
+let restartApplication = async () => { throw new Error('Application is not ready'); };
+let restartWorker = async () => { throw new Error('Worker is not ready'); };
 
 const feedBody = [
 	'LocalCast synchronizes a selected feed only after explicit user action.',
@@ -78,6 +82,27 @@ const feedServer = createServer((request, response) => {
 		response.end(JSON.stringify({paths: feedPaths}));
 		return;
 	}
+	if (request.url === '/restart-app' && request.method === 'POST') {
+		void restartApplication().then(() => {
+			response.writeHead(204).end();
+		}).catch(() => {
+			response.writeHead(503, {'Content-Type': 'application/json'}).end(JSON.stringify({error: 'Restart failed'}));
+		});
+		return;
+	}
+	if (request.url?.startsWith('/configure-failure/') && request.method === 'POST') {
+		const phase = decodeURIComponent(request.url.slice('/configure-failure/'.length));
+		if (!['none', 'syncing', 'selecting', 'drafting', 'validating', 'rendering_audio'].includes(phase)) {
+			response.writeHead(400, {'Content-Type': 'application/json'}).end(JSON.stringify({error: 'Invalid phase'}));
+			return;
+		}
+		void restartWorker(phase === 'none' ? '' : phase).then(() => {
+			response.writeHead(204).end();
+		}).catch(() => {
+			response.writeHead(503, {'Content-Type': 'application/json'}).end(JSON.stringify({error: 'Worker restart failed'}));
+		});
+		return;
+	}
 	response.writeHead(404, {'Content-Type': 'text/plain'});
 	response.end('Not found');
 });
@@ -87,12 +112,45 @@ await new Promise((resolve, reject) => {
 	feedServer.listen(Number(feedPort), '127.0.0.1', resolve);
 });
 
-const application = spawn(process.execPath, ['--import', 'tsx', 'server/index.ts'], {
+const spawnApplication = () => spawn(process.execPath, ['--import', 'tsx', 'server/index.ts'], {
 	env: {...environment, LOCALCAST_PROCESS_ROLE: 'app'},
 	stdio: 'inherit',
 });
+application = spawnApplication();
+restartApplication = async () => {
+	if (!application || application.exitCode !== null || intentionalApplicationStop) throw new Error('Application is unavailable');
+	intentionalApplicationStop = true;
+	const previous = application;
+	previous.kill('SIGTERM');
+	await new Promise(resolve => previous.once('exit', resolve));
+	application = spawnApplication();
+	intentionalApplicationStop = false;
+};
 let worker;
 let workerStartTimer;
+let configuredFailurePhase = process.env.LOCALCAST_FAKE_FAILURE_PHASE || '';
+const spawnWorker = () => {
+	const workerEnvironment = {...environment, LOCALCAST_PROCESS_ROLE: 'worker', LOCALCAST_WORKER_ID: 'browser-phase-worker'};
+	if (configuredFailurePhase) workerEnvironment.LOCALCAST_FAKE_FAILURE_PHASE = configuredFailurePhase;
+	else delete workerEnvironment.LOCALCAST_FAKE_FAILURE_PHASE;
+	return spawn(process.execPath, ['--import', 'tsx', 'server/testing/worker.ts'], {
+		env: workerEnvironment,
+		stdio: 'inherit',
+	});
+};
+restartWorker = async phase => {
+	configuredFailurePhase = phase;
+	if (workerStartTimer) {
+		clearTimeout(workerStartTimer);
+		workerStartTimer = undefined;
+	}
+	if (worker && worker.exitCode === null) {
+		const previous = worker;
+		previous.kill('SIGTERM');
+		await new Promise(resolve => previous.once('exit', resolve));
+	}
+	worker = undefined;
+};
 const jobMonitor = setInterval(() => {
 	if (worker || workerStartTimer || !fs.existsSync(databasePath)) return;
 	try {
@@ -102,10 +160,8 @@ const jobMonitor = setInterval(() => {
 		database.close();
 		if (count > 0) {
 			workerStartTimer = setTimeout(() => {
-				worker = spawn(process.execPath, ['--import', 'tsx', 'server/testing/worker.ts'], {
-					env: {...environment, LOCALCAST_PROCESS_ROLE: 'worker', LOCALCAST_WORKER_ID: 'browser-phase-worker'},
-					stdio: 'inherit',
-				});
+				workerStartTimer = undefined;
+				worker = spawnWorker();
 			}, 1_000);
 		}
 	} catch {
@@ -137,7 +193,7 @@ const stop = async signal => {
 process.once('SIGTERM', () => void stop('SIGTERM'));
 process.once('SIGINT', () => void stop('SIGINT'));
 application.once('exit', code => {
-	if (!stopping) {
+	if (!stopping && !intentionalApplicationStop) {
 		console.error(`Generation E2E application exited unexpectedly with ${code}`);
 		process.exitCode = code || 1;
 		void stop('SIGTERM');

@@ -21,6 +21,7 @@ x-localcast-common: &localcast-common
     OPENAI_SPEECH_VOICE: ${OPENAI_SPEECH_VOICE:-marin}
     OPENAI_SPEECH_FORMAT: ${OPENAI_SPEECH_FORMAT:-mp3}
     FFPROBE_PATH: /usr/bin/ffprobe
+    FFMPEG_PATH: /usr/bin/ffmpeg
     LOCALCAST_ALLOW_FAKE_PROVIDERS: "false"
     LOCALCAST_RSS_PRIVATE_HOSTS: ${LOCALCAST_RSS_PRIVATE_HOSTS:-}
   volumes:

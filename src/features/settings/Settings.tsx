@@ -42,7 +42,7 @@ export default function SettingsView() {
   if (!settings) {
     return (
       <div className="page page--narrow">
-        <h1 className="page-title">Settings</h1>
+        <h1 tabIndex={-1} className="page-title">Settings</h1>
         {error ? (
           <div className="empty-state" role="alert">
             <p>{error}</p>
@@ -57,7 +57,7 @@ export default function SettingsView() {
     <div className="page page--narrow">
       <div className="page-header page-header--bottom-aligned">
         <div>
-          <h1 className="page-title">Settings</h1>
+          <h1 tabIndex={-1} className="page-title">Settings</h1>
           <p className="page-description">Review server-side provider status and adjust appearance.</p>
         </div>
         <div className="saving-status">

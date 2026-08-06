@@ -59,6 +59,7 @@ describe('server environment contract', () => {
 		[{...productionEnvironment, MEDIA_PATH: '/var/lib/localcast/data/media'}, /must be distinct/],
 		[{...productionEnvironment, TEXT_PROVIDER: 'fake', LOCALCAST_ALLOW_FAKE_PROVIDERS: 'true'}, /only in test mode/],
 		[{...productionEnvironment, LOCALCAST_FAKE_FAILURE_PHASE: 'drafting'}, /failure injection/],
+		[{...productionEnvironment, LOCALCAST_FAKE_FAILURE_ATTEMPT: '1'}, /failure attempt/],
 		[{...productionEnvironment, LOCALCAST_FAKE_PHASE_DELAY_MS: '100'}, /phase delay/],
 		[{...productionEnvironment, LOCALCAST_FAKE_DELAY_PHASE: 'drafting'}, /delay phase/],
 		[{...productionEnvironment, LOCALCAST_FAKE_AFTER_PUBLICATION_DELAY_MS: '100'}, /publication delay/],
@@ -98,6 +99,17 @@ describe('server environment contract', () => {
 		expect(status.generationEnabled).toBe(true);
 		expect(status.text.status).toBe('CONTRACT TESTED ONLY');
 		expect(status.speech.status).toBe('CONTRACT TESTED ONLY');
+		expect(config.ffmpegPath).toBe('ffmpeg');
+		expect(parseServerConfig({
+			NODE_ENV: 'test',
+			LOCALCAST_RUNTIME_MODE: 'test',
+			DATABASE_PATH: ':memory:',
+			TEXT_PROVIDER: 'fake',
+			SPEECH_PROVIDER: 'fake',
+			LOCALCAST_ALLOW_FAKE_PROVIDERS: 'true',
+			LOCALCAST_FAKE_FAILURE_PHASE: 'drafting',
+			LOCALCAST_FAKE_FAILURE_ATTEMPT: '2',
+		})).toMatchObject({fakeFailurePhase: 'drafting', fakeFailureAttempt: 2});
 	});
 
 	it('accepts the approved OpenAI pair while keeping the credential worker-only', () => {

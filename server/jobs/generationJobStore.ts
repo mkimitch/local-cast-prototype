@@ -179,7 +179,6 @@ export class GenerationJobStore {
 			} catch {
 				throw new JobStateError('One or more selected RSS sources are inactive or invalid');
 			}
-			if (mode === 'deep') throw new JobStateError('Deep generation is unavailable until the Slice 3 mode contract is implemented');
 			const timestamp = this.now();
 			const runId = `run-${this.createId()}`;
 			const jobId = `job-${this.createId()}`;
@@ -386,14 +385,33 @@ export class GenerationJobStore {
 		return interrupt.immediate();
 	}
 
-	retry(jobId: string): GenerationJob {
+	retry(jobId: string, idempotencyKey: string): GenerationJob {
 		const retry = this.database.transaction(() => {
 			const current = this.get(jobId);
 			if (!current) throw new JobStateError('Job not found');
-			if (current.state === 'queued') return current;
+			if (!idempotencyKey.trim()) throw new JobStateError('Retry idempotency key is required');
+			const replay = this.database.prepare(`
+				SELECT 1 FROM generation_retry_requests WHERE job_id = ? AND idempotency_key = ?
+			`).get(jobId, idempotencyKey);
+			if (replay) return current;
+			const priorFailedAttempt = Boolean(this.database.prepare(`
+				SELECT 1 FROM generation_attempts WHERE job_id = ? AND outcome = 'failed' LIMIT 1
+			`).get(jobId));
+			if (priorFailedAttempt && (current.state === 'queued' || current.state === 'running' || current.state === 'complete')) {
+				const requestedAttemptNumber = current.state === 'queued' ? current.attemptCount + 1 : current.attemptCount;
+				this.database.prepare(`
+					INSERT INTO generation_retry_requests (job_id, idempotency_key, requested_attempt_number, created_at)
+					VALUES (?, ?, ?, ?)
+				`).run(jobId, idempotencyKey, requestedAttemptNumber, this.now());
+				return current;
+			}
 			if (current.state !== 'failed' || !current.retryable) throw new JobStateError('Job is not retryable');
 
 			const timestamp = this.now();
+			this.database.prepare(`
+				INSERT INTO generation_retry_requests (job_id, idempotency_key, requested_attempt_number, created_at)
+				VALUES (?, ?, ?, ?)
+			`).run(jobId, idempotencyKey, current.attemptCount + 1, timestamp);
 			this.database.prepare(`
 				UPDATE generation_jobs
 				SET state = 'queued', phase = 'queued', error_code = NULL, error_message = NULL,

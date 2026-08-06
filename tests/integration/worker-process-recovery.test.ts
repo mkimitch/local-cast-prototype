@@ -1,5 +1,6 @@
 import {spawn} from 'node:child_process';
 import type {ChildProcess} from 'node:child_process';
+import {randomUUID} from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -8,6 +9,7 @@ import {afterEach, describe, expect, it} from 'vitest';
 import {applyMigrations} from '../../server/database/migrations';
 import {GenerationJobStore} from '../../server/jobs/generationJobStore';
 import {activeJobPhases} from '../../server/jobs/types';
+import {StationStore} from '../../server/services/stationStore';
 import {insertSource, insertSourceItem} from '../helpers/database';
 
 const roots: string[] = [];
@@ -87,6 +89,33 @@ const createQueuedFixture = () => {
 	insertSource(database);
 	insertSourceItem(database, 'source-1');
 	const job = new GenerationJobStore(database).enqueue(['source-1']).job;
+	database.close();
+	return {databasePath, mediaPath, job};
+};
+
+const createQueuedV2Fixture = () => {
+	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'localcast-worker-v2-recovery-'));
+	roots.push(root);
+	const databasePath = path.join(root, 'localcast.sqlite');
+	const mediaPath = path.join(root, 'media');
+	fs.mkdirSync(mediaPath, {recursive: true});
+	const database = new Database(databasePath);
+	database.pragma('foreign_keys = ON');
+	database.pragma('journal_mode = WAL');
+	applyMigrations(database);
+	const stations = new StationStore(database, () => '2026-08-06T12:00:00.000Z', randomUUID);
+	const note = stations.createNote({
+		title: 'Persistent v2 evidence',
+		body: Array.from({length: 800}, (_value, index) => `fact${String(index + 1).padStart(4, '0')}`).join(' '),
+	});
+	const station = stations.createStation({
+		name: 'Persistent v2 station',
+		topicInstruction: 'Use only the supplied persistent facts.',
+		defaultMode: 'brief',
+		noteIds: [note.id],
+		sourceIds: [],
+	});
+	const job = new GenerationJobStore(database).enqueueStation(station.id, 'brief', 'worker-v2-recovery-request').job;
 	database.close();
 	return {databasePath, mediaPath, job};
 };
@@ -221,4 +250,44 @@ describe('worker process crash recovery', () => {
 		await recoverAndAssert(database, fixture.databasePath, fixture.mediaPath, fixture.job.id, fixture.job.runId);
 		database.close();
 	}, 12_000);
+
+	it('recovers a production-shaped v2 job with one immutable transcript and audio asset', async () => {
+		const fixture = createQueuedV2Fixture();
+		const database = new Database(fixture.databasePath);
+		database.pragma('busy_timeout = 5000');
+		const first = spawnWorker(fixture.databasePath, fixture.mediaPath, {
+			LOCALCAST_WORKER_ID: 'v2-crash-worker',
+			LOCALCAST_FAKE_PHASE_DELAY_MS: '5000',
+			LOCALCAST_FAKE_DELAY_PHASE: 'drafting',
+		});
+
+		await waitFor(() => {
+			const row = database.prepare('SELECT phase FROM generation_jobs WHERE id = ?').get(fixture.job.id) as {phase: string};
+			return row.phase === 'drafting'
+				&& (database.prepare('SELECT COUNT(*) AS count FROM episode_evidence_snapshots WHERE run_id = ?').get(fixture.job.runId) as {count: number}).count === 1;
+		}, `v2 worker did not freeze evidence before drafting:\n${first.output()}`);
+		first.child.kill('SIGKILL');
+		expect((await waitForExit(first.child)).signal).toBe('SIGKILL');
+		const lease = database.prepare('SELECT lease_expires_at FROM generation_jobs WHERE id = ?').get(fixture.job.id) as {lease_expires_at: string};
+		await waitFor(() => Date.now() > new Date(lease.lease_expires_at).getTime(), 'v2 worker lease did not expire', 3_000);
+
+		const recovered = spawnWorker(fixture.databasePath, fixture.mediaPath, {LOCALCAST_WORKER_ID: 'v2-recovery-worker'});
+		await waitFor(() => (
+			(database.prepare('SELECT state FROM generation_jobs WHERE id = ?').get(fixture.job.id) as {state: string}).state === 'complete'
+		), `v2 recovery worker did not complete:\n${recovered.output()}`);
+		recovered.child.kill('SIGTERM');
+		expect((await waitForExit(recovered.child)).code).toBe(0);
+
+		expect(database.prepare('SELECT attempt_number, outcome FROM generation_attempts WHERE job_id = ? ORDER BY attempt_number').all(fixture.job.id)).toEqual([
+			{attempt_number: 1, outcome: 'recovered'},
+			{attempt_number: 2, outcome: 'complete'},
+		]);
+		expect((database.prepare('SELECT script_format_version FROM briefing_runs WHERE id = ?').get(fixture.job.runId) as {script_format_version: number}).script_format_version).toBe(1);
+		const factualClaims = (database.prepare("SELECT COUNT(*) AS count FROM transcript_claims WHERE run_id = ? AND kind = 'factual'").get(fixture.job.runId) as {count: number}).count;
+		expect(factualClaims).toBeGreaterThan(0);
+		expect((database.prepare('SELECT COUNT(*) AS count FROM episode_citations ec JOIN transcript_claims tc ON tc.id = ec.claim_id WHERE tc.run_id = ?').get(fixture.job.runId) as {count: number}).count).toBe(factualClaims);
+		expect((database.prepare('SELECT COUNT(*) AS count FROM audio_assets WHERE run_id = ?').get(fixture.job.runId) as {count: number}).count).toBe(1);
+		expect(fs.readdirSync(fixture.mediaPath).filter(name => name.endsWith('.mp3'))).toHaveLength(1);
+		database.close();
+	}, 15_000);
 });

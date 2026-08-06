@@ -4,6 +4,8 @@ import {db} from '../database/index';
 import {GenerationError} from '../jobs/types';
 import {hasEmbeddedUrlCredential} from './safeFeedFetcher';
 import type {EpisodeEvidence, EpisodeRequestSnapshot, EpisodeRequestSource, GeneratedSection, PublishedAudio} from '../episodes/types';
+import {assertEvidenceSufficient} from '../episodes/modePolicy';
+import {assertGeneratedEpisode} from '../episodes/validation';
 
 type RequestRow = {
 	id: string;
@@ -134,7 +136,10 @@ export class EpisodeStore {
 			if (!request || request.runId !== runId) throw new GenerationError('INVALID_JOB_PAYLOAD', 'The persisted generation request is invalid', false);
 
 			const existing = this.listEvidence(runId);
-			if (existing.length > 0) return existing;
+			if (existing.length > 0) {
+				assertEvidenceSufficient(request.mode, existing);
+				return existing;
+			}
 
 			const insert = this.database.prepare(`
 				INSERT INTO episode_evidence_snapshots (
@@ -208,11 +213,7 @@ export class EpisodeStore {
 			}
 
 			const evidence = this.listEvidence(runId);
-			const combined = evidence.map(item => item.body).join(' ').replace(/\s+/g, ' ').trim();
-			const words = combined ? combined.split(' ').length : 0;
-			if (combined.length < 200 || words < 40) {
-				throw new GenerationError('INSUFFICIENT_SOURCE_MATERIAL', 'The selected supplied material is too limited for a factual episode', false);
-			}
+			assertEvidenceSufficient(request.mode, evidence);
 			return evidence;
 		});
 
@@ -224,6 +225,10 @@ export class EpisodeStore {
 		return rows.map(evidenceFromRow);
 	}
 
+	hasEvidence(runId: string): boolean {
+		return Boolean(this.database.prepare('SELECT 1 FROM episode_evidence_snapshots WHERE run_id = ? LIMIT 1').get(runId));
+	}
+
 	publishEpisode(input: {
 		runId: string;
 		request: EpisodeRequestSnapshot;
@@ -232,8 +237,10 @@ export class EpisodeStore {
 		textProvider: 'OpenAI' | 'Deterministic test text';
 		textModel: string;
 	}): void {
-		const evidenceIds = new Set(this.listEvidence(input.runId).map(item => item.id));
+		const evidence = this.listEvidence(input.runId);
+		const evidenceIds = new Set(evidence.map(item => item.id));
 		if (evidenceIds.size === 0) throw new Error('Cannot publish an episode without immutable evidence');
+		const script = assertGeneratedEpisode(input.request, evidence, input.sections);
 
 		this.database.prepare('DELETE FROM briefing_sections WHERE run_id = ?').run(input.runId);
 		const insertSection = this.database.prepare(`
@@ -243,8 +250,11 @@ export class EpisodeStore {
 			) VALUES (?, ?, ?, ?, ?, ?, ?, '[]', ?)
 		`);
 		const insertClaim = this.database.prepare(`
-			INSERT INTO transcript_claims (id, run_id, section_id, kind, text, support_status, sort_order)
-			VALUES (?, ?, ?, ?, ?, ?, ?)
+			INSERT INTO transcript_claims (
+				id, run_id, section_id, kind, text, support_status, sort_order,
+				speaker_role, speaker_label, voice_profile
+			)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		`);
 		const insertCitation = this.database.prepare(`
 			INSERT INTO episode_citations (claim_id, snapshot_id, excerpt, sort_order)
@@ -252,7 +262,7 @@ export class EpisodeStore {
 		`);
 
 		let claimCount = 0;
-		input.sections.forEach((section, sectionIndex) => {
+		script.sections.forEach((section, sectionIndex) => {
 			const sourceIds = [...new Set(section.segments.flatMap(segment => segment.citations.map(citation => citation.snapshotId)))];
 			if (sourceIds.some(id => !evidenceIds.has(id))) throw new Error('Cannot publish an unknown evidence citation');
 			insertSection.run(
@@ -266,7 +276,18 @@ export class EpisodeStore {
 				sectionIndex,
 			);
 			section.segments.forEach((segment, segmentIndex) => {
-				insertClaim.run(segment.id, input.runId, section.id, segment.kind, segment.text, segment.supportStatus, segmentIndex);
+				insertClaim.run(
+					segment.id,
+					input.runId,
+					section.id,
+					segment.kind,
+					segment.text,
+					segment.supportStatus,
+					segmentIndex,
+					segment.speakerRole,
+					segment.speakerLabel ?? null,
+					segment.voiceProfile ?? null,
+				);
 				segment.citations.forEach((citation, citationIndex) => insertCitation.run(segment.id, citation.snapshotId, citation.excerpt, citationIndex));
 				if (segment.kind === 'factual') claimCount += 1;
 			});
@@ -310,7 +331,7 @@ export class EpisodeStore {
 			UPDATE briefing_runs
 			SET summary = ?, mode = ?, station_id_snapshot = ?, station_name_snapshot = ?, station_revision = ?,
 				text_provider = ?, text_model = ?, speech_provider = ?, speech_model = ?,
-				speech_voice = ?, ai_generated = 1
+				speech_voice = ?, ai_generated = 1, script_format_version = ?
 			WHERE id = ?
 		`).run(
 			`${claimCount} validated factual claim${claimCount === 1 ? '' : 's'} from supplied material.`,
@@ -323,6 +344,7 @@ export class EpisodeStore {
 			input.audio.provider,
 			input.audio.model,
 			input.audio.voice,
+			script.version,
 			input.runId,
 		);
 	}

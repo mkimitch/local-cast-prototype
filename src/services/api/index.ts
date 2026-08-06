@@ -15,6 +15,7 @@ export interface BriefingService {
   getRuns(): Promise<BriefingRun[]>;
   getRun(id: string): Promise<BriefingRun | undefined>;
   startStationRun(stationId: string, mode?: EpisodeMode): Promise<BriefingRun>;
+  retryRun(id: string): Promise<BriefingRun>;
 }
 
 export interface StationService {

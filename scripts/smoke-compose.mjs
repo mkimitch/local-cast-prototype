@@ -120,9 +120,38 @@ try {
 		});
 	`]);
 	docker(['exec', '-T', 'worker', 'node', '-e', `
+		const fs = require('node:fs');
 		const {spawnSync} = require('node:child_process');
 		if (process.env.OPENAI_API_KEY) process.exit(1);
 		if (spawnSync('/usr/bin/ffprobe', ['-version'], {stdio: 'ignore'}).status !== 0) process.exit(1);
+		if (spawnSync('/usr/bin/ffmpeg', ['-version'], {stdio: 'ignore'}).status !== 0) process.exit(1);
+		const prefix = '/var/lib/localcast/media/.compose-assembly-' + process.pid;
+		const inputs = [prefix + '-a.mp3', prefix + '-b.mp3'];
+		const output = prefix + '-output.mp3';
+		try {
+			for (const input of inputs) {
+				const generated = spawnSync('/usr/bin/ffmpeg', [
+					'-v', 'error', '-nostdin', '-f', 'lavfi', '-i', 'anullsrc=r=24000:cl=mono',
+					'-t', '0.35', '-codec:a', 'libmp3lame', '-q:a', '7', '-f', 'mp3', input,
+				], {stdio: 'ignore'});
+				if (generated.status !== 0) process.exit(1);
+			}
+			const assembled = spawnSync('/usr/bin/ffmpeg', [
+				'-v', 'error', '-nostdin', '-i', inputs[0], '-i', inputs[1],
+				'-filter_complex', '[0:a][1:a]concat=n=2:v=0:a=1[out]', '-map', '[out]',
+				'-codec:a', 'libmp3lame', '-q:a', '3', '-f', 'mp3', output,
+			], {stdio: 'ignore'});
+			if (assembled.status !== 0 || fs.statSync(output).size < 1000) process.exit(1);
+			const probe = spawnSync('/usr/bin/ffprobe', [
+				'-v', 'error', '-show_entries', 'format=format_name,duration', '-of', 'json', output,
+			], {encoding: 'utf8'});
+			const format = JSON.parse(probe.stdout || '{}').format || {};
+			if (probe.status !== 0 || !String(format.format_name).split(',').includes('mp3') || Number(format.duration) < 0.6) process.exit(1);
+		} finally {
+			for (const file of [...inputs, output]) {
+				try { fs.unlinkSync(file); } catch {}
+			}
+		}
 	`]);
 
 	docker(['stop', 'app', 'worker'], {stdio: 'inherit'});

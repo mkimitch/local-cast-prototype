@@ -16,6 +16,7 @@ import {SafeFeedFetcher, type FeedResolver} from '../../server/services/safeFeed
 import {SourceStore} from '../../server/services/sourceStore';
 import {StationStore} from '../../server/services/stationStore';
 import {DeterministicFakeGenerationProcessor} from '../../server/testing/fakeGenerationProcessor';
+import {BriefingStore} from '../../server/services/briefingStore';
 import {testConfig} from '../helpers/database';
 import {installFrozenMigrationSnapshot} from '../fixtures/migrationSnapshots';
 
@@ -221,5 +222,33 @@ describe('selected-feed generation evidence barrier', () => {
 		const evidence = episodes.finalizeEvidence((queued.payload as {version: 2; requestId: string}).requestId, queued.runId);
 		expect(evidence).toEqual([expect.objectContaining({title: 'Legacy cached item', body: adequateBody, networkScope: 'unknown'})]);
 		expect(episodes.listRequestSources((queued.payload as {version: 2; requestId: string}).requestId)[0]).toMatchObject({syncStatus: 'error', syncErrorCode: 'FEED_DNS_FAILED'});
+		expect(new BriefingStore(database).getRun(queued.runId)?.warnings).toEqual([expect.objectContaining({
+			code: 'FEED_DNS_FAILED',
+			sourceName: 'Legacy cached feed',
+			cachedEvidenceUsed: true,
+			message: expect.stringContaining('used previously stored items'),
+		})]);
+		expect(JSON.stringify(new BriefingStore(database).getRun(queued.runId)?.warnings)).not.toMatch(/fixture DNS failure|feed\.example\.test/);
+	});
+
+	it('fails a selected feed with no cached history instead of treating its sync error as evidence', () => {
+		const database = new Database(':memory:');
+		database.pragma('foreign_keys = ON');
+		applyMigrations(database);
+		databases.push(database);
+		let id = 0;
+		const now = () => '2026-08-06T12:00:00.000Z';
+		const sources = new SourceStore(database, now, () => `id-${++id}`);
+		const source = sources.addSource({type: 'rss', name: 'Unavailable source', url: 'https://unavailable.example.test/feed', isActive: true});
+		const stations = new StationStore(database, now, () => `id-${++id}`);
+		const station = stations.createStation({name: 'Unavailable station', topicInstruction: 'Use supplied facts only.', defaultMode: 'brief', noteIds: [], sourceIds: [source.id]});
+		const queued = new GenerationJobStore(database, now, () => `id-${++id}`).enqueueStation(station.id, 'brief').job;
+		const episodes = new EpisodeStore(database);
+		const requestId = (queued.payload as {version: 2; requestId: string}).requestId;
+		episodes.recordRequestSourceSync(requestId, source.id, {status: 'error', errorCode: 'FEED_TIMEOUT', syncedAt: now()});
+
+		expect(() => episodes.finalizeEvidence(requestId, queued.runId)).toThrow(expect.objectContaining({code: 'INSUFFICIENT_SOURCE_MATERIAL'}));
+		expect((database.prepare('SELECT COUNT(*) AS count FROM episode_evidence_snapshots WHERE run_id = ?').get(queued.runId) as {count: number}).count).toBe(0);
+		expect(JSON.stringify(new BriefingStore(database).getRun(queued.runId)?.warnings)).not.toContain('unavailable.example.test');
 	});
 });

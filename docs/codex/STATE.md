@@ -1,14 +1,56 @@
 # LocalCast build state
 
-Last updated: 2026-08-06 11:11 CDT
+Last updated: 2026-08-06 13:10 CDT
 Branch: `codex/localcast-prototype`
 Pre-bootstrap HEAD: `910485b77ead63450660b0b97544889960e45e3f`
 Slice 0 base HEAD: `e720d5818ab15efccfa143c94d6514c0c9a2baad`
-Current base checkpoint: Slice 1 at `1790e91f1b37d518b18f4834b59cb7d9ba160823`
-Current checkpoint: **Slice 2 — the commit containing this state document**
-Implementation slice: **2 — GREEN**
-Next action: **continue automatically with Slice 3**
-Overall state: **SLICE 2 GREEN; NO ACTIVE BLOCKER**
+Current base checkpoint: Slice 2 at `199ea0ffa082349b07c7dc3916a5f16affb91f5a`
+Current checkpoint: **Slice 3 — the commit containing this state document**
+Implementation slice: **3 — GREEN**
+Next action: **HARD STOP before Slice 4 pending O-001 and O-004**
+Overall state: **SLICE 3 GREEN; SLICE 4 BLOCKED ON OPERATOR DECISIONS**
+
+## Slice 3 result
+
+Brief and deep generation are now complete, mode-persisted, and bounded by unique supplied evidence. Adequate brief output validates at 600–1,000 words; sparse but factual brief material may produce a shorter source-bounded result. Deep output requires at least 1,800 unique evidence words/7,200 characters and validates at 1,800–3,000 words. Empty, trivial, direction-only, duplicate-inflated, or failed-feed-only material fails honestly before provider or speech publication. A failed sync may continue only from adequate immutable stored snapshots and carries an explicit warning.
+
+New scripts use version 1 ordered sections and stable segments with text, citation IDs, one `host` role, and optional speaker-label/voice-profile persistence fields. Historical monolithic rows remain unversioned rather than being mislabeled. Strict local validation and the provider support pass reject malformed structure, invalid/duplicate/unrelated citations, non-exact excerpts, injected instructions, unsupported/uncertain claims, and length violations.
+
+The episode library now has durable status/mode URL filters, accessible progress, phase-safe failure detail, persistent attempts, and manual retry. Retry requests require a durable idempotency key; same-key replay creates no extra attempt, failures after evidence freeze reuse the immutable snapshot, and insufficiency exposes no retry. The API/UI distinguish whether evidence was frozen so pre-selection retries do not claim otherwise.
+
+The real player supports play/pause, seeking, skip, speed, elapsed/duration, download, error, and keyboard control against the actual `<audio>` element. Long single-host OpenAI narration is rendered in at most eight 4,096-character transport chunks and concatenated by pinned ffmpeg into one strictly validated MP3. This preserves one host/voice and is not dialogue, multi-voice rendering, crossfading, or the deferred post-prototype audio milestone. Speech chunk writes, assembly, ffprobe, publication, lease loss, cancellation, retry, and cache-status paths are fenced and cleaned.
+
+Three independent read-only reviewers covered architecture/correctness, runtime/Docker/tests, and security/privacy/accessibility. No reviewer edited files. All material findings were repaired before the gate: durable retry identity, unique-evidence sufficiency, truthful historical versioning, render cancellation/lease renewal, every-phase browser failure coverage, real ffmpeg assembly proof, partial-write cleanup/classification, production-shaped v2 restart recovery, cache-vs-live provider status, pre-freeze retry wording, evidence-derived support oracle, mobile player reflow, route-focus fallback, and duplicate failure announcements. Closure review found no remaining architecture or runtime regression; the final duplicate alert finding was removed before the full gate.
+
+### Slice 3 verification evidence
+
+| Exact command | Result |
+| --- | --- |
+| `npm run lint -- --pretty false` | PASS, exit 0 — no TypeScript diagnostics |
+| `npm run test` | PASS, exit 0 — 8 files, 137 tests |
+| `npm run test:integration` | PASS, exit 0 — 10 files, 63 tests, including v2 process restart/recovery and real workflow retry invariants |
+| `npm run build` | PASS, exit 0 — Vite transformed 2,150 modules and all three server bundles emitted |
+| `npm run test:e2e` | PASS, exit 0 — 7 Playwright tests covering all generation phases, safe failure/retry, filters, real player controls, axe, 320px reflow and 200% text |
+| `npm run smoke:api` | PASS, exit 0 — station generation, persistence, idempotency, safe failure, media, and restart evidence |
+| `npm run smoke:production` | PASS, exit 0 — fail-closed production artifact/startup and same-origin behavior |
+| `npm run verify` | PASS, exit 0 with approved Docker access — lint, 137 unit, 63 integration, build, 7 browser, API, production, and isolated Compose gates |
+| Compose stage within `npm run verify` | PASS — disposable build/init/app/worker/recreation topology plus two real MP3 chunks concatenated with production-equivalent ffmpeg and validated by real ffprobe |
+| `env NPM_CONFIG_CACHE=/tmp/localcast-npm-audit-cache npm audit --omit=dev --audit-level=high` | EXIT 1 — unchanged two high React Router RSC-only advisories; this declarative `BrowserRouter` SPA has no RSC/framework/action/SSR path, and npm offers only a breaking forced downgrade |
+| `stat -c '%F mode=%a' .env` and `git check-ignore -v .env` | PASS — regular file, mode `600`, ignored at `.gitignore:24`; no value read or printed |
+| redacted `docker compose config --format json` assertion | PASS — only `worker` receives the configured OpenAI key; no credential value/header printed |
+| `git diff --check` | PASS, exit 0 after durable-document reconciliation |
+
+The first focused Vitest invocation omitted the required test runtime environment and failed during two suite collection steps on configuration validation; rerunning with the repository's explicit test environment passed. The first sandboxed `npm run verify` passed every stage through production smoke and failed only when BuildKit tried to update its read-only user activity file. The authorized exact rerun used the local Docker engine, passed, created only unique disposable `localcast-slice1-*` resources, and removed them. It did not touch the listening deployment, Caddy, or operator data. No live OpenAI call occurred and no additional authorized spend was used in Slice 3.
+
+### Slice 4 entry blocker
+
+Slice 3 itself has no unresolved deterministic failure. Work must stop before Slice 4 because its frozen entry contract requires operator facts that cannot be inferred safely:
+
+- O-001: provide the canonical trusted-LAN HTTPS `PUBLIC_BASE_URL`, choose host-loopback versus shared-Docker-network Caddy attachment, and confirm tokenized feed/enclosure paths are disabled or redacted in Caddy access logs. Any Caddy inspection/change still needs separate authorization.
+- O-004: name an approved real podcast client and version that can reach that LAN origin, and state whether subscriptions remain local or explicitly accept vendor-cloud disclosure of the tokenized feed URL and its rotation procedure.
+- Provide the eventual at-least-256-bit podcast token only through ignored server-side configuration after the Slice 4 variable contract is established; do not send or commit it as documentation.
+
+The checkpoint HEAD is the commit containing this state document (based on `199ea0ffa082349b07c7dc3916a5f16affb91f5a`); the exact resulting hash and clean/dirty state are reported in the checkpoint handoff. The smallest action needed from the operator is to resolve O-001 and O-004 above. No Slice 4 file was started.
 
 ## Slice 2 result
 
@@ -221,7 +263,7 @@ See `DECISIONS.md` for the complete rationale and exceptions to the default stac
 
 ## Current blockers and repair ledger
 
-No Slice 2 implementation blocker remains. The Slice 1 listening gate was approved at checkpoint `1790e91f1b37d518b18f4834b59cb7d9ba160823`. O-001 and O-004 remain future Slice 4 inputs; O-003 remains optional live verification for Slice 6.
+No Slice 3 implementation blocker remains. The Slice 1 listening gate was approved at checkpoint `1790e91f1b37d518b18f4834b59cb7d9ba160823`. O-001 and O-004 now block Slice 4 entry; O-003 remains optional live verification for Slice 6.
 
 | Slice | Deterministic failure or entry block | Attempts | State |
 | --- | --- | --- | --- |
@@ -239,6 +281,12 @@ No Slice 2 implementation blocker remains. The Slice 1 listening gate was approv
 | 2 | Browser polling and inactive-selection keyboard selector raced rendered state | One polling/selector repair | GREEN — Playwright passes |
 | 2 | Review found stale lease/URL writers and mutable source-wide provenance | One atomic fence and item-level provenance repair | GREEN — focused review suite passes |
 | 2 | Station-backed API smoke retained legacy media-file and run-specific citation assumptions | Two harness repairs | GREEN — third evidence run and full gate pass |
+| 3 | Initial focused Vitest command omitted explicit test runtime variables | One environment correction | GREEN — focused suites collect and pass |
+| 3 | Retry replay lacked durable key identity; review also found pre-freeze wording ambiguity | One additive retry-request contract plus evidence-state copy repair | GREEN — replay/attempt/API/browser tests pass |
+| 3 | Duplicate evidence could inflate deep sufficiency and the support oracle was too fixture-specific | One digest-unique sufficiency policy and evidence-derived oracle repair | GREEN — supported controls pass; duplicated/unrelated claims fail |
+| 3 | Historical transcripts were over-versioned and v2 process recovery lacked production-shaped proof | One conditional migration backfill plus restart integration repair | GREEN — migration and process-recovery suites pass |
+| 3 | Long speech assembly needed lease/cancellation, real-tool, partial-write, and cache-status evidence | One fenced transport/cleanup/status repair set | GREEN — unit/integration and real ffmpeg/ffprobe Compose evidence pass |
+| 3 | Mobile player/focus/live announcements had reflow and duplicate semantics findings | One responsive/focus/alert repair set | GREEN — browser bounds, keyboard, axe and visual inspection pass |
 
 No deterministic failure remained after three repair attempts for the same cause. Open operator decisions are listed in `DECISIONS.md`. Slice 4 still requires Caddy origin/topology/log handling and a real podcast client. Piper contract support can complete without a model; only optional `LIVE VERIFIED` Piper evidence requires installation/model authorization.
 
@@ -253,4 +301,4 @@ No deterministic failure remained after three repair attempts for the same cause
 
 ## Next action
 
-Implement Slice 3 from its first incomplete acceptance criterion: brief/deep budgets, honest insufficiency and stale-feed warnings, adversarial grounding, episode library/progress/failure/retry UX, and affected accessibility flows. Preserve the approved single-host pipeline and use deterministic providers for the phase gate; no additional live OpenAI call is required. Continue automatically through the green Slice 3 checkpoint, then stop before Slice 4 if O-001 or O-004 is still unresolved.
+Remain stopped before Slice 4. Resume only after the operator resolves O-001 with the canonical HTTPS origin, Caddy attachment topology, and tokenized-path log policy, and resolves O-004 with a reachable client/version plus local-only storage or explicit vendor-cloud token disclosure acceptance. Then establish the ignored server-side podcast-token variable contract and implement Slice 4 from `POD-01` without modifying Caddy unless separately authorized.

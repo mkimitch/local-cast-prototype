@@ -60,7 +60,7 @@ describe('generation worker', () => {
 		expect(jobs.get(job.id)).toMatchObject({
 			state: 'failed',
 			errorCode: 'GENERATION_FAILED',
-			errorMessage: 'Generation failed safely; review server diagnostics with the correlation ID',
+			errorMessage: 'Generation failed safely; use the diagnostic reference for server review',
 			retryable: true,
 		});
 		const persisted = JSON.stringify({

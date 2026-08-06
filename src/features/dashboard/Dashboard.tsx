@@ -68,7 +68,7 @@ export default function Dashboard({ onNavigateToRun, onNavigate }: DashboardProp
     <div className="page page--wide">
       <div className="page-header">
         <div>
-          <h1 className="page-title">Dashboard</h1>
+          <h1 tabIndex={-1} className="page-title">Dashboard</h1>
           <p className="page-description">Welcome to LocalCast. Manage your personal audio briefings.</p>
         </div>
       </div>

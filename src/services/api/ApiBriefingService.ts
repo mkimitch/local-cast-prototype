@@ -23,4 +23,11 @@ export class ApiBriefingService implements BriefingService {
       body: JSON.stringify({stationId, mode}),
     });
   }
+
+  async retryRun(id: string): Promise<BriefingRun> {
+    return apiRequest<BriefingRun>(`/briefing-runs/${encodeURIComponent(id)}/retry`, {
+      method: 'POST',
+      headers: {'Idempotency-Key': crypto.randomUUID()},
+    });
+  }
 }

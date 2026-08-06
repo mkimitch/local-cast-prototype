@@ -48,6 +48,9 @@ export interface GeneratedSegment {
 	text: string;
 	citations: GeneratedCitation[];
 	supportStatus: 'supported' | 'not_required';
+	speakerRole: 'host';
+	speakerLabel?: string;
+	voiceProfile?: string;
 }
 
 export interface GeneratedSection {
@@ -55,6 +58,11 @@ export interface GeneratedSection {
 	title: string;
 	type: 'intro' | 'news_summary' | 'deep_dive' | 'outro';
 	segments: GeneratedSegment[];
+}
+
+export interface GeneratedEpisodeScript {
+	version: 1;
+	sections: GeneratedSection[];
 }
 
 export interface PublishedAudio {
@@ -68,4 +76,5 @@ export interface PublishedAudio {
 	provider: 'OpenAI' | 'Deterministic test speech';
 	model: string;
 	voice: string;
+	liveRequestPerformed?: boolean;
 }

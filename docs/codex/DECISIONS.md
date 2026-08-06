@@ -275,6 +275,49 @@ Feed response bytes are fetched through a pinned, bounded transport. Final item 
 
 Authenticated feed URLs remain out of scope. New URLs reject embedded credentials and credential-like query names; legacy invalid URLs are hidden from APIs and disabled until replaced without printing or migrating their value. Generation evidence is deterministically limited to 50 items and 120,000 aggregate title/body/author/URL characters, with a final 160,000-character provider-boundary check before network use.
 
+## D-030 — Mode length is bounded by unique supplied evidence
+
+Status: **ACCEPTED**
+Date: 2026-08-06
+
+Brief mode accepts at least 40 unique evidence words and 200 evidence characters. Adequate material produces 600–1,000 words; sparse but factual material may produce a shorter supported briefing instead of padding. Deep mode requires at least 1,800 unique evidence words and 7,200 evidence characters and produces 1,800–3,000 words. Evidence with the same content digest is counted once so duplicate sources cannot manufacture sufficiency.
+
+Failure to meet the input contract is the non-retryable `INSUFFICIENT_SOURCE_MATERIAL` state and requires a new generation action with changed inputs. Output outside the mode contract fails validation and is never published.
+
+## D-031 — Version 1 scripts are ordered single-host segments
+
+Status: **ACCEPTED**
+Date: 2026-08-06
+
+New episodes persist `script_format_version = 1` and ordered sections/segments. Every segment has a stable ID, text, citation records, and the `host` role; the persistence boundary also permits optional speaker label and voice-profile fields. Historical rows are not falsely relabeled when they lack the segment projection.
+
+This is the backwards-compatible natural seam requested for the post-prototype audio milestone. Version 1 remains strictly single-host and does not add dialogue, a second voice, turn synthesis, or speculative migration of the approved walking skeleton.
+
+## D-032 — Long single-host speech uses bounded transport chunks
+
+Status: **ACCEPTED**
+Date: 2026-08-06
+
+Narration is partitioned only at ordered script-segment boundaries into at most eight OpenAI speech requests, each no more than 4,096 characters. A single request remains the common path. When multiple chunks are required, the worker renders each with the same server-side model, voice, speed, and style configuration, then invokes pinned ffmpeg to concatenate them into one MP3 before the existing strict ffprobe, checksum, fsync, atomic-publication, and retry checks.
+
+Chunk files and assembled temporary output are run-internal, cancellable, and cleaned after success or failure. This transport assembly is not the deferred multi-host stitching feature: it has one host, one voice profile, no inserted pauses/crossfades, and no independent dialogue turns.
+
+## D-033 — Retry identity and evidence state are explicit
+
+Status: **ACCEPTED**
+Date: 2026-08-06
+
+Every manual retry requires an `Idempotency-Key`. The database records the job/key/requested-attempt tuple transactionally, so double submission or replay returns the same attempt while a distinct key may request the next eligible retry. A retryable failure keeps the same logical run and, once evidence has frozen, reuses that immutable evidence. Failures before evidence freeze are described honestly and may perform the captured feed synchronization/selection work again.
+
+Non-retryable failures expose no retry action. Safe stable error code, phase, attempt count, retryability, correlation ID, and evidence-frozen state may reach the browser; provider bodies, source bodies, stack traces, filesystem paths, credentials, and authorization headers may not.
+
+## D-034 — Cached speech cannot establish live provider status
+
+Status: **ACCEPTED**
+Date: 2026-08-06
+
+Reusing a previously validated MP3 is successful job recovery, not a live provider request. Speech becomes `LIVE VERIFIED` in a worker session only when that session actually completes an authenticated speech request. Cached reuse may preserve already validated media but leaves provider status at its honest configured/contract state.
+
 ## Open operator decisions
 
 These are genuine inputs that cannot be inferred safely. They do not block documentation bootstrap. A slice must stop before it needs an unresolved value.

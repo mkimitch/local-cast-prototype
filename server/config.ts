@@ -45,8 +45,10 @@ const rawEnvironmentSchema = z.object({
 	OPENAI_SPEECH_VOICE: nonEmptyString.optional(),
 	OPENAI_SPEECH_FORMAT: z.literal('mp3').optional(),
 	FFPROBE_PATH: nonEmptyString.optional(),
+	FFMPEG_PATH: nonEmptyString.optional(),
 	LOCALCAST_ALLOW_FAKE_PROVIDERS: optionalBoolean,
 	LOCALCAST_FAKE_FAILURE_PHASE: z.enum(['syncing', 'selecting', 'drafting', 'validating', 'rendering_audio']).optional(),
+	LOCALCAST_FAKE_FAILURE_ATTEMPT: z.preprocess(value => value === undefined || value === '' ? undefined : Number(value), z.number().int().min(1).max(20).optional()),
 	LOCALCAST_FAKE_PHASE_DELAY_MS: z.preprocess(value => value === undefined || value === '' ? 0 : Number(value), z.number().int().min(0).max(10000)),
 	LOCALCAST_FAKE_DELAY_PHASE: z.enum(['syncing', 'selecting', 'drafting', 'validating', 'rendering_audio']).optional(),
 	LOCALCAST_FAKE_AFTER_PUBLICATION_DELAY_MS: z.preprocess(value => value === undefined || value === '' ? 0 : Number(value), z.number().int().min(0).max(10000)),
@@ -78,8 +80,10 @@ export interface ServerConfig {
 	openAiSpeechVoice: string;
 	openAiSpeechFormat: 'mp3';
 	ffprobePath: string;
+	ffmpegPath: string;
 	allowFakeProviders: boolean;
 	fakeFailurePhase?: 'syncing' | 'selecting' | 'drafting' | 'validating' | 'rendering_audio';
+	fakeFailureAttempt?: number;
 	fakePhaseDelayMs: number;
 	fakeDelayPhase?: 'syncing' | 'selecting' | 'drafting' | 'validating' | 'rendering_audio';
 	fakeAfterPublicationDelayMs: number;
@@ -184,6 +188,9 @@ export const parseServerConfig = (environment: NodeJS.ProcessEnv): ServerConfig 
 	if (env.LOCALCAST_FAKE_FAILURE_PHASE && (!env.LOCALCAST_ALLOW_FAKE_PROVIDERS || runtimeMode !== 'test')) {
 		throw new Error('Invalid LocalCast environment: fake failure injection requires test mode and explicit opt-in');
 	}
+	if (env.LOCALCAST_FAKE_FAILURE_ATTEMPT && (!env.LOCALCAST_FAKE_FAILURE_PHASE || !env.LOCALCAST_ALLOW_FAKE_PROVIDERS || runtimeMode !== 'test')) {
+		throw new Error('Invalid LocalCast environment: fake failure attempt requires test-only failure injection');
+	}
 	if (env.LOCALCAST_FAKE_PHASE_DELAY_MS > 0 && (!env.LOCALCAST_ALLOW_FAKE_PROVIDERS || runtimeMode !== 'test')) {
 		throw new Error('Invalid LocalCast environment: fake phase delay requires test mode and explicit opt-in');
 	}
@@ -240,8 +247,10 @@ export const parseServerConfig = (environment: NodeJS.ProcessEnv): ServerConfig 
 		openAiSpeechVoice: env.OPENAI_SPEECH_VOICE || 'marin',
 		openAiSpeechFormat: env.OPENAI_SPEECH_FORMAT || 'mp3',
 		ffprobePath: env.FFPROBE_PATH || 'ffprobe',
+		ffmpegPath: env.FFMPEG_PATH || 'ffmpeg',
 		allowFakeProviders: env.LOCALCAST_ALLOW_FAKE_PROVIDERS,
 		fakeFailurePhase: env.LOCALCAST_FAKE_FAILURE_PHASE,
+		fakeFailureAttempt: env.LOCALCAST_FAKE_FAILURE_ATTEMPT,
 		fakePhaseDelayMs: env.LOCALCAST_FAKE_PHASE_DELAY_MS,
 		fakeDelayPhase: env.LOCALCAST_FAKE_DELAY_PHASE,
 		fakeAfterPublicationDelayMs: env.LOCALCAST_FAKE_AFTER_PUBLICATION_DELAY_MS,

@@ -4,6 +4,7 @@ import {serverConfig} from '../config';
 import {generationJobStore} from '../jobs/index';
 import {IdempotencyConflictError, JobStateError} from '../jobs/generationJobStore';
 import {briefingStore} from '../services/briefingStore';
+import {episodeStore} from '../services/episodeStore';
 import {providerCheckStore} from '../services/providerCheckStore';
 import {parseBriefingRunRequest, parseIdempotencyKey} from '../validation';
 
@@ -23,6 +24,15 @@ const withJob = (run: BriefingRun): BriefingRun => {
 			errorMessage: job.errorMessage,
 			failedPhase: job.failedPhase,
 			retryable: job.retryable,
+			evidenceFrozen: episodeStore.hasEvidence(run.id),
+			diagnosticReference: `${job.id}:attempt-${Math.max(1, job.attemptCount)}`,
+			attempts: generationJobStore.listAttempts(job.id).map(attempt => ({
+				attemptNumber: attempt.attemptNumber,
+				startedAt: attempt.startedAt,
+				finishedAt: attempt.finishedAt,
+				outcome: attempt.outcome,
+				errorCode: attempt.errorCode,
+			})),
 		},
 	};
 };
@@ -76,4 +86,34 @@ briefingRunsRouter.get('/briefing-runs/:id', (req, res) => {
 	}
 
 	res.json(withJob(run));
+});
+
+briefingRunsRouter.post('/briefing-runs/:id/retry', (req, res) => {
+	const run = briefingStore.getRun(req.params.id);
+	const job = generationJobStore.getByRunId(req.params.id);
+	if (!run || !job) {
+		res.status(404).json({code: 'BRIEFING_RUN_NOT_FOUND', error: 'Briefing run not found', correlationId: res.locals.correlationId});
+		return;
+	}
+	const idempotency = parseIdempotencyKey(req.get('Idempotency-Key'));
+	if (idempotency.ok === false || !idempotency.value) {
+		res.status(400).json({code: 'INVALID_IDEMPOTENCY_KEY', error: idempotency.ok === false ? idempotency.error : 'Idempotency-Key is required', correlationId: res.locals.correlationId});
+		return;
+	}
+	try {
+		generationJobStore.retry(job.id, idempotency.value);
+		const updated = briefingStore.getRun(run.id);
+		if (!updated) throw new Error('Retried run could not be loaded');
+		res.status(200).json(withJob(updated));
+	} catch (error) {
+		if (error instanceof JobStateError) {
+			res.status(409).json({
+				code: 'JOB_NOT_RETRYABLE',
+				error: 'This generation failure cannot be retried without new or changed supplied material',
+				correlationId: res.locals.correlationId,
+			});
+			return;
+		}
+		throw error;
+	}
 });

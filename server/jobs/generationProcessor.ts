@@ -6,7 +6,16 @@ import {providerCheckStore} from '../services/providerCheckStore';
 import {GenerationError} from './types';
 import type {GenerationJob} from './types';
 import type {GenerationJobStore} from './generationJobStore';
-import type {EpisodeEvidence} from '../episodes/types';
+import type {EpisodeEvidence, PublishedAudio} from '../episodes/types';
+import type {ProviderCheckStore} from '../services/providerCheckStore';
+
+export const recordSpeechProviderSuccess = (
+	audio: Pick<PublishedAudio, 'liveRequestPerformed'>,
+	config: ServerConfig,
+	checks: Pick<ProviderCheckStore, 'recordLive'> = providerCheckStore,
+): void => {
+	if (audio.liveRequestPerformed) checks.recordLive('speech', config);
+};
 
 export interface GenerationProcessor {
 	process(job: GenerationJob, workerId: string, signal: AbortSignal): Promise<void>;
@@ -68,8 +77,11 @@ class OpenAiGenerationProcessor implements GenerationProcessor {
 		this.jobs.updatePhase(job.id, workerId, 'rendering_audio', this.config.leaseMs);
 		let audio;
 		try {
-			audio = await this.speech.render(job.runId, generated.narration, signal);
-			providerCheckStore.recordLive('speech', this.config);
+			audio = await this.speech.render(job.runId, generated.script, signal, () => {
+				this.jobs.renewLease(job.id, workerId, this.config.leaseMs);
+			});
+			this.jobs.renewLease(job.id, workerId, this.config.leaseMs);
+			recordSpeechProviderSuccess(audio, this.config);
 		} catch (error) {
 			if (error instanceof GenerationError) providerCheckStore.recordFailure('speech', this.config, `Live request failed: ${error.code}`);
 			throw error;

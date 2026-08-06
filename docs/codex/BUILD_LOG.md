@@ -183,3 +183,61 @@ No same deterministic failure remained after three evidence-based repair attempt
 | `git diff --check` | PASS, exit 0 |
 
 The sandboxed full gate passed through production smoke and then hit only BuildKit's read-only user activity path. The approved rerun used the local Docker engine, created and removed only unique `localcast-slice1-*` smoke resources, and passed. It did not touch Caddy, the loopback listening deployment, or operator data. No live OpenAI request was made during Slice 2.
+
+## 2026-08-06 — Slice 3: grounded modes, library, failure, retry, and player
+
+Base HEAD: `199ea0ffa082349b07c7dc3916a5f16affb91f5a`
+Branch: `codex/localcast-prototype`
+Runtime: Node `v20.19.2`, npm `9.2.0`, Docker `29.6.0`, Compose `5.1.4`
+
+### Delivered
+
+- Source-bounded brief/deep policies: 600–1,000 words for an adequate brief, a shorter supported sparse brief, and 1,800–3,000 words for deep only when at least 1,800 unique evidence words/7,200 characters are supplied. Duplicate content digests cannot manufacture sufficiency.
+- Additive migration 007 for version-aware ordered single-host segments and durable retry-request identity. Historical monolithic transcript rows remain unversioned; new scripts persist version 1, stable segment IDs, citation order, `host`, and optional speaker/voice seams.
+- Strict mode/output/citation/excerpt/support validation plus an evidence-derived deterministic fact oracle that rejects injected instructions, unrelated compound assertions, and unsupported/uncertain classifications.
+- Durable mode/status library filters, phase progress, safe correlated failure panels, attempt history, idempotent manual retry, frozen-evidence semantics, and non-retryable insufficiency behavior.
+- A persistent real-audio player with play/pause, seek, skip, speed, elapsed/duration, download, keyboard control and visible error state.
+- Long single-host narration transport: up to eight 4,096-character OpenAI TTS requests with unchanged server-side speech configuration, then pinned ffmpeg concatenation into one MP3 before strict ffprobe/checksum/fsync/atomic publication. This is one-host transport assembly, not the deferred dialogue/multi-voice feature.
+- Cancellation and lease fencing through speech requests, ffmpeg, ffprobe and publication; safe partial-write cleanup; recovery that never promotes cached audio to a live provider verification.
+- Playwright/axe coverage for all injected generation phases and retries, route focus, concise live announcements, high contrast, reduced motion, 320 CSS-pixel reflow, and 200% text.
+
+### Independent read-only reviews
+
+Three reviewers separately covered architecture/correctness, runtime/Docker/test gaps, and security/privacy/accessibility. No reviewer edited files, used credentials, made network requests, or ran tests. Their material findings were repaired before the full gate: retry idempotency persistence, duplicate evidence inflation, truthful migration versioning, render cancellation/lease fencing, every-phase failure UX, real ffmpeg evidence, partial-write cleanup/classification, production-shaped v2 restart recovery, cache-vs-live speech state, pre-freeze retry wording, evidence-derived support classification, player reflow, route-focus fallback, and duplicate alerts. Closure reviews reported the architecture and runtime findings closed; the final alert nesting finding was removed before the gate.
+
+### Repair ledger
+
+| Area | Failing/review evidence | Evidence-based repair | Final result |
+| --- | --- | --- | --- |
+| Focused test environment | A direct Vitest invocation omitted required runtime variables and two suites failed during config collection. | Reused the repository's explicit test runtime contract. | Focused suites and both complete Vitest layers pass. |
+| Retry durability | A second failed retry could accept another click without a durable request identity; retry copy implied frozen evidence before selection. | Added transactional per-job idempotency keys, API/client key handling, replay tests, and explicit `evidenceFrozen` projection/copy. | Same-key replay adds no attempt; distinct eligible retry adds exactly one; phase wording is accurate. |
+| Sufficiency and grounding | Repeated identical snapshots could inflate deep evidence; the first oracle matched fixture phrases rather than actual claim/snapshot/excerpt. | Counted unique content digests and derived deterministic support from the real evidence tuple. | Deep duplicate inflation and unrelated compound claims fail; supported controls pass. |
+| Version/restart | Migration 007 initially labeled monolithic historical transcripts version 1; v2 restart evidence was only indirectly covered. | Made the field nullable with conditional backfill and added a production-shaped process crash/recovery integration. | Frozen migration upgrades and v2 restart/replay pass. |
+| Speech transport | Multi-request narration needed lease renewal/cancellation, real-tool proof, partial-write cleanup and honest cache status. | Fenced each boundary, registered temps before writes, classified `AUDIO_WRITE_FAILED`, tracked live requests, and added real ffmpeg/ffprobe Compose smoke. | Focused/provider/process tests and isolated real-tool smoke pass with no partial publication. |
+| Browser accessibility | Review found narrow-player overflow, route-focus fallback gaps, and duplicate failure announcement semantics. | Reflowed controls at narrow width, focused route heading/main, and retained one concise assertive failure message. | 320px/200% bounds, keyboard, axe, desktop/mobile visual inspection and all-phase browser tests pass. |
+
+No same deterministic failure remained after three evidence-based repair attempts.
+
+### Targeted and full evidence
+
+| Exact command | Result |
+| --- | --- |
+| `npm run lint -- --pretty false` | PASS, exit 0 — no TypeScript diagnostics |
+| `npm run test` | PASS, exit 0 — 8 files, 137 tests |
+| `npm run test:integration` | PASS, exit 0 — 10 files, 63 tests |
+| `npm run build` | PASS, exit 0 — Vite transformed 2,150 modules; all server bundles emitted |
+| `npm run test:e2e` | PASS, exit 0 — 7 Playwright/axe tests in 1.7 minutes |
+| `npm run smoke:api` | PASS, exit 0 |
+| `npm run smoke:production` | PASS, exit 0 |
+| `npm run verify` | PASS, exit 0 with approved Docker access — lint, 137 unit, 63 integration, build, 7 browser, API, production, and isolated Compose gates |
+| Compose stage within `npm run verify` | PASS — build/init/non-root app+worker/recreation plus real two-chunk MP3 concatenation and real ffprobe validation; disposable resources removed |
+| `env NPM_CONFIG_CACHE=/tmp/localcast-npm-audit-cache npm audit --omit=dev --audit-level=high` | EXIT 1 — unchanged two high React Router RSC-only advisories; no applicable RSC/framework/action/SSR path and only a breaking forced downgrade is offered |
+| `stat -c '%F mode=%a' .env` and `git check-ignore -v .env` | PASS — regular file mode `600`, ignored at `.gitignore:24`; value not read or printed |
+| redacted Compose credential-scope assertion | PASS — only `worker` receives `OPENAI_API_KEY`; no value or authorization header printed |
+| `git diff --check` | PASS, exit 0 after durable-document reconciliation |
+
+The first sandboxed `npm run verify` passed through production smoke and failed only because BuildKit could not write `/home/mkimitch/.docker/buildx/activity`. The authorized exact rerun used the local Docker engine, passed, and removed only its uniquely named disposable resources. It did not touch Caddy, the listening deployment, or operator data. No live OpenAI call or additional authorized spend occurred in Slice 3.
+
+### Slice 4 entry stop
+
+O-001 and O-004 remain open. No Slice 4 implementation began. Resume requires the canonical trusted-LAN HTTPS origin, Caddy attachment/log-redaction facts, and an approved reachable podcast client/version with local subscription storage or explicit vendor-cloud token disclosure acceptance. The podcast token must later be supplied only through ignored server-side configuration.

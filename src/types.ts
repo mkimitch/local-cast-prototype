@@ -96,6 +96,7 @@ export interface BriefingSection {
 export interface TranscriptCitation {
   snapshotId: string;
   title: string;
+  sourceName: string;
   kind: 'note' | 'feed';
   excerpt: string;
   author?: string;
@@ -108,7 +109,18 @@ export interface TranscriptSegment {
   kind: 'factual' | 'transition';
   text: string;
   supportStatus: 'supported' | 'not_required';
+  speakerRole: 'host';
+  speakerLabel?: string;
+  voiceProfile?: string;
   citations: TranscriptCitation[];
+}
+
+export interface EpisodeWarning {
+  code: string;
+  message: string;
+  sourceName: string;
+  occurredAt?: string;
+  cachedEvidenceUsed: boolean;
 }
 
 export interface AudioAsset {
@@ -169,6 +181,8 @@ export interface BriefingRun {
     speech: {adapter: string; model: string; voice?: string};
   };
   aiGenerated?: boolean;
+  scriptFormatVersion?: 1;
+  warnings?: EpisodeWarning[];
   job?: {
     id: string;
     phase: RunStatus;
@@ -177,5 +191,14 @@ export interface BriefingRun {
     errorMessage?: string;
     failedPhase?: 'syncing' | 'selecting' | 'drafting' | 'validating' | 'rendering_audio';
     retryable: boolean;
+    evidenceFrozen: boolean;
+    diagnosticReference: string;
+    attempts: Array<{
+      attemptNumber: number;
+      startedAt: string;
+      finishedAt?: string;
+      outcome: 'running' | 'complete' | 'failed' | 'interrupted' | 'recovered';
+      errorCode?: string;
+    }>;
   };
 }

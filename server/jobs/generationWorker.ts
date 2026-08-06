@@ -64,7 +64,7 @@ export class GenerationWorker {
 			} else if (stillOwned) {
 				this.jobs.fail(job.id, this.config.workerId, {
 					code: 'GENERATION_FAILED',
-					message: 'Generation failed safely; review server diagnostics with the correlation ID',
+					message: 'Generation failed safely; use the diagnostic reference for server review',
 					retryable: true,
 				});
 				console.error(`[generation-job:${job.id}] GENERATION_FAILED`);

@@ -549,6 +549,38 @@ const migrations: Migration[] = [
 			`).run(timestamp);
 		},
 	},
+	{
+		id: '007_grounded_episode_workflow',
+		up: db => {
+			if (!hasColumn(db, 'briefing_runs', 'script_format_version')) {
+				db.exec('ALTER TABLE briefing_runs ADD COLUMN script_format_version INTEGER CHECK (script_format_version = 1)');
+			}
+			const claimColumns: Array<[string, string]> = [
+				['speaker_role', "TEXT NOT NULL DEFAULT 'host'"],
+				['speaker_label', 'TEXT'],
+				['voice_profile', 'TEXT'],
+			];
+			for (const [name, definition] of claimColumns) {
+				if (!hasColumn(db, 'transcript_claims', name)) db.exec(`ALTER TABLE transcript_claims ADD COLUMN ${name} ${definition}`);
+			}
+			db.exec(`
+				UPDATE briefing_runs
+				SET script_format_version = 1
+				WHERE EXISTS (
+					SELECT 1 FROM transcript_claims
+					WHERE transcript_claims.run_id = briefing_runs.id
+				);
+
+				CREATE TABLE IF NOT EXISTS generation_retry_requests (
+					job_id TEXT NOT NULL REFERENCES generation_jobs(id) ON DELETE CASCADE,
+					idempotency_key TEXT NOT NULL,
+					requested_attempt_number INTEGER NOT NULL,
+					created_at TEXT NOT NULL,
+					PRIMARY KEY (job_id, idempotency_key)
+				);
+			`);
+		},
+	},
 ];
 
 export const migrationIds = migrations.map(migration => migration.id);

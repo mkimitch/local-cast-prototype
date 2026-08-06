@@ -5,6 +5,7 @@ import Database from 'better-sqlite3';
 import {afterEach, describe, expect, it} from 'vitest';
 import type {ServerConfig} from '../../server/config';
 import {inspectDatabaseHealth, openDatabase} from '../../server/database/connection';
+import {migrationIds} from '../../server/database/migrations';
 import {initializeStorage, storageMarkerPaths, verifyStorage} from '../../server/storage';
 import {installFrozenMigrationSnapshot} from '../fixtures/migrationSnapshots';
 
@@ -34,6 +35,7 @@ const productionConfig = (root: string, installationId = 'localcast-test-install
 	openAiSpeechVoice: 'marin',
 	openAiSpeechFormat: 'mp3',
 	ffprobePath: 'ffprobe',
+	ffmpegPath: 'ffmpeg',
 	allowFakeProviders: false,
 	fakePhaseDelayMs: 0,
 	fakeAfterPublicationDelayMs: 0,
@@ -138,7 +140,7 @@ describe('production storage contract', () => {
 		unchanged.close();
 
 		const adopted = openDatabase(config, {initializingStorage: true});
-		expect((adopted.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get() as {count: number}).count).toBe(6);
+		expect((adopted.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get() as {count: number}).count).toBe(migrationIds.length);
 		expect((adopted.prepare("SELECT settings_json FROM app_settings WHERE id = 'default'").get() as {settings_json: string}).settings_json).not.toContain('must-not-be-touched');
 		adopted.close();
 	});
