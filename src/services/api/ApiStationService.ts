@@ -22,6 +22,14 @@ export class ApiStationService implements StationService {
     return apiRequest<Station[]>('/stations');
   }
 
+  async getStation(id: string): Promise<Station | undefined> {
+    try {
+      return await apiRequest<Station>(`/stations/${encodeURIComponent(id)}`);
+    } catch {
+      return undefined;
+    }
+  }
+
   async saveStation(input: Pick<Station, 'name' | 'topicInstruction' | 'defaultMode' | 'noteIds' | 'sourceIds'>, id?: string): Promise<Station> {
     return apiRequest<Station>(id ? `/stations/${encodeURIComponent(id)}` : '/stations', {
       method: id ? 'PUT' : 'POST',

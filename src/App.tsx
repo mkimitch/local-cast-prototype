@@ -54,6 +54,7 @@ export default function App() {
               <Route path="/" element={<Dashboard onNavigateToRun={navigateRun} onNavigate={navigateView} />} />
               <Route path="/sources" element={<SourcesView />} />
               <Route path="/stations" element={<StationsView />} />
+              <Route path="/stations/:stationId" element={<StationsView />} />
               <Route path="/episodes" element={<RunsView />} />
               <Route path="/episodes/:runId" element={<EpisodeRoute onPlay={setPlayingRun} />} />
               <Route path="/settings" element={<SettingsView />} />

@@ -1,14 +1,26 @@
 import type {ServerConfig} from '../config';
 import {OpenAiSpeechProvider, OpenAiTextProvider} from '../providers/openai';
 import {episodeStore} from '../services/episodeStore';
+import {synchronizeRequestSources} from '../services/episodePreparation';
 import {providerCheckStore} from '../services/providerCheckStore';
 import {GenerationError} from './types';
 import type {GenerationJob} from './types';
 import type {GenerationJobStore} from './generationJobStore';
+import type {EpisodeEvidence} from '../episodes/types';
 
 export interface GenerationProcessor {
 	process(job: GenerationJob, workerId: string, signal: AbortSignal): Promise<void>;
 }
+
+export const assertOpenAiEvidenceAuthorized = (evidence: EpisodeEvidence[]): void => {
+	if (evidence.some(item => item.kind === 'feed' && item.networkScope !== 'public')) {
+		throw new GenerationError(
+			'CLOUD_PROCESSING_NOT_AUTHORIZED',
+			'Private or unverified feed material is not authorized for OpenAI processing',
+			false,
+		);
+	}
+};
 
 class UnconfiguredGenerationProcessor implements GenerationProcessor {
 	async process(): Promise<void> {
@@ -34,10 +46,12 @@ class OpenAiGenerationProcessor implements GenerationProcessor {
 			throw new GenerationError('INVALID_JOB_PAYLOAD', 'This generation request is not supported by the configured provider', false);
 		}
 
-		this.jobs.updatePhase(job.id, workerId, 'selecting', this.config.leaseMs);
 		const request = episodeStore.getRequest(job.payload.requestId);
 		if (!request || request.runId !== job.runId) throw new GenerationError('INVALID_JOB_PAYLOAD', 'The persisted generation request is invalid', false);
+		if (episodeStore.listEvidence(job.runId).length === 0) await synchronizeRequestSources(request.id, signal);
+		this.jobs.updatePhase(job.id, workerId, 'selecting', this.config.leaseMs);
 		const evidence = episodeStore.finalizeEvidence(request.id, job.runId);
+		assertOpenAiEvidenceAuthorized(evidence);
 
 		this.jobs.updatePhase(job.id, workerId, 'drafting', this.config.leaseMs);
 		let generated;

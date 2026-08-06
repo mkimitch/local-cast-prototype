@@ -1,4 +1,4 @@
-import type {EpisodeMode} from '../../src/types';
+import type {EpisodeMode, FeedNetworkScope} from '../../src/types';
 
 export interface EpisodeEvidence {
 	id: string;
@@ -9,6 +9,9 @@ export interface EpisodeEvidence {
 	originalUrl?: string;
 	publishedAt?: string;
 	contentSha256: string;
+	sourceId?: string;
+	sourceName?: string;
+	networkScope: FeedNetworkScope | 'user_supplied';
 }
 
 export interface EpisodeRequestSnapshot {
@@ -21,6 +24,17 @@ export interface EpisodeRequestSnapshot {
 	mode: EpisodeMode;
 	requestHash: string;
 	requestedAt: string;
+}
+
+export interface EpisodeRequestSource {
+	sourceId: string;
+	sourceName: string;
+	sourceUrl: string;
+	networkScope: FeedNetworkScope;
+	sortOrder: number;
+	syncStatus: 'pending' | 'success' | 'not_modified' | 'error';
+	syncErrorCode?: string;
+	syncedAt?: string;
 }
 
 export interface GeneratedCitation {

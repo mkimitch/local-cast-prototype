@@ -23,28 +23,59 @@ const environment = {
 	TEXT_PROVIDER: 'fake',
 	SPEECH_PROVIDER: 'fake',
 	LOCALCAST_ALLOW_FAKE_PROVIDERS: 'true',
+	LOCALCAST_RSS_PRIVATE_HOSTS: '127.0.0.1',
 	LOCALCAST_FAKE_PHASE_DELAY_MS: '2000',
 	LOCALCAST_LEASE_MS: '5000',
 	LOCALCAST_WORKER_POLL_MS: '25',
 	LOCALCAST_SHUTDOWN_MS: '2000',
 };
 
+const feedBody = [
+	'LocalCast synchronizes a selected feed only after explicit user action.',
+	'The worker stores feed items in SQLite before freezing immutable episode evidence.',
+	'LocalCast never retrieves linked article pages and does not perform autonomous web research.',
+	'Completed transcript citations retain the copied feed title, excerpt, author, date, and safe URL.',
+	'Conditional feed validators and stable item identities prevent duplicate evidence across restart.',
+].join(' ');
 const feedXml = `<?xml version="1.0" encoding="UTF-8" ?>
 <rss version="2.0"><channel><title>Browser fixture</title><link>http://127.0.0.1/</link><description>Fixture</description>
-<item><guid>browser-item-1</guid><title>Browser Phase Evidence</title><description>Supplied evidence for the browser phase test.</description></item>
+<item><guid>browser-item-1</guid><title>Browser Feed Lighthouse</title><link>http://127.0.0.1:${feedPort}/article</link><author>Fixture Author</author><description>${feedBody}</description></item>
 </channel></rss>`;
+const atomXml = `<?xml version="1.0" encoding="UTF-8" ?>
+<feed xmlns="http://www.w3.org/2005/Atom"><title>Unselected Atom fixture</title>
+<entry><id>atom-item-1</id><title>Unselected Atom Signal</title><updated>2026-08-06T12:00:00Z</updated><summary>${feedBody}</summary></entry>
+</feed>`;
 
 let feedRequestCount = 0;
+const feedPaths = [];
 const feedServer = createServer((request, response) => {
 	if (request.url === '/feed.xml') {
 		feedRequestCount += 1;
+		feedPaths.push('/feed.xml');
 		response.writeHead(200, {'Content-Type': 'application/rss+xml; charset=utf-8'});
 		response.end(feedXml);
+		return;
+	}
+	if (request.url === '/atom.xml') {
+		feedRequestCount += 1;
+		feedPaths.push('/atom.xml');
+		response.writeHead(200, {'Content-Type': 'application/atom+xml; charset=utf-8'});
+		response.end(atomXml);
+		return;
+	}
+	if (request.url === '/article') {
+		feedPaths.push('/article');
+		response.writeHead(500, {'Content-Type': 'text/plain'}).end('Article pages must not be fetched');
 		return;
 	}
 	if (request.url === '/request-count') {
 		response.writeHead(200, {'Content-Type': 'application/json'});
 		response.end(JSON.stringify({count: feedRequestCount}));
+		return;
+	}
+	if (request.url === '/request-log') {
+		response.writeHead(200, {'Content-Type': 'application/json'});
+		response.end(JSON.stringify({paths: feedPaths}));
 		return;
 	}
 	response.writeHead(404, {'Content-Type': 'text/plain'});

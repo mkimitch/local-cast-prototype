@@ -32,6 +32,7 @@ const evidence: EpisodeEvidence[] = [{
 	title: 'Supplied acceptance note',
 	body: `${excerpt} A separate worker processes one persistent job at a time. SQLite retains the job phases and final evidence snapshot. This body is deliberately long enough to support a short factual listening sample without outside research or invented filler.`,
 	contentSha256: 'b'.repeat(64),
+	networkScope: 'user_supplied',
 }];
 
 const outputPayload = (value: unknown, usage = {input_tokens: 10, output_tokens: 5, total_tokens: 15}) => ({
@@ -146,6 +147,14 @@ describe('OpenAI text provider contract', () => {
 			allowTestBaseUrl: true,
 		});
 		await expect(oversized.generateEpisode(request, evidence, new AbortController().signal)).rejects.toMatchObject({code: 'OPENAI_RESPONSE_TOO_LARGE'});
+	});
+
+	it('rejects aggregate provider input above the fixed bound before network use', async () => {
+		const fetchImpl = vi.fn<typeof fetch>();
+		const provider = new OpenAiTextProvider('credential-canary', 'gpt-5.4-mini', {fetchImpl, baseUrl: 'http://provider.test/v1', allowTestBaseUrl: true});
+		const oversizedEvidence: EpisodeEvidence[] = [{...evidence[0]!, body: 'x'.repeat(160_001)}];
+		await expect(provider.generateEpisode(request, oversizedEvidence, new AbortController().signal)).rejects.toMatchObject({code: 'EVIDENCE_INPUT_TOO_LARGE', retryable: false});
+		expect(fetchImpl).not.toHaveBeenCalled();
 	});
 
 	it('honors timeout and caller cancellation', async () => {

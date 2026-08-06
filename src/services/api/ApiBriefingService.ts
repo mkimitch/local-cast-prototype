@@ -16,14 +16,6 @@ export class ApiBriefingService implements BriefingService {
     }
   }
 
-  async startRun(sourceIds: string[]): Promise<BriefingRun> {
-    return apiRequest<BriefingRun>('/briefing-runs', {
-      method: 'POST',
-      headers: {'Idempotency-Key': crypto.randomUUID()},
-      body: JSON.stringify({sourceIds}),
-    });
-  }
-
   async startStationRun(stationId: string, mode?: EpisodeMode): Promise<BriefingRun> {
     return apiRequest<BriefingRun>('/briefing-runs', {
       method: 'POST',

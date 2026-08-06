@@ -38,6 +38,17 @@ describe('server environment contract', () => {
 		expect(status.speech.status).toBe('NOT CONFIGURED');
 	});
 
+	it('normalizes an exact private-feed host allowlist and rejects broad entries', () => {
+		const config = parseServerConfig({
+			LOCALCAST_RUNTIME_MODE: 'development',
+			LOCALCAST_RSS_PRIVATE_HOSTS: 'Feed.LAN.,127.0.0.1,[::1],feed.lan',
+		});
+		expect(config.rssPrivateHosts).toEqual(['feed.lan', '127.0.0.1', '::1']);
+		for (const value of ['*.lan', 'https://feed.lan', 'feed.lan:8080', 'user@feed.lan']) {
+			expect(() => parseServerConfig({LOCALCAST_RUNTIME_MODE: 'development', LOCALCAST_RSS_PRIVATE_HOSTS: value})).toThrow(/RSS private hosts/);
+		}
+	});
+
 	it.each([
 		[{...productionEnvironment, DATABASE_PATH: undefined}, /DATABASE_PATH/],
 		[{...productionEnvironment, MEDIA_PATH: undefined}, /MEDIA_PATH/],

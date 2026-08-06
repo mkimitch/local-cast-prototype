@@ -103,6 +103,99 @@ const migration004 = `
 	CREATE INDEX idx_generation_job_events_order ON generation_job_events(job_id, id);
 `;
 
+const migration005 = `
+	CREATE TABLE notes (
+		id TEXT PRIMARY KEY, revision INTEGER NOT NULL DEFAULT 1 CHECK (revision > 0),
+		title TEXT NOT NULL, body TEXT NOT NULL, author TEXT, original_url TEXT,
+		created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+	);
+	CREATE TABLE stations (
+		id TEXT PRIMARY KEY, revision INTEGER NOT NULL DEFAULT 1 CHECK (revision > 0),
+		name TEXT NOT NULL, topic_instruction TEXT NOT NULL,
+		default_mode TEXT NOT NULL CHECK (default_mode IN ('brief', 'deep')),
+		created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+	);
+	CREATE TABLE station_notes (
+		station_id TEXT NOT NULL REFERENCES stations(id) ON DELETE CASCADE,
+		note_id TEXT NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+		sort_order INTEGER NOT NULL, PRIMARY KEY (station_id, note_id)
+	);
+	CREATE TABLE station_sources (
+		station_id TEXT NOT NULL REFERENCES stations(id) ON DELETE CASCADE,
+		source_id TEXT NOT NULL REFERENCES sources(id) ON DELETE CASCADE,
+		sort_order INTEGER NOT NULL, PRIMARY KEY (station_id, source_id)
+	);
+	CREATE TABLE generation_requests (
+		id TEXT PRIMARY KEY, run_id TEXT NOT NULL UNIQUE REFERENCES briefing_runs(id) ON DELETE CASCADE,
+		station_id_snapshot TEXT NOT NULL, station_revision INTEGER NOT NULL,
+		station_name TEXT NOT NULL, topic_instruction TEXT NOT NULL,
+		requested_mode TEXT NOT NULL CHECK (requested_mode IN ('brief', 'deep')),
+		request_hash TEXT NOT NULL, requested_at TEXT NOT NULL
+	);
+	CREATE TABLE generation_request_notes (
+		request_id TEXT NOT NULL REFERENCES generation_requests(id) ON DELETE CASCADE,
+		note_id_snapshot TEXT NOT NULL, note_revision INTEGER NOT NULL,
+		title TEXT NOT NULL, body TEXT NOT NULL, author TEXT, original_url TEXT,
+		sort_order INTEGER NOT NULL, PRIMARY KEY (request_id, note_id_snapshot)
+	);
+	CREATE TABLE generation_request_sources (
+		request_id TEXT NOT NULL REFERENCES generation_requests(id) ON DELETE CASCADE,
+		source_id_snapshot TEXT NOT NULL, sort_order INTEGER NOT NULL,
+		PRIMARY KEY (request_id, source_id_snapshot)
+	);
+	CREATE TABLE episode_evidence_snapshots (
+		id TEXT PRIMARY KEY, run_id TEXT NOT NULL REFERENCES briefing_runs(id) ON DELETE CASCADE,
+		request_id TEXT NOT NULL REFERENCES generation_requests(id) ON DELETE CASCADE,
+		kind TEXT NOT NULL CHECK (kind IN ('note', 'feed')), original_id_snapshot TEXT NOT NULL,
+		title TEXT NOT NULL, body TEXT NOT NULL, author TEXT, original_url TEXT, published_at TEXT,
+		content_sha256 TEXT NOT NULL, sort_order INTEGER NOT NULL, UNIQUE (run_id, id)
+	);
+	CREATE TABLE transcript_claims (
+		id TEXT PRIMARY KEY, run_id TEXT NOT NULL REFERENCES briefing_runs(id) ON DELETE CASCADE,
+		section_id TEXT NOT NULL REFERENCES briefing_sections(id) ON DELETE CASCADE,
+		kind TEXT NOT NULL CHECK (kind IN ('factual', 'transition')), text TEXT NOT NULL,
+		support_status TEXT NOT NULL CHECK (support_status IN ('not_required', 'supported')),
+		sort_order INTEGER NOT NULL
+	);
+	CREATE TABLE episode_citations (
+		claim_id TEXT NOT NULL REFERENCES transcript_claims(id) ON DELETE CASCADE,
+		snapshot_id TEXT NOT NULL REFERENCES episode_evidence_snapshots(id) ON DELETE RESTRICT,
+		excerpt TEXT NOT NULL, sort_order INTEGER NOT NULL,
+		PRIMARY KEY (claim_id, snapshot_id, sort_order)
+	);
+	CREATE TABLE provider_checks (
+		capability TEXT PRIMARY KEY CHECK (capability IN ('text', 'speech')),
+		adapter TEXT NOT NULL, model TEXT NOT NULL, voice TEXT,
+		configuration_fingerprint TEXT NOT NULL,
+		status TEXT NOT NULL CHECK (status IN ('LIVE VERIFIED', 'CONTRACT TESTED ONLY', 'NOT CONFIGURED')),
+		reason TEXT NOT NULL, verified_at TEXT, updated_at TEXT NOT NULL
+	);
+	CREATE INDEX idx_station_notes_order ON station_notes(station_id, sort_order);
+	CREATE INDEX idx_station_sources_order ON station_sources(station_id, sort_order);
+	CREATE INDEX idx_evidence_run_order ON episode_evidence_snapshots(run_id, sort_order);
+	CREATE INDEX idx_claims_run_order ON transcript_claims(run_id, section_id, sort_order);
+	CREATE INDEX idx_citations_claim_order ON episode_citations(claim_id, sort_order);
+	ALTER TABLE briefing_runs ADD COLUMN mode TEXT CHECK (mode IN ('brief', 'deep'));
+	ALTER TABLE briefing_runs ADD COLUMN station_id_snapshot TEXT;
+	ALTER TABLE briefing_runs ADD COLUMN station_name_snapshot TEXT;
+	ALTER TABLE briefing_runs ADD COLUMN station_revision INTEGER;
+	ALTER TABLE briefing_runs ADD COLUMN text_provider TEXT;
+	ALTER TABLE briefing_runs ADD COLUMN text_model TEXT;
+	ALTER TABLE briefing_runs ADD COLUMN speech_provider TEXT;
+	ALTER TABLE briefing_runs ADD COLUMN speech_model TEXT;
+	ALTER TABLE briefing_runs ADD COLUMN speech_voice TEXT;
+	ALTER TABLE briefing_runs ADD COLUMN ai_generated INTEGER NOT NULL DEFAULT 0;
+	ALTER TABLE audio_assets ADD COLUMN storage_filename TEXT;
+	ALTER TABLE audio_assets ADD COLUMN mime_type TEXT;
+	ALTER TABLE audio_assets ADD COLUMN byte_length INTEGER;
+	ALTER TABLE audio_assets ADD COLUMN sha256 TEXT;
+	ALTER TABLE audio_assets ADD COLUMN validated_at TEXT;
+	ALTER TABLE audio_assets ADD COLUMN provider TEXT;
+	ALTER TABLE audio_assets ADD COLUMN model TEXT;
+	ALTER TABLE audio_assets ADD COLUMN voice TEXT;
+	ALTER TABLE audio_assets ADD COLUMN ai_generated INTEGER NOT NULL DEFAULT 0;
+`;
+
 export const installFrozenMigrationSnapshot = (database: Database.Database, migrationId: string): void => {
 	database.exec(initialSchema);
 	database.prepare('INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)').run('001_initial_schema', '2026-01-01T00:00:00.000Z');
@@ -116,7 +209,11 @@ export const installFrozenMigrationSnapshot = (database: Database.Database, migr
 	database.prepare('INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)').run('003_source_sync_metadata', '2026-01-03T00:00:00.000Z');
 	if (migrationId === '003_source_sync_metadata') return;
 
-	if (migrationId !== '004_generation_jobs') throw new Error(`Unknown frozen migration snapshot: ${migrationId}`);
 	database.exec(migration004);
 	database.prepare('INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)').run('004_generation_jobs', '2026-01-04T00:00:00.000Z');
+	if (migrationId === '004_generation_jobs') return;
+
+	if (migrationId !== '005_real_provider_walking_skeleton') throw new Error(`Unknown frozen migration snapshot: ${migrationId}`);
+	database.exec(migration005);
+	database.prepare('INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)').run('005_real_provider_walking_skeleton', '2026-01-05T00:00:00.000Z');
 };

@@ -54,6 +54,7 @@ const rawEnvironmentSchema = z.object({
 	LOCALCAST_WORKER_POLL_MS: z.preprocess(value => value === undefined || value === '' ? 250 : Number(value), z.number().int().min(25).max(60000)),
 	LOCALCAST_LEASE_MS: z.preprocess(value => value === undefined || value === '' ? 30000 : Number(value), z.number().int().min(1000).max(300000)),
 	LOCALCAST_SHUTDOWN_MS: z.preprocess(value => value === undefined || value === '' ? 10000 : Number(value), z.number().int().min(500).max(30000)),
+	LOCALCAST_RSS_PRIVATE_HOSTS: z.string().optional(),
 	RSS_SYNC_ON_START: z.string().optional(),
 	RSS_SYNC_INTERVAL_MINUTES: z.string().optional(),
 }).passthrough();
@@ -86,6 +87,7 @@ export interface ServerConfig {
 	workerPollMs: number;
 	leaseMs: number;
 	shutdownMs: number;
+	rssPrivateHosts: string[];
 }
 
 const splitOrigins = (value: string | undefined): string[] => {
@@ -106,6 +108,30 @@ const splitOrigins = (value: string | undefined): string[] => {
 };
 
 const absolutePath = (value: string): string => path.resolve(process.cwd(), value);
+
+const normalizeConfiguredHostname = (value: string): string => {
+	const entry = value.trim();
+	if (!entry || entry.includes('/') || entry.includes('@') || entry.includes('*') || /\s/.test(entry)) {
+		throw new Error('Invalid LocalCast environment: RSS private hosts must be exact hostnames or IP addresses');
+	}
+
+	let parsed: URL;
+	try {
+		parsed = new URL(`http://${entry}`);
+	} catch {
+		throw new Error('Invalid LocalCast environment: RSS private hosts must be exact hostnames or IP addresses');
+	}
+	if (!parsed.hostname || parsed.port || parsed.username || parsed.password) {
+		throw new Error('Invalid LocalCast environment: RSS private hosts must not include ports or credentials');
+	}
+
+	return parsed.hostname.replace(/^\[|\]$/g, '').replace(/\.$/, '').toLowerCase();
+};
+
+const splitPrivateHosts = (value: string | undefined): string[] => {
+	if (!value?.trim()) return [];
+	return [...new Set(value.split(',').map(normalizeConfiguredHostname))];
+};
 
 export const parseServerConfig = (environment: NodeJS.ProcessEnv): ServerConfig => {
 	const parsed = rawEnvironmentSchema.safeParse(environment);
@@ -223,6 +249,7 @@ export const parseServerConfig = (environment: NodeJS.ProcessEnv): ServerConfig 
 		workerPollMs: env.LOCALCAST_WORKER_POLL_MS,
 		leaseMs: env.LOCALCAST_LEASE_MS,
 		shutdownMs: env.LOCALCAST_SHUTDOWN_MS,
+		rssPrivateHosts: splitPrivateHosts(env.LOCALCAST_RSS_PRIVATE_HOSTS),
 	};
 };
 

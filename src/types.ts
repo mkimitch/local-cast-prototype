@@ -1,6 +1,7 @@
 export type SourceType = 'rss' | 'manual_topic';
 export type SourceStatus = 'healthy' | 'error' | 'syncing';
 export type SourceSyncStatus = 'success' | 'error';
+export type FeedNetworkScope = 'public' | 'private' | 'unknown';
 
 export interface Source {
   id: string;
@@ -17,6 +18,14 @@ export interface Source {
   lastSyncError?: string;
   consecutiveSyncFailures?: number;
   nextSyncAfter?: string;
+  lastCheckedAt?: string;
+  lastChangedAt?: string;
+  feedEtag?: string;
+  feedLastModified?: string;
+  feedValidatorUrl?: string;
+  feedNetworkScope?: FeedNetworkScope;
+  feedUrlInvalid?: boolean;
+  lastSyncErrorCode?: string;
   itemCount?: number;
 }
 
@@ -29,6 +38,21 @@ export interface SourceItem {
   author?: string;
   publishedAt?: string;
   gatheredAt: string;
+  networkScope?: FeedNetworkScope;
+}
+
+export interface MaterialSearchResult {
+  kind: 'feed' | 'note';
+  id: string;
+  sourceId?: string;
+  sourceName?: string;
+  title: string;
+  excerpt: string;
+  author?: string;
+  url?: string;
+  publishedAt?: string;
+  updatedAt?: string;
+  rank: number;
 }
 
 export interface Note {

@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3';
 import {createHash, randomUUID} from 'node:crypto';
 import type {EpisodeMode} from '../../src/types';
+import {parseFeedUrl} from '../services/safeFeedFetcher';
 import {activeJobPhases, generationJobPayloadSchema} from './types';
 import type {ActiveJobPhase, GenerationJob, GenerationJobPayload, JobAttempt, JobEvent, JobPhase} from './types';
 
@@ -156,10 +157,29 @@ export class GenerationJobStore {
 				original_url: string | null;
 				sort_order: number;
 			}>;
-			const sources = this.database.prepare('SELECT source_id, sort_order FROM station_sources WHERE station_id = ? ORDER BY sort_order').all(stationId) as Array<{source_id: string; sort_order: number}>;
+			const sources = this.database.prepare(`
+				SELECT ss.source_id, ss.sort_order, s.name, s.url, s.is_active, s.feed_network_scope
+				FROM station_sources ss
+				JOIN sources s ON s.id = ss.source_id
+				WHERE ss.station_id = ?
+				ORDER BY ss.sort_order
+			`).all(stationId) as Array<{
+				source_id: string;
+				sort_order: number;
+				name: string;
+				url: string | null;
+				is_active: number;
+				feed_network_scope: 'public' | 'private' | 'unknown';
+			}>;
 			const mode = requestedMode || station.default_mode;
-			if (sources.length > 0) throw new JobStateError('RSS-backed generation is unavailable until selected-feed synchronization is implemented in Slice 2');
-			if (mode === 'deep') throw new JobStateError('Deep generation is unavailable until the representative listening sample is approved');
+			if (sources.some(source => source.is_active !== 1 || !source.url)) throw new JobStateError('One or more selected RSS sources are inactive or invalid');
+			let capturedSources: Array<(typeof sources)[number] & {canonicalUrl: string}>;
+			try {
+				capturedSources = sources.map(source => ({...source, canonicalUrl: parseFeedUrl(source.url!).href}));
+			} catch {
+				throw new JobStateError('One or more selected RSS sources are inactive or invalid');
+			}
+			if (mode === 'deep') throw new JobStateError('Deep generation is unavailable until the Slice 3 mode contract is implemented');
 			const timestamp = this.now();
 			const runId = `run-${this.createId()}`;
 			const jobId = `job-${this.createId()}`;
@@ -168,7 +188,7 @@ export class GenerationJobStore {
 				station: {id: station.id, revision: station.revision, name: station.name, topicInstruction: station.topic_instruction},
 				mode,
 				notes: notes.map(note => ({id: note.id, revision: note.revision, title: note.title, body: note.body, author: note.author, originalUrl: note.original_url})),
-				sourceIds: sources.map(source => source.source_id),
+				sources: capturedSources.map(source => ({id: source.source_id, name: source.name, url: source.canonicalUrl, networkScope: source.feed_network_scope})),
 			});
 			const requestHash = createHash('sha256').update(canonicalRequest).digest('hex');
 			const payload: GenerationJobPayload = {version: 2, requestId, requestedAt: timestamp};
@@ -194,8 +214,20 @@ export class GenerationJobStore {
 			`);
 			for (const note of notes) insertNote.run(requestId, note.id, note.revision, note.title, note.body, note.author, note.original_url, note.sort_order);
 
-			const insertSource = this.database.prepare('INSERT INTO generation_request_sources (request_id, source_id_snapshot, sort_order) VALUES (?, ?, ?)');
-			for (const source of sources) insertSource.run(requestId, source.source_id, source.sort_order);
+			const insertSource = this.database.prepare(`
+				INSERT INTO generation_request_sources (
+					request_id, source_id_snapshot, sort_order, source_name_snapshot,
+					source_url_snapshot, network_scope_snapshot, sync_status
+				) VALUES (?, ?, ?, ?, ?, ?, 'pending')
+			`);
+			for (const source of capturedSources) insertSource.run(
+				requestId,
+				source.source_id,
+				source.sort_order,
+				source.name,
+				source.canonicalUrl,
+				source.feed_network_scope,
+			);
 
 			this.database.prepare(`
 				INSERT INTO generation_jobs (

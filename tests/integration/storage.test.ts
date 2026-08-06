@@ -41,6 +41,7 @@ const productionConfig = (root: string, installationId = 'localcast-test-install
 	workerPollMs: 250,
 	leaseMs: 30_000,
 	shutdownMs: 10_000,
+	rssPrivateHosts: [],
 });
 
 afterEach(() => {
@@ -137,7 +138,7 @@ describe('production storage contract', () => {
 		unchanged.close();
 
 		const adopted = openDatabase(config, {initializingStorage: true});
-		expect((adopted.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get() as {count: number}).count).toBe(5);
+		expect((adopted.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get() as {count: number}).count).toBe(6);
 		expect((adopted.prepare("SELECT settings_json FROM app_settings WHERE id = 'default'").get() as {settings_json: string}).settings_json).not.toContain('must-not-be-touched');
 		adopted.close();
 	});

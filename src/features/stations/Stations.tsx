@@ -1,7 +1,7 @@
 import {FormEvent, useState} from 'react';
 import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query';
 import {FileText, Pencil, Play, Plus, Radio, Trash2} from 'lucide-react';
-import {useNavigate} from 'react-router-dom';
+import {Link, useNavigate, useParams} from 'react-router-dom';
 import {briefingService, providerService, sourceService, stationService} from '../../services';
 import type {EpisodeMode, Note, Station} from '../../types';
 
@@ -10,6 +10,7 @@ const emptyStation = {name: '', topicInstruction: '', defaultMode: 'brief' as Ep
 
 export default function StationsView() {
   const navigate = useNavigate();
+  const {stationId} = useParams();
   const queryClient = useQueryClient();
   const notes = useQuery({queryKey: ['notes'], queryFn: () => stationService.getNotes()});
   const stations = useQuery({queryKey: ['stations'], queryFn: () => stationService.getStations()});
@@ -47,11 +48,12 @@ export default function StationsView() {
 
   const saveStation = useMutation({
     mutationFn: () => stationService.saveStation(stationForm, editingStationId),
-    onSuccess: async () => {
+    onSuccess: async station => {
       setStationForm(emptyStation);
       setEditingStationId(undefined);
       setError(undefined);
       await refreshStations();
+      navigate(`/stations/${encodeURIComponent(station.id)}`);
     },
     onError: (value: Error) => setError(value.message),
   });
@@ -111,10 +113,14 @@ export default function StationsView() {
         <strong>External provider disclosure</strong>
         <p className="field-help">
           When you choose <strong>Sync and generate</strong>, OpenAI receives the station direction and selected pasted-note or RSS/Atom item titles, URLs, authors, dates, and bodies for drafting and support validation. OpenAI TTS then receives the final narration. LocalCast does not search the web, and all resulting audio is AI-generated.
+          Private/LAN feed material remains local under the current consent and cannot be generated with OpenAI.
         </p>
       </div>
 
       {error && <p className="empty-state" role="alert">{error}</p>}
+      {stationId && !stations.isLoading && !stations.data?.some(station => station.id === stationId) && (
+        <p className="empty-state" role="alert">The linked station was not found.</p>
+      )}
 
       <div className="content-grid content-grid--two">
         <section className="card card--padded">
@@ -178,7 +184,7 @@ export default function StationsView() {
               <label className="form-label" htmlFor="station-mode">Default mode</label>
               <select id="station-mode" className="control" value={stationForm.defaultMode} onChange={event => setStationForm({...stationForm, defaultMode: event.target.value as EpisodeMode})}>
                 <option value="brief">Brief</option>
-                <option value="deep">Deep (after listening approval)</option>
+                <option value="deep">Deep (not yet available)</option>
               </select>
             </div>
             <fieldset className="field">
@@ -196,11 +202,16 @@ export default function StationsView() {
                 <legend className="form-label">RSS/Atom sources</legend>
                 {(sources.data || []).map(source => (
                   <label key={source.id} className="choice-card">
-                    <input type="checkbox" checked={stationForm.sourceIds.includes(source.id)} onChange={() => toggleSelection('sourceIds', source.id)} />
-                    <span>{source.name}</span>
+                    <input
+                      type="checkbox"
+                      checked={stationForm.sourceIds.includes(source.id)}
+                      onChange={() => toggleSelection('sourceIds', source.id)}
+                      disabled={(!source.isActive || source.feedUrlInvalid) && !stationForm.sourceIds.includes(source.id)}
+                    />
+                    <span>{source.name}{!source.isActive ? ' (inactive)' : source.feedUrlInvalid ? ' (URL requires replacement)' : ''}</span>
                   </label>
                 ))}
-                <p className="field-help">You can save this selection now. Generation remains disabled until Slice 2 adds explicit selected-feed synchronization.</p>
+                <p className="field-help">Only selected active feeds are synchronized when you explicitly generate. Linked article pages are never fetched.</p>
               </fieldset>
             )}
             <div className="form-actions">
@@ -213,20 +224,24 @@ export default function StationsView() {
 
           <div className="card-list" aria-label="Saved stations">
             {stations.data?.map(station => {
-              const unavailableReason = station.sourceIds.length > 0
-                ? 'Generation waits for Slice 2 feed synchronization.'
-                : station.defaultMode === 'deep'
-                  ? 'Deep generation waits for listening approval.'
+              const unavailableSource = station.sourceIds.some(sourceId => {
+                const source = sources.data?.find(candidate => candidate.id === sourceId);
+                return !source || !source.isActive || source.feedUrlInvalid;
+              });
+              const unavailableReason = station.defaultMode === 'deep'
+                ? 'Deep generation becomes available with the Slice 3 mode contract.'
+                : unavailableSource
+                  ? 'Remove or repair inactive feed selections before generating.'
                   : undefined;
-              return <article key={station.id} className="briefing-row">
+              return <article key={station.id} id={`station-${station.id}`} className="briefing-row" aria-current={station.id === stationId ? 'true' : undefined}>
                 <div>
-                  <h3 className="briefing-row__title">{station.name}</h3>
+                  <h3 className="briefing-row__title"><Link to={`/stations/${encodeURIComponent(station.id)}`}>{station.name}</Link></h3>
                   <p className="field-help">{station.defaultMode} · revision {station.revision} · {station.noteIds.length} note{station.noteIds.length === 1 ? '' : 's'}</p>
                   {unavailableReason && <p className="field-help">{unavailableReason}</p>}
                 </div>
                 <div className="page-actions">
                   <button className="icon-button" aria-label={`Edit station ${station.name}`} onClick={() => editStation(station)}><Pencil size={16} /></button>
-                  <button className="icon-button" aria-label={`Delete station ${station.name}`} onClick={async () => { await stationService.deleteStation(station.id); await refreshStations(); }}><Trash2 size={16} /></button>
+                  <button className="icon-button" aria-label={`Delete station ${station.name}`} onClick={async () => { await stationService.deleteStation(station.id); await refreshStations(); if (station.id === stationId) navigate('/stations'); }}><Trash2 size={16} /></button>
                   <button
                     className="button button--inverse"
                     disabled={!settings.data?.generationEnabled || generate.isPending || station.noteIds.length + station.sourceIds.length === 0 || Boolean(unavailableReason)}

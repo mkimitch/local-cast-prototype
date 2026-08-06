@@ -259,6 +259,22 @@ export class OpenAiTextProvider {
 		signal: AbortSignal,
 		onDraftComplete: () => void = () => undefined,
 	): Promise<{sections: GeneratedSection[]; narration: string; usage: SafeUsage[]}> {
+		const userContent = JSON.stringify({
+			stationDirection: request.topicInstruction,
+			mode: request.mode,
+			evidence: evidence.map(item => ({
+				snapshotId: item.id,
+				kind: item.kind,
+				title: item.title,
+				body: item.body,
+				author: item.author || null,
+				originalUrl: item.originalUrl || null,
+				publishedAt: item.publishedAt || null,
+			})),
+		});
+		if (userContent.length > 160_000) {
+			throw new GenerationError('EVIDENCE_INPUT_TOO_LARGE', 'The selected supplied material exceeds the provider input limit', false);
+		}
 		const draftBody = {
 			model: this.model,
 			store: false,
@@ -279,19 +295,7 @@ export class OpenAiTextProvider {
 				},
 				{
 					role: 'user',
-					content: JSON.stringify({
-						stationDirection: request.topicInstruction,
-						mode: request.mode,
-						evidence: evidence.map(item => ({
-							snapshotId: item.id,
-							kind: item.kind,
-							title: item.title,
-							body: item.body,
-							author: item.author || null,
-							originalUrl: item.originalUrl || null,
-							publishedAt: item.publishedAt || null,
-						})),
-					}),
+					content: userContent,
 				},
 			],
 			text: {format: {type: 'json_schema', name: 'localcast_episode', strict: true, schema: episodeJsonSchema}},

@@ -2,6 +2,7 @@ import {afterEach, describe, expect, it} from 'vitest';
 import type Database from 'better-sqlite3';
 import {EpisodeStore} from '../../server/services/episodeStore';
 import {StationStore} from '../../server/services/stationStore';
+import {SourceStore} from '../../server/services/sourceStore';
 import {GenerationJobStore} from '../../server/jobs/generationJobStore';
 import {GenerationError} from '../../server/jobs/types';
 import {parseNoteBody, parseStationBody} from '../../server/validation';
@@ -90,7 +91,7 @@ describe('notes, stations, and immutable generation evidence', () => {
 		expect((db.prepare('SELECT COUNT(*) AS count FROM episode_evidence_snapshots WHERE run_id = ?').get(job.runId) as {count: number}).count).toBe(0);
 	});
 
-	it('rejects premature RSS-backed and deep generation without creating jobs', () => {
+	it('captures RSS-backed requests while keeping deep mode behind its Slice 3 contract', () => {
 		const db = database();
 		let id = 0;
 		const stations = new StationStore(db, () => '2026-08-05T12:00:00.000Z', () => `id-${++id}`);
@@ -112,10 +113,35 @@ describe('notes, stations, and immutable generation evidence', () => {
 			sourceIds: [],
 		});
 
-		expect(() => jobs.enqueueStation(rssStation.id, 'brief')).toThrow(/Slice 2/);
-		expect(() => jobs.enqueueStation(deepStation.id, 'deep')).toThrow(/listening sample is approved/);
-		expect(jobs.count()).toBe(0);
-		expect((db.prepare('SELECT COUNT(*) AS count FROM briefing_runs').get() as {count: number}).count).toBe(0);
+		const rssJob = jobs.enqueueStation(rssStation.id, 'brief').job;
+		const requestId = rssJob.payload.version === 2 ? rssJob.payload.requestId : '';
+		expect(new EpisodeStore(db).listRequestSources(requestId)).toEqual([expect.objectContaining({
+			sourceId,
+			sourceName: `Source ${sourceId}`,
+			sourceUrl: 'https://example.test/feed.xml',
+			syncStatus: 'pending',
+		})]);
+		expect(() => jobs.enqueueStation(deepStation.id, 'deep')).toThrow(/Slice 3/);
+		expect(jobs.count()).toBe(1);
+		expect((db.prepare('SELECT COUNT(*) AS count FROM briefing_runs').get() as {count: number}).count).toBe(1);
+	});
+
+	it('clears optional source metadata and revisions stations when a selected source is deleted', () => {
+		const db = database();
+		let id = 0;
+		let timestamp = '2026-08-05T12:00:00.000Z';
+		const sources = new SourceStore(db, () => timestamp, () => `id-${++id}`);
+		const stations = new StationStore(db, () => timestamp, () => `id-${++id}`);
+		const source = sources.addSource({type: 'rss', name: 'Mutable source', url: 'https://example.test/feed', category: 'News', isActive: true});
+		const note = stations.createNote({title: 'Mutable note', body: adequateBody});
+		const station = stations.createStation({name: 'Selected source station', topicInstruction: 'Use supplied facts.', defaultMode: 'brief', noteIds: [note.id], sourceIds: [source.id]});
+		expect(sources.updateSource(source.id, {category: null})).toMatchObject({category: undefined});
+		timestamp = '2026-08-05T12:01:00.000Z';
+		expect(sources.deleteSource(source.id)).toBe(true);
+		expect(stations.getStation(station.id)).toMatchObject({revision: 2, noteIds: [note.id], sourceIds: [], updatedAt: timestamp});
+		timestamp = '2026-08-05T12:02:00.000Z';
+		expect(stations.deleteNote(note.id)).toBe(true);
+		expect(stations.getStation(station.id)).toMatchObject({revision: 3, noteIds: [], sourceIds: [], updatedAt: timestamp});
 	});
 
 	it('publishes transcript, citations, media metadata, and terminal job state in one transaction', () => {

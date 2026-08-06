@@ -1,18 +1,51 @@
 # LocalCast build state
 
-Last updated: 2026-08-06 00:19 CDT
+Last updated: 2026-08-06 11:11 CDT
 Branch: `codex/localcast-prototype`
 Pre-bootstrap HEAD: `910485b77ead63450660b0b97544889960e45e3f`
 Slice 0 base HEAD: `e720d5818ab15efccfa143c94d6514c0c9a2baad`
-Current base checkpoint: Slice 0 at `c2604ed93b4c6b0a977405b5f74a7f40baae3f47`
-Current checkpoint: **Slice 1 — the commit containing this state document**
-Implementation slice: **1 — GREEN**
-Next action: **operator listening approval; Slice 2 is not started**
-Overall state: **STOPPED AT THE AUTHORIZED LISTENING GATE**
+Current base checkpoint: Slice 1 at `1790e91f1b37d518b18f4834b59cb7d9ba160823`
+Current checkpoint: **Slice 2 — the commit containing this state document**
+Implementation slice: **2 — GREEN**
+Next action: **continue automatically with Slice 3**
+Overall state: **SLICE 2 GREEN; NO ACTIVE BLOCKER**
+
+## Slice 2 result
+
+RSS 2.0 and Atom sources are now a complete manual, bounded input path. Sources support add/edit/enable/delete/sync/inspection, conditional `ETag`/`Last-Modified` requests, stable dedupe, safe redirects and pinned DNS/IP connections, explicit private-host allowlisting, immutable per-item network provenance, SQLite sync leases, and safe health/backoff. A station job synchronizes only its enqueue-captured feeds, commits items/validators under the same URL/lease fence, freezes selected evidence before the provider boundary, and never retrieves linked article pages. FTS5 searches feed items and pasted notes with provenance across lifecycle, rebuild, backup, and restart.
+
+Legacy credential-bearing feed URLs are hidden from browser APIs and cannot sync or enqueue until replaced; new source/item/note URLs reject credentials and credential-like query names. Private/unknown feed evidence cannot cross the OpenAI boundary under the current consent. Final evidence is capped at 50 items and 120,000 aggregate title/body/author/URL characters, with a 160,000-character provider request guard. The public API accepts only station-backed generation, so production cannot enqueue the obsolete payload that the real processor rejects.
+
+The operator-approved Slice 1 sample remains unchanged and no live provider call occurred in Slice 2. The deferred post-prototype two-host milestone and loudness baseline are recorded in `PLAN.md` and `DECISIONS.md`; the single-host pipeline remains authoritative.
+
+Three independent read-only reviewers covered architecture/correctness, runtime/Docker/tests, and security/privacy/accessibility. No reviewer edited files. Their material findings were fixed: stale lease/URL-edit writes, unbounded DNS/queue wait, migrated cached-item fallback, item-level private provenance, credential URL redaction, aggregate provider input, expired-lease UI recovery, obsolete public job payload, provider-boundary proof, inactive-selection removal, station revision changes, optional metadata clearing, and source-panel focus behavior.
+
+### Slice 2 verification evidence
+
+| Exact command | Result |
+| --- | --- |
+| `npm run lint -- --pretty false` | PASS, exit 0 — no TypeScript diagnostics |
+| `npm run test` | PASS, exit 0 — 6 files, 108 tests |
+| `npm run test:integration` | PASS, exit 0 — 9 files, 53 tests |
+| `NODE_ENV=test LOCALCAST_RUNTIME_MODE=test DATABASE_PATH=:memory: MEDIA_PATH=/tmp/localcast-vitest-slice2-review npx vitest run tests/unit/safe-feed-fetcher.test.ts tests/unit/source-validation.test.ts tests/unit/openai-provider.test.ts tests/integration/rss-ingestion.test.ts tests/integration/material-search.test.ts tests/integration/selected-feed-generation.test.ts tests/integration/station-generation.test.ts` | PASS, exit 0 — 7 files, 89 focused tests after review repairs |
+| `npm run build` | PASS, exit 0 — Vite built 2,150 modules; all three server bundles emitted |
+| `npm run test:e2e` | PASS, exit 0 — 3 Playwright flows, including RSS/Atom/FTS/selected-feed generation, keyboard inactive-selection removal, and source-panel focus restoration |
+| `npm run smoke:api` | PASS, exit 0 — station-backed API/worker generation, idempotency, deterministic media endpoint, safe failure, and restart persistence |
+| `npm run verify` | PASS, exit 0 with approved Docker access — lint, 108 unit, 53 integration, build, 3 browser, API, production, and isolated Compose build/init/health/recreation gates |
+| `npm audit --omit=dev --audit-level=high` | EXIT 1 — the same two high React Router RSC-only advisories; LocalCast uses declarative `BrowserRouter`, no RSC/framework/action/SSR path, and npm offers only a breaking forced downgrade |
+| `stat -c '%F mode=%a' .env` and `git check-ignore -v .env` | PASS — regular file, mode `600`, ignored at `.gitignore:24`; no value read or printed |
+| redacted `docker compose config --format json` assertion | PASS — `credentialServices=["worker"]`, `workerOnly=true`; no credential value/header printed |
+| `git diff --check` | PASS, exit 0 |
+
+The first sandboxed `npm run verify` reached its Compose tail and failed only because BuildKit could not update `/home/mkimitch/.docker/buildx/activity` on the read-only sandbox filesystem. The authorized rerun used the local Docker engine, created only unique `localcast-slice1-*` smoke resources, passed, and removed its containers/network/volumes. It did not touch the separate listening deployment or Caddy.
+
+### Slice 2 repair state
+
+No deterministic failure remains. The initial focused safe-fetch implementation needed one custom-lookup repair before review. Playwright needed one polling/keyboard-selector repair before review. Post-review stale-writer/provenance repairs passed their first focused run. Updating API smoke from legacy jobs to the production station contract required two evidence-based harness repairs (media route vs storage filename, then run-specific citation IDs); the third run passed. No unresolved failure reached the three-attempt stop.
 
 ## Slice 1 result
 
-O-002 is resolved. The repository now has saved pasted notes and stations, immutable generation requests/evidence, a durable OpenAI text/support/TTS pipeline, strict citation and MP3 validation, real same-origin media, resolved transcript citations, native browser playback, honest provider status, and server-only external-provider disclosure. RSS-backed and deep generation remain explicitly disabled until Slice 2 and the listening approval respectively; neither is silently simulated.
+O-002 is resolved. The repository now has saved pasted notes and stations, immutable generation requests/evidence, a durable OpenAI text/support/TTS pipeline, strict citation and MP3 validation, real same-origin media, resolved transcript citations, native browser playback, honest provider status, and server-only external-provider disclosure. Slice 2 subsequently enabled the bounded RSS-backed path; deep generation remains explicitly gated until Slice 3 rather than silently simulated.
 
 Three bounded read-only reviewers independently audited architecture/correctness, runtime/Docker/tests, and security/privacy/accessibility after targeted implementation. No reviewer edited files. The primary thread fixed their converged findings: factual-transition grounding bypass, transcript/audio replay mismatch, PID-stable temp collisions, inherited ffprobe credentials, weak MP3 format checking, stale/live provider state, missing-key enqueueing, premature RSS/deep generation, deterministic v2 fixture publication, media integrity/path checks, migration-004 upgrade coverage, and visible playback failure state.
 
@@ -32,7 +65,7 @@ Three bounded read-only reviewers independently audited architecture/correctness
 - The source note and station were created through LocalCast APIs; the persistent worker job used the immutable request/evidence records before either provider call. The completed run has 5 sections, 7 factual claims/citations, the spoken and visible AI-generated disclosure, and no external browser request.
 - Persisted and HTTP media agree at 1,262,592 bytes with SHA-256 `2a8d83087085974c226691ee285168c9f91a52c60cf74f39406b3240a8fa8071` and `audio/mpeg`. `ffprobe` reports codec `mp3`, format `mp3`, duration `78.912000` seconds.
 - Headless Chromium decoded the media at 78.912 seconds and observed real `loadedmetadata`, `play`, `playing`, `pause`, `seeking`, `seeked`, and `timeupdate` events, 7 resolved citations, no third-party origin, and no browser credential field.
-- The database records, request/evidence, transcript/citations, provider checks, media metadata, and MP3 checksum survived app/worker container recreation. The isolated listening deployment remains loopback-only and running for operator review.
+- The database records, request/evidence, transcript/citations, provider checks, media metadata, and MP3 checksum survived app/worker container recreation. The isolated listening deployment remained loopback-only; the operator approved the sample at the Slice 1 checkpoint.
 
 ### Slice 1 verification evidence
 
@@ -188,7 +221,7 @@ See `DECISIONS.md` for the complete rationale and exceptions to the default stac
 
 ## Current blockers and repair ledger
 
-No Slice 1 implementation blocker remains. The active stop is the operator-requested listening approval gate, not a failed check. O-001 and O-004 remain future Slice 4 inputs; O-003 remains optional live verification for Slice 6.
+No Slice 2 implementation blocker remains. The Slice 1 listening gate was approved at checkpoint `1790e91f1b37d518b18f4834b59cb7d9ba160823`. O-001 and O-004 remain future Slice 4 inputs; O-003 remains optional live verification for Slice 6.
 
 | Slice | Deterministic failure or entry block | Attempts | State |
 | --- | --- | --- | --- |
@@ -202,6 +235,10 @@ No Slice 1 implementation blocker remains. The active stop is the operator-reque
 | 1 | Frozen migration-004 fixture exposed unreconciled orphan history | One additive migration-005 reconciliation repair | GREEN — migration suite passes |
 | 1 | API smoke retained the obsolete 417-byte fake MP3 assertion | One assertion repair against a real deterministic ID3 MP3 fixture | GREEN — API smoke passes |
 | 1 | Compose empty credential failed schema parsing instead of reporting `NOT CONFIGURED` | One empty-to-unset config repair | GREEN — final Compose no-key startup passes |
+| 2 | Safe-fetch fixture bypassed custom DNS lookup | One pinned-lookup repair | GREEN — focused and full fetch suites pass |
+| 2 | Browser polling and inactive-selection keyboard selector raced rendered state | One polling/selector repair | GREEN — Playwright passes |
+| 2 | Review found stale lease/URL writers and mutable source-wide provenance | One atomic fence and item-level provenance repair | GREEN — focused review suite passes |
+| 2 | Station-backed API smoke retained legacy media-file and run-specific citation assumptions | Two harness repairs | GREEN — third evidence run and full gate pass |
 
 No deterministic failure remained after three repair attempts for the same cause. Open operator decisions are listed in `DECISIONS.md`. Slice 4 still requires Caddy origin/topology/log handling and a real podcast client. Piper contract support can complete without a model; only optional `LIVE VERIFIED` Piper evidence requires installation/model authorization.
 
@@ -216,4 +253,4 @@ No deterministic failure remained after three repair attempts for the same cause
 
 ## Next action
 
-The operator should listen at the recorded loopback URL and approve or reject the voice, pacing, and overall sample. Do not start Slice 2 and do not generate longer audio before that approval.
+Implement Slice 3 from its first incomplete acceptance criterion: brief/deep budgets, honest insufficiency and stale-feed warnings, adversarial grounding, episode library/progress/failure/retry UX, and affected accessibility flows. Preserve the approved single-host pipeline and use deterministic providers for the phase gate; no additional live OpenAI call is required. Continue automatically through the green Slice 3 checkpoint, then stop before Slice 4 if O-001 or O-004 is still unresolved.

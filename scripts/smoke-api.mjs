@@ -39,7 +39,7 @@ const reservePort = async () => {
 const fixtureFeed = `<?xml version="1.0" encoding="UTF-8" ?>
 <rss version="2.0"><channel>
 	<title>LocalCast fixture</title><link>http://127.0.0.1/</link><description>Fixture feed</description>
-	<item><guid>fixture-1</guid><title>Durable LocalCast Story</title><link>http://127.0.0.1/story</link><pubDate>Wed, 05 Aug 2026 12:00:00 GMT</pubDate><description>Supplied factual evidence for a deterministic briefing.</description></item>
+	<item><guid>fixture-1</guid><title>Durable LocalCast Story</title><link>http://127.0.0.1/story</link><pubDate>Wed, 05 Aug 2026 12:00:00 GMT</pubDate><description>This supplied fixture explains that LocalCast stores explicit generation jobs in SQLite. A separate worker claims one job at a time, records ordered phases, creates a grounded transcript, and publishes validated audio. Restarting the application preserves the completed episode and its source evidence. The fixture exists only to verify deterministic local behavior without external provider calls.</description></item>
 </channel></rss>`;
 
 const startFeed = async () => {
@@ -76,6 +76,7 @@ const childEnvironment = (role, extra = {}) => ({
 	TEXT_PROVIDER: 'fake',
 	SPEECH_PROVIDER: 'fake',
 	LOCALCAST_ALLOW_FAKE_PROVIDERS: 'true',
+	LOCALCAST_RSS_PRIVATE_HOSTS: '127.0.0.1',
 	RSS_SYNC_ON_START: '',
 	RSS_SYNC_INTERVAL_MINUTES: '',
 	...extra,
@@ -204,17 +205,29 @@ try {
 	const synced = await request(`/sources/${encodeURIComponent(feed.body.id)}/sync`, {method: 'POST'});
 	assert(synced.response.ok && synced.body.insertedCount === 1, 'explicit RSS sync should store fixture evidence');
 	assert(feedRequestCount === 1, 'explicit feed sync should perform exactly one fixture fetch');
+	const station = await request('/stations', {
+		method: 'POST',
+		headers: {'Content-Type': 'application/json'},
+		body: JSON.stringify({
+			name: 'Fixture station',
+			topicInstruction: 'Summarize only the supplied fixture facts.',
+			defaultMode: 'brief',
+			noteIds: [],
+			sourceIds: [feed.body.id],
+		}),
+	});
+	assert(station.response.status === 201, 'fixture station should persist');
 
 	const enqueue = await request('/briefing-runs', {
 		method: 'POST',
 		headers: {'Content-Type': 'application/json', 'Idempotency-Key': 'smoke-idempotency-0001'},
-		body: JSON.stringify({sourceIds: [feed.body.id]}),
+		body: JSON.stringify({stationId: station.body.id}),
 	});
 	assert(enqueue.response.status === 201 && enqueue.body.status === 'queued', 'explicit action should durably enqueue work');
 	const replay = await request('/briefing-runs', {
 		method: 'POST',
 		headers: {'Content-Type': 'application/json', 'Idempotency-Key': 'smoke-idempotency-0001'},
-		body: JSON.stringify({sourceIds: [feed.body.id]}),
+		body: JSON.stringify({stationId: station.body.id}),
 	});
 	assert(replay.response.status === 200 && replay.body.job.id === enqueue.body.job.id, 'enqueue replay must be idempotent');
 
@@ -227,8 +240,10 @@ try {
 	assert(completed.sections.length > 0, 'worker should persist deterministic transcript sections');
 	assert(completed.sections.some(section => section.sourceItemIds.length > 0), 'deterministic output should contain a source citation');
 	assert(completed.audioAsset?.format === 'mp3', 'worker should persist an MP3 asset record');
-	const audioFile = path.join(mediaPath, path.basename(completed.audioAsset.url));
-	const audioBytes = fs.readFileSync(audioFile);
+	const applicationOrigin = baseUrl.replace(/\/api$/, '');
+	const audioResponse = await fetch(`${applicationOrigin}${completed.audioAsset.url}`);
+	assert(audioResponse.ok, 'completed deterministic media should be available from the same origin');
+	const audioBytes = Buffer.from(await audioResponse.arrayBuffer());
 	assert(audioBytes.byteLength > 1_000 && audioBytes.subarray(0, 3).toString('ascii') === 'ID3', 'test speech adapter should publish a decodable deterministic MP3 fixture');
 	await stopProcess(worker);
 	worker = undefined;
@@ -236,21 +251,22 @@ try {
 	const repeatEnqueue = await request('/briefing-runs', {
 		method: 'POST',
 		headers: {'Content-Type': 'application/json', 'Idempotency-Key': 'smoke-idempotency-repeat-0001'},
-		body: JSON.stringify({sourceIds: [feed.body.id]}),
+		body: JSON.stringify({stationId: station.body.id}),
 	});
 	worker = startProcess('server/testing/worker.ts', 'worker', {LOCALCAST_WORKER_ID: 'smoke-worker-repeat'});
 	const repeated = await waitForRun(repeatEnqueue.body.id, 'complete');
 	const normalizedSections = run => run.sections.map(({title, type, spokenText, sourceItemIds, importanceScore, followUpPrompts}) => ({
-		title, type, spokenText, sourceItemIds, importanceScore, followUpPrompts,
+		title, type, spokenText, citationCount: sourceItemIds.length, importanceScore, followUpPrompts,
 	}));
 	assert(JSON.stringify(normalizedSections(repeated)) === JSON.stringify(normalizedSections(completed)), 'equivalent fake inputs must produce repeatable transcript content');
-	const repeatedAudioFile = path.join(mediaPath, path.basename(repeated.audioAsset.url));
-	assert(Buffer.compare(fs.readFileSync(audioFile), fs.readFileSync(repeatedAudioFile)) === 0, 'equivalent fake inputs must produce byte-identical MP3 fixtures');
+	const repeatedAudioResponse = await fetch(`${applicationOrigin}${repeated.audioAsset.url}`);
+	assert(repeatedAudioResponse.ok, 'repeated deterministic media should be available from the same origin');
+	assert(Buffer.compare(audioBytes, Buffer.from(await repeatedAudioResponse.arrayBuffer())) === 0, 'equivalent fake inputs must produce byte-identical MP3 fixtures');
 	await stopProcess(worker);
 	worker = undefined;
 
 	const failingEnqueue = await request('/briefing-runs', {
-		method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({sourceIds: [feed.body.id]}),
+		method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({stationId: station.body.id}),
 	});
 	worker = startProcess('server/testing/worker.ts', 'worker', {
 		LOCALCAST_WORKER_ID: 'smoke-worker-failure',

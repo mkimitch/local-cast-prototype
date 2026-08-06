@@ -255,6 +255,26 @@ Only the worker receives `OPENAI_API_KEY`. It is not inherited by `ffprobe`, cop
 
 OpenAI speech uses `gpt-4o-mini-tts`, voice `marin`, MP3 output, and speed `1.05`. Each reusable media filename is bound to a SHA-256 rendering fingerprint over narration and speech settings, so a recovered attempt cannot pair regenerated text with older audio. Temporary names are unique, stale internal temp files are cleaned, ffprobe requires MP3 format plus positive duration, and completed media is published only with byte length and checksum.
 
+## D-028 — The approved single-host pipeline remains the prototype baseline
+
+Status: **ACCEPTED**
+Date: 2026-08-06
+
+The operator approved the 78.912-second `marin` sample at checkpoint `1790e91f1b37d518b18f4834b59cb7d9ba160823` as the functional prototype baseline. It is usable but not the desired final LocalCast audio identity. Multiple-speaker generation stays deferred until the defined prototype is complete; `Sol` is a qualitative benchmark only, not an assumed API voice, imitation target, or blocker.
+
+The first post-prototype audio milestone is a grounded two-host format with a pre-dialogue outline/fact ledger, restrained non-fiction dialogue, two configurable voice profiles, bounded ordered turns, per-turn TTS cache/provenance/retry, deterministic pauses/stitching/loudness normalization, speaker-labelled transcripts/citations, and comparisons against the single-host format. Existing server-side speech configuration and provider interfaces remain authoritative. Natural script/transcript work may introduce a backwards-compatible versioned ordered-segment representation with stable ID, text, citation IDs, and optional speaker/voice fields; current output uses one `host`. A broad migration or risk to the green path defers that seam.
+
+Slice 6 will measure delivered loudness and establish a documented podcast-compatible normalization target. The approved sample’s approximately `-22.7 LUFS` integrated and `-5.2 dBFS` true peak are recorded as the baseline, not as a prerequisite for earlier slices.
+
+## D-029 — Feed writes and cloud authorization use item-level provenance
+
+Status: **ACCEPTED**
+Date: 2026-08-06
+
+Feed response bytes are fetched through a pinned, bounded transport. Final item upsert, expected canonical URL, unexpired lease ownership, validators, and source health commit in one immediate transaction so a stale owner or concurrent URL edit cannot publish old data. Each retained item stores the network scope of the response that supplied that item; a later redirect or `304` cannot relabel older private/unknown content as public. OpenAI authorization examines each immutable evidence item and fails closed for private or unknown feed material under the current consent.
+
+Authenticated feed URLs remain out of scope. New URLs reject embedded credentials and credential-like query names; legacy invalid URLs are hidden from APIs and disabled until replaced without printing or migrating their value. Generation evidence is deterministically limited to 50 items and 120,000 aggregate title/body/author/URL characters, with a final 160,000-character provider-boundary check before network use.
+
 ## Open operator decisions
 
 These are genuine inputs that cannot be inferred safely. They do not block documentation bootstrap. A slice must stop before it needs an unresolved value.
@@ -273,7 +293,7 @@ Needed by: Slice 1
 
 The operator authorized a project-specific key stored only in ignored root `.env`, explicit cloud processing of deliberately supplied LocalCast station/evidence fields and generated narration, and at most $5.00 for prototype implementation/live verification. Approved configuration is text `gpt-5.4-mini` with low reasoning effort and speech `gpt-4o-mini-tts` with voice `marin` and MP3 output. This consent excludes unrelated host files, credentials, logs, other services, private-network data, and autonomous web research.
 
-Slice 1 used one redacted model-access probe, one draft call, one support call, the representative TTS render, and one TTS-only duration correction. Reliable account-level cost accounting was unavailable, so LocalCast does not claim to enforce or independently prove the $5 ceiling. No longer episode may be generated before operator listening approval.
+Slice 1 used one redacted model-access probe, one draft call, one support call, the representative TTS render, and one TTS-only duration correction. Reliable account-level cost accounting was unavailable, so LocalCast does not claim to enforce or independently prove the $5 ceiling. The operator approved that sample; the consent and total authorization remain unchanged, and Slice 2 made no live provider calls.
 
 ### O-003 — Piper executable and voice asset
 

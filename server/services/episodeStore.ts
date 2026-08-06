@@ -2,7 +2,8 @@ import type Database from 'better-sqlite3';
 import {createHash} from 'node:crypto';
 import {db} from '../database/index';
 import {GenerationError} from '../jobs/types';
-import type {EpisodeEvidence, EpisodeRequestSnapshot, GeneratedSection, PublishedAudio} from '../episodes/types';
+import {hasEmbeddedUrlCredential} from './safeFeedFetcher';
+import type {EpisodeEvidence, EpisodeRequestSnapshot, EpisodeRequestSource, GeneratedSection, PublishedAudio} from '../episodes/types';
 
 type RequestRow = {
 	id: string;
@@ -25,9 +26,31 @@ type EvidenceRow = {
 	original_url: string | null;
 	published_at: string | null;
 	content_sha256: string;
+	source_id_snapshot: string | null;
+	source_name_snapshot: string | null;
+	network_scope: EpisodeEvidence['networkScope'];
 };
 
 const contentHash = (value: string): string => createHash('sha256').update(value).digest('hex');
+
+export const episodeEvidenceLimits = {
+	maxItems: 50,
+	maxAggregateCharacters: 120_000,
+} as const;
+
+const safeEvidenceUrl = (value: string | null): string | null => {
+	if (!value) return null;
+	try {
+		const url = new URL(value);
+		return (url.protocol === 'http:' || url.protocol === 'https:') && !hasEmbeddedUrlCredential(url) ? url.href : null;
+	} catch {
+		return null;
+	}
+};
+
+const evidenceCharacterCost = (input: {title: string; body: string; author: string | null; originalUrl: string | null}): number => (
+	input.title.length + input.body.length + (input.author?.length || 0) + (input.originalUrl?.length || 0)
+);
 
 const evidenceFromRow = (row: EvidenceRow): EpisodeEvidence => ({
 	id: row.id,
@@ -38,6 +61,9 @@ const evidenceFromRow = (row: EvidenceRow): EpisodeEvidence => ({
 	originalUrl: row.original_url || undefined,
 	publishedAt: row.published_at || undefined,
 	contentSha256: row.content_sha256,
+	sourceId: row.source_id_snapshot || undefined,
+	sourceName: row.source_name_snapshot || undefined,
+	networkScope: row.network_scope,
 });
 
 export class EpisodeStore {
@@ -59,6 +85,49 @@ export class EpisodeStore {
 		};
 	}
 
+	listRequestSources(requestId: string): EpisodeRequestSource[] {
+		const rows = this.database.prepare(`
+			SELECT source_id_snapshot, source_name_snapshot, source_url_snapshot,
+				network_scope_snapshot, sort_order, sync_status, sync_error_code, synced_at
+			FROM generation_request_sources
+			WHERE request_id = ?
+			ORDER BY sort_order
+		`).all(requestId) as Array<{
+			source_id_snapshot: string;
+			source_name_snapshot: string | null;
+			source_url_snapshot: string | null;
+			network_scope_snapshot: EpisodeRequestSource['networkScope'];
+			sort_order: number;
+			sync_status: EpisodeRequestSource['syncStatus'];
+			sync_error_code: string | null;
+			synced_at: string | null;
+		}>;
+		return rows.flatMap(row => row.source_name_snapshot && row.source_url_snapshot ? [{
+			sourceId: row.source_id_snapshot,
+			sourceName: row.source_name_snapshot,
+			sourceUrl: row.source_url_snapshot,
+			networkScope: row.network_scope_snapshot,
+			sortOrder: row.sort_order,
+			syncStatus: row.sync_status,
+			syncErrorCode: row.sync_error_code || undefined,
+			syncedAt: row.synced_at || undefined,
+		}] : []);
+	}
+
+	recordRequestSourceSync(requestId: string, sourceId: string, input: {
+		status: EpisodeRequestSource['syncStatus'];
+		errorCode?: string;
+		syncedAt: string;
+		networkScope?: EpisodeRequestSource['networkScope'];
+	}): void {
+		this.database.prepare(`
+			UPDATE generation_request_sources
+			SET sync_status = ?, sync_error_code = ?, synced_at = ?,
+				network_scope_snapshot = COALESCE(?, network_scope_snapshot)
+			WHERE request_id = ? AND source_id_snapshot = ?
+		`).run(input.status, input.errorCode ?? null, input.syncedAt, input.networkScope ?? null, requestId, sourceId);
+	}
+
 	finalizeEvidence(requestId: string, runId: string): EpisodeEvidence[] {
 		const finalize = this.database.transaction(() => {
 			const request = this.getRequest(requestId);
@@ -70,10 +139,30 @@ export class EpisodeStore {
 			const insert = this.database.prepare(`
 				INSERT INTO episode_evidence_snapshots (
 					id, run_id, request_id, kind, original_id_snapshot, title, body,
-					author, original_url, published_at, content_sha256, sort_order
-				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+					author, original_url, published_at, content_sha256, sort_order,
+					source_id_snapshot, source_name_snapshot, network_scope
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			`);
 			let order = 0;
+			let aggregateCharacters = 0;
+			const addEvidence = (input: {
+				id: string;
+				kind: 'note' | 'feed';
+				originalId: string;
+				title: string;
+				body: string;
+				author: string | null;
+				originalUrl: string | null;
+				publishedAt: string | null;
+				sourceId: string | null;
+				sourceName: string | null;
+				networkScope: EpisodeEvidence['networkScope'];
+			}): void => {
+				const cost = evidenceCharacterCost(input);
+				if (order >= episodeEvidenceLimits.maxItems || aggregateCharacters + cost > episodeEvidenceLimits.maxAggregateCharacters) return;
+				insert.run(input.id, runId, requestId, input.kind, input.originalId, input.title, input.body, input.author, input.originalUrl, input.publishedAt, contentHash(input.body), order++, input.sourceId, input.sourceName, input.networkScope);
+				aggregateCharacters += cost;
+			};
 			const notes = this.database.prepare('SELECT * FROM generation_request_notes WHERE request_id = ? ORDER BY sort_order').all(requestId) as Array<{
 				note_id_snapshot: string;
 				title: string;
@@ -83,27 +172,39 @@ export class EpisodeStore {
 			}>;
 			for (const note of notes) {
 				const id = `snapshot-${runId}-note-${order}`;
-				insert.run(id, runId, requestId, 'note', note.note_id_snapshot, note.title, note.body, note.author, note.original_url, null, contentHash(note.body), order++);
+				addEvidence({id, kind: 'note', originalId: note.note_id_snapshot, title: note.title, body: note.body, author: note.author, originalUrl: safeEvidenceUrl(note.original_url), publishedAt: null, sourceId: null, sourceName: null, networkScope: 'user_supplied'});
 			}
 
 			const feedItems = this.database.prepare(`
-				SELECT si.*
-				FROM generation_request_sources grs
-				JOIN source_items si ON si.source_id = grs.source_id_snapshot
-				WHERE grs.request_id = ?
-				ORDER BY grs.sort_order, datetime(COALESCE(si.published_at, si.gathered_at)) DESC, si.id
+				WITH ranked AS (
+					SELECT si.*, grs.source_name_snapshot, grs.sort_order AS source_sort_order,
+						ROW_NUMBER() OVER (
+							PARTITION BY grs.source_id_snapshot
+							ORDER BY datetime(COALESCE(si.published_at, si.gathered_at)) DESC, si.id
+						) AS item_rank
+					FROM generation_request_sources grs
+					JOIN source_items si
+						ON si.source_id = grs.source_id_snapshot
+						AND si.feed_source_url = grs.source_url_snapshot
+					WHERE grs.request_id = ?
+				)
+				SELECT * FROM ranked
+				ORDER BY item_rank, source_sort_order, datetime(COALESCE(published_at, gathered_at)) DESC, id
 				LIMIT 50
 			`).all(requestId) as Array<{
 				id: string;
+				source_id: string;
 				title: string;
 				content: string;
 				author: string | null;
 				url: string | null;
 				published_at: string | null;
+				source_name_snapshot: string;
+				network_scope: EpisodeEvidence['networkScope'];
 			}>;
 			for (const item of feedItems) {
 				const id = `snapshot-${runId}-feed-${order}`;
-				insert.run(id, runId, requestId, 'feed', item.id, item.title, item.content, item.author, item.url, item.published_at, contentHash(item.content), order++);
+				addEvidence({id, kind: 'feed', originalId: item.id, title: item.title, body: item.content, author: item.author, originalUrl: safeEvidenceUrl(item.url), publishedAt: item.published_at, sourceId: item.source_id, sourceName: item.source_name_snapshot, networkScope: item.network_scope});
 			}
 
 			const evidence = this.listEvidence(runId);

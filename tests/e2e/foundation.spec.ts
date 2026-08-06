@@ -21,10 +21,10 @@ test('production UI is same-origin, honest, and manually driven', async ({page})
 	await expect(page.getByText(/credentials and endpoints are configured only on the LocalCast server/i)).toBeVisible();
 
 	await page.getByRole('link', {name: 'Sources'}).click();
-	await page.getByRole('button', {name: 'Add RSS Feed'}).click();
-	await page.getByLabel('Source Name').fill('Release direction');
-	await page.getByLabel('RSS URL').fill('https://example.test/feed.xml');
-	await page.getByRole('button', {name: 'Save RSS Feed'}).click();
+	await page.getByRole('button', {name: 'Add RSS or Atom feed'}).click();
+	await page.getByLabel('Source name').fill('Release direction');
+	await page.getByLabel('Credential-free HTTP(S) feed URL').fill('https://example.test/feed.xml');
+	await page.getByRole('button', {name: 'Save feed', exact: true}).click();
 	await expect(page.getByRole('heading', {name: 'Release direction'})).toBeVisible();
 
 	await page.getByRole('link', {name: 'Stations & Notes'}).click();

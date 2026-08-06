@@ -9,8 +9,9 @@ import type {GenerationProcessor} from '../jobs/generationProcessor';
 import {GenerationError} from '../jobs/types';
 import type {GenerationJob} from '../jobs/types';
 import {briefingStore} from '../services/briefingStore';
-import {episodeStore} from '../services/episodeStore';
-import {sourceStore} from '../services/sourceStore';
+import {episodeStore, type EpisodeStore} from '../services/episodeStore';
+import {synchronizeRequestSources} from '../services/episodePreparation';
+import {sourceStore, type SourceStore} from '../services/sourceStore';
 
 const assertNotAborted = (signal: AbortSignal): void => {
 	if (signal.aborted) throw new DOMException('Worker stopped', 'AbortError');
@@ -98,21 +99,40 @@ const fakeGeneratedSections = (job: GenerationJob, evidence: EpisodeEvidence[]):
 ];
 
 export class DeterministicFakeGenerationProcessor implements GenerationProcessor {
+	private readonly episodes: EpisodeStore;
+	private readonly sources: SourceStore;
+	private readonly synchronize: (requestId: string, signal: AbortSignal) => Promise<void>;
+	private readonly onEvidenceFinalized: (evidence: EpisodeEvidence[]) => void;
+
 	constructor(
 		private readonly config: ServerConfig,
 		private readonly jobs: GenerationJobStore,
-	) {}
+		dependencies: {
+			episodes?: EpisodeStore;
+			sources?: SourceStore;
+			synchronize?: (requestId: string, signal: AbortSignal) => Promise<void>;
+			onEvidenceFinalized?: (evidence: EpisodeEvidence[]) => void;
+		} = {},
+	) {
+		this.episodes = dependencies.episodes || episodeStore;
+		this.sources = dependencies.sources || sourceStore;
+		this.synchronize = dependencies.synchronize || synchronizeRequestSources;
+		this.onEvidenceFinalized = dependencies.onEvidenceFinalized || (() => undefined);
+	}
 
 	async process(job: GenerationJob, workerId: string, signal: AbortSignal): Promise<void> {
 		await this.atPhase('syncing', signal);
+		if (job.payload.version === 2 && this.episodes.listEvidence(job.runId).length === 0) {
+			await this.synchronize(job.payload.requestId, signal);
+		}
 
 		const selecting = this.jobs.updatePhase(job.id, workerId, 'selecting', this.config.leaseMs);
 		await this.atPhase('selecting', signal);
 		const evidence = selecting.payload.version === 2
-			? episodeStore.finalizeEvidence(selecting.payload.requestId, job.runId)
+			? this.episodes.finalizeEvidence(selecting.payload.requestId, job.runId)
 			: undefined;
 		const sourceItems: SourceItem[] = selecting.payload.version === 1
-			? sourceStore.listSourceItems({sourceIds: selecting.payload.sourceIds, limit: 25})
+			? this.sources.listSourceItems({sourceIds: selecting.payload.sourceIds, limit: 25})
 			: evidence!.map(item => ({
 				id: item.id,
 				sourceId: item.kind,
@@ -126,6 +146,7 @@ export class DeterministicFakeGenerationProcessor implements GenerationProcessor
 		if (sourceItems.length === 0) {
 			throw new GenerationError('INSUFFICIENT_SOURCE_MATERIAL', 'No stored source material is available for this test job', false);
 		}
+		if (evidence) this.onEvidenceFinalized(evidence);
 
 		this.jobs.updatePhase(job.id, workerId, 'drafting', this.config.leaseMs);
 		await this.atPhase('drafting', signal);
@@ -153,7 +174,7 @@ export class DeterministicFakeGenerationProcessor implements GenerationProcessor
 		}
 
 		if (selecting.payload.version === 2) {
-			const request = episodeStore.getRequest(selecting.payload.requestId);
+			const request = this.episodes.getRequest(selecting.payload.requestId);
 			if (!request || !evidence) throw new GenerationError('INVALID_JOB_PAYLOAD', 'The deterministic test request is invalid', false);
 			const audio: PublishedAudio = {
 				id: audioId,
@@ -167,7 +188,7 @@ export class DeterministicFakeGenerationProcessor implements GenerationProcessor
 				model: 'fixture-mp3-v1',
 				voice: 'fixture-silence',
 			};
-			this.jobs.complete(job.id, workerId, () => episodeStore.publishEpisode({
+			this.jobs.complete(job.id, workerId, () => this.episodes.publishEpisode({
 				runId: job.runId,
 				request,
 				sections: fakeGeneratedSections(job, evidence),

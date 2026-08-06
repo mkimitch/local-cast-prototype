@@ -51,9 +51,7 @@ briefingRunsRouter.post('/briefing-runs', (req, res) => {
 	}
 
 	try {
-		const result = 'stationId' in parsed.value
-			? generationJobStore.enqueueStation(parsed.value.stationId, parsed.value.mode, idempotency.value)
-			: generationJobStore.enqueue(parsed.value.sourceIds, idempotency.value);
+		const result = generationJobStore.enqueueStation(parsed.value.stationId, parsed.value.mode, idempotency.value);
 		const run = briefingStore.getRun(result.job.runId);
 		if (!run) throw new Error('Queued run could not be loaded');
 		res.status(result.created ? 201 : 200).json(withJob(run));

@@ -22,7 +22,7 @@ const migrations: Migration[] = [
 	{
 		id: '001_initial_schema',
 		up: db => {
-			db.exec(`
+				db.exec(`
 				CREATE TABLE IF NOT EXISTS sources (
 					id TEXT PRIMARY KEY,
 					type TEXT NOT NULL,
@@ -398,6 +398,149 @@ const migrations: Migration[] = [
 				}
 			}
 
+			db.prepare(`
+				UPDATE briefing_runs
+				SET status = 'failed', completed_at = COALESCE(completed_at, ?), summary = NULL
+				WHERE status NOT IN ('complete', 'failed')
+					AND NOT EXISTS (SELECT 1 FROM generation_jobs WHERE generation_jobs.run_id = briefing_runs.id)
+			`).run(timestamp);
+		},
+	},
+	{
+		id: '006_feed_ingestion_and_fts',
+		up: db => {
+			const sourceColumns: Array<[string, string]> = [
+				['feed_etag', 'TEXT'],
+				['feed_last_modified', 'TEXT'],
+				['feed_validator_url', 'TEXT'],
+				['feed_network_scope', "TEXT NOT NULL DEFAULT 'unknown' CHECK (feed_network_scope IN ('public', 'private', 'unknown'))"],
+				['last_checked_at', 'TEXT'],
+				['last_changed_at', 'TEXT'],
+				['last_sync_error_code', 'TEXT'],
+				['sync_lease_owner', 'TEXT'],
+				['sync_lease_expires_at', 'TEXT'],
+			];
+			for (const [name, definition] of sourceColumns) {
+				if (!hasColumn(db, 'sources', name)) db.exec(`ALTER TABLE sources ADD COLUMN ${name} ${definition}`);
+			}
+
+			if (!hasColumn(db, 'source_items', 'feed_source_url')) {
+				db.exec('ALTER TABLE source_items ADD COLUMN feed_source_url TEXT');
+			}
+			if (!hasColumn(db, 'source_items', 'network_scope')) {
+				db.exec("ALTER TABLE source_items ADD COLUMN network_scope TEXT NOT NULL DEFAULT 'unknown' CHECK (network_scope IN ('public', 'private', 'unknown'))");
+			}
+			db.exec(`
+				UPDATE source_items
+				SET feed_source_url = (
+					SELECT sources.url FROM sources WHERE sources.id = source_items.source_id
+				)
+				WHERE feed_source_url IS NULL
+			`);
+
+			const requestSourceColumns: Array<[string, string]> = [
+				['source_name_snapshot', 'TEXT'],
+				['source_url_snapshot', 'TEXT'],
+				['network_scope_snapshot', "TEXT NOT NULL DEFAULT 'unknown'"],
+				['sync_status', "TEXT NOT NULL DEFAULT 'pending'"],
+				['sync_error_code', 'TEXT'],
+				['synced_at', 'TEXT'],
+			];
+			for (const [name, definition] of requestSourceColumns) {
+				if (!hasColumn(db, 'generation_request_sources', name)) db.exec(`ALTER TABLE generation_request_sources ADD COLUMN ${name} ${definition}`);
+			}
+
+			const evidenceColumns: Array<[string, string]> = [
+				['source_id_snapshot', 'TEXT'],
+				['source_name_snapshot', 'TEXT'],
+				['network_scope', "TEXT NOT NULL DEFAULT 'user_supplied'"],
+			];
+			for (const [name, definition] of evidenceColumns) {
+				if (!hasColumn(db, 'episode_evidence_snapshots', name)) db.exec(`ALTER TABLE episode_evidence_snapshots ADD COLUMN ${name} ${definition}`);
+			}
+
+			db.exec(`
+				CREATE INDEX IF NOT EXISTS idx_sources_sync_lease ON sources(sync_lease_expires_at);
+				CREATE INDEX IF NOT EXISTS idx_source_items_feed_url ON source_items(source_id, feed_source_url);
+
+				CREATE VIRTUAL TABLE IF NOT EXISTS material_fts USING fts5(
+					kind UNINDEXED,
+					material_id UNINDEXED,
+					source_id UNINDEXED,
+					source_name,
+					title,
+					body,
+					author,
+					url UNINDEXED,
+					occurred_at UNINDEXED,
+					tokenize = 'unicode61 remove_diacritics 2'
+				);
+
+				CREATE TRIGGER IF NOT EXISTS material_fts_source_item_insert
+				AFTER INSERT ON source_items BEGIN
+					INSERT INTO material_fts(kind, material_id, source_id, source_name, title, body, author, url, occurred_at)
+					SELECT 'feed', NEW.id, NEW.source_id, s.name, NEW.title, NEW.content, COALESCE(NEW.author, ''), COALESCE(NEW.url, ''), COALESCE(NEW.published_at, NEW.gathered_at)
+					FROM sources s WHERE s.id = NEW.source_id;
+				END;
+
+				CREATE TRIGGER IF NOT EXISTS material_fts_source_item_update
+				AFTER UPDATE ON source_items BEGIN
+					DELETE FROM material_fts WHERE kind = 'feed' AND material_id = OLD.id;
+					INSERT INTO material_fts(kind, material_id, source_id, source_name, title, body, author, url, occurred_at)
+					SELECT 'feed', NEW.id, NEW.source_id, s.name, NEW.title, NEW.content, COALESCE(NEW.author, ''), COALESCE(NEW.url, ''), COALESCE(NEW.published_at, NEW.gathered_at)
+					FROM sources s WHERE s.id = NEW.source_id;
+				END;
+
+				CREATE TRIGGER IF NOT EXISTS material_fts_source_item_delete
+				AFTER DELETE ON source_items BEGIN
+					DELETE FROM material_fts WHERE kind = 'feed' AND material_id = OLD.id;
+				END;
+
+				CREATE TRIGGER IF NOT EXISTS material_fts_source_name_update
+				AFTER UPDATE OF name ON sources BEGIN
+					UPDATE material_fts SET source_name = NEW.name WHERE kind = 'feed' AND source_id = NEW.id;
+				END;
+
+				CREATE TRIGGER IF NOT EXISTS material_fts_note_insert
+				AFTER INSERT ON notes BEGIN
+					INSERT INTO material_fts(kind, material_id, source_id, source_name, title, body, author, url, occurred_at)
+					VALUES ('note', NEW.id, '', 'Pasted note', NEW.title, NEW.body, COALESCE(NEW.author, ''), COALESCE(NEW.original_url, ''), NEW.updated_at);
+				END;
+
+				CREATE TRIGGER IF NOT EXISTS material_fts_note_update
+				AFTER UPDATE ON notes BEGIN
+					DELETE FROM material_fts WHERE kind = 'note' AND material_id = OLD.id;
+					INSERT INTO material_fts(kind, material_id, source_id, source_name, title, body, author, url, occurred_at)
+					VALUES ('note', NEW.id, '', 'Pasted note', NEW.title, NEW.body, COALESCE(NEW.author, ''), COALESCE(NEW.original_url, ''), NEW.updated_at);
+				END;
+
+				CREATE TRIGGER IF NOT EXISTS material_fts_note_delete
+				AFTER DELETE ON notes BEGIN
+					DELETE FROM material_fts WHERE kind = 'note' AND material_id = OLD.id;
+				END;
+
+				DELETE FROM material_fts;
+				INSERT INTO material_fts(kind, material_id, source_id, source_name, title, body, author, url, occurred_at)
+				SELECT 'feed', si.id, si.source_id, s.name, si.title, si.content, COALESCE(si.author, ''), COALESCE(si.url, ''), COALESCE(si.published_at, si.gathered_at)
+				FROM source_items si JOIN sources s ON s.id = si.source_id;
+				INSERT INTO material_fts(kind, material_id, source_id, source_name, title, body, author, url, occurred_at)
+				SELECT 'note', n.id, '', 'Pasted note', n.title, n.body, COALESCE(n.author, ''), COALESCE(n.original_url, ''), n.updated_at
+				FROM notes n;
+			`);
+
+			const settingsRows = db.prepare('SELECT id, settings_json FROM app_settings').all() as Array<{id: string; settings_json: string}>;
+			const updateSettings = db.prepare('UPDATE app_settings SET settings_json = ?, updated_at = ? WHERE id = ?');
+			const allowedSettings = ['orbTheme', 'theme', 'contrastMode', 'colorVisionMode', 'textSize', 'density'];
+			const timestamp = new Date().toISOString();
+			for (const row of settingsRows) {
+				try {
+					const current = JSON.parse(row.settings_json) as Record<string, unknown>;
+					const sanitized = Object.fromEntries(allowedSettings.flatMap(key => current[key] === undefined ? [] : [[key, current[key]]]));
+					updateSettings.run(JSON.stringify(sanitized), timestamp, row.id);
+				} catch {
+					updateSettings.run('{}', timestamp, row.id);
+				}
+			}
 			db.prepare(`
 				UPDATE briefing_runs
 				SET status = 'failed', completed_at = COALESCE(completed_at, ?), summary = NULL

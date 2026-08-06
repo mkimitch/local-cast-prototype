@@ -50,5 +50,6 @@ export const testConfig = (overrides: Partial<ServerConfig> = {}): ServerConfig 
 	workerPollMs: 25,
 	leaseMs: 1_000,
 	shutdownMs: 1_000,
+	rssPrivateHosts: [],
 	...overrides,
 });

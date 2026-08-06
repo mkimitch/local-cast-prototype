@@ -129,4 +129,57 @@ No same deterministic failure remained after three evidence-based repair attempt
 
 ### Listening gate
 
-The loopback-only page `http://127.0.0.1:43182/episodes/run-737b6807-a8e1-4cff-95d7-9797138b7671` remains available for the operator. Slice 2 and all longer generation are stopped pending explicit listening approval.
+The loopback-only page `http://127.0.0.1:43182/episodes/run-737b6807-a8e1-4cff-95d7-9797138b7671` was left available for the operator, and work stopped pending explicit listening approval. The operator subsequently approved this sample at checkpoint `1790e91f1b37d518b18f4834b59cb7d9ba160823` as the functional single-host baseline.
+
+## 2026-08-06 — Slice 2: safe feed ingestion and FTS5
+
+Base HEAD: `1790e91f1b37d518b18f4834b59cb7d9ba160823`
+Branch: `codex/localcast-prototype`
+Runtime: Node `v20.19.2`, npm `9.2.0`, Docker `29.6.0`, Compose `5.1.4`
+
+The operator approved the Slice 1 sample as the functional single-host baseline. Its `marin` voice remains usable but is not the final audio identity. The requested grounded two-host format is recorded as the first post-prototype audio milestone and was not implemented or used to delay this slice.
+
+### Delivered
+
+- Additive migration 006 adds feed validators/leases/provenance, immutable request-source state, FTS5 tables/triggers/backfill, and safe upgrade behavior for cached migration-005 feed items.
+- Manual RSS 2.0 and Atom CRUD/sync/inspection use conditional requests, stable dedupe, health/backoff, and URL/lease fencing. Only enqueue-captured station feeds synchronize, only their stored items can enter evidence, and linked article pages are never requested.
+- Native HTTP(S) feed transport pins resolved addresses and revalidates every redirect and connected socket; public hosts are the default, exact configured private hosts are explicit exceptions, and credentials/metadata/link-local destinations are rejected.
+- Feed header/body/MIME/encoding/item/field/concurrency/DNS/queue/idle/total bounds fail with stable safe codes. Credential-like query names are rejected, while legacy credential-bearing URLs are hidden and quarantined until replaced.
+- Network scope is immutable per fetched item. Private or unknown feed evidence cannot cross the current OpenAI consent boundary, even if a source later resolves publicly.
+- Evidence is capped at 50 complete items and 120,000 aggregate source characters; the OpenAI request boundary rejects serialized user material above 160,000 characters.
+- SQLite FTS5 searches feed items and notes with provenance through insert/update/delete, punctuation/ranking, rebuild, online backup, and reopen. Source and station UIs expose safe search, sync/inspection, inactive-selection cleanup, and focus/live-state behavior.
+- The public generation route accepts only station-backed jobs. Final evidence commits before the provider-boundary callback and remains byte-identical after feed refresh, source deletion, and database reopen.
+
+### Independent read-only reviews
+
+Three reviewers separately covered architecture/correctness, runtime/Docker/test gaps, and security/privacy/accessibility. No reviewer edited files. The primary thread fixed every material finding: stale writes after lease expiry or URL edit, DNS/queue work outside the total deadline, missing migrated-cache URL fallback, mutable source-wide private provenance, credential URL exposure, unbounded aggregate provider input, expired source leases appearing permanently busy, obsolete public job payloads, missing provider-boundary proof, inactive selections that could not be removed, station revisions after source/note deletion, uncleared optional categories, and source inspection/delete focus behavior.
+
+### Repair ledger
+
+| Area | Failing/review evidence | Evidence-based repair | Final result |
+| --- | --- | --- | --- |
+| Safe fetch lookup | The first focused fixture did not route the custom resolver through the pinned request socket. | Bound request lookup to the already-approved address set and retained connected-address validation. | One repair; focused and full fetch suites pass. |
+| Browser fixture | Generation polling and pointer-dependent inactive-source selection raced the rendered state. | Waited on persisted UI state and exercised the semantic keyboard control. | One repair; Playwright passes. |
+| Atomic sync/provenance review | A late lease holder or URL edit could publish stale items; source-wide scope could relabel retained private items. | Moved final upsert/validator completion under one immediate URL/lease transaction and persisted scope on every item. | First focused review rerun passes. |
+| API smoke migration | The station-backed smoke assumed storage basenames and cross-run citation IDs. | Fetched the same-origin media route and compared stable transcript/citation structure rather than generated IDs. | Two repairs; third run and full gate pass. |
+
+No same deterministic failure remained after three evidence-based repair attempts.
+
+### Targeted and full evidence
+
+| Exact command | Result |
+| --- | --- |
+| `npm run lint -- --pretty false` | PASS, exit 0 — no TypeScript diagnostics |
+| `npm run test` | PASS, exit 0 — 6 files, 108 tests |
+| `npm run test:integration` | PASS, exit 0 — 9 files, 53 tests |
+| `NODE_ENV=test LOCALCAST_RUNTIME_MODE=test DATABASE_PATH=:memory: MEDIA_PATH=/tmp/localcast-vitest-slice2-review npx vitest run tests/unit/safe-feed-fetcher.test.ts tests/unit/source-validation.test.ts tests/unit/openai-provider.test.ts tests/integration/rss-ingestion.test.ts tests/integration/material-search.test.ts tests/integration/selected-feed-generation.test.ts tests/integration/station-generation.test.ts` | PASS, exit 0 — 7 files, 89 focused tests after review repairs |
+| `npm run build` | PASS, exit 0 — Vite transformed 2,150 modules and emitted all server bundles |
+| `npm run test:e2e` | PASS, exit 0 — 3 Playwright flows |
+| `npm run smoke:api` | PASS, exit 0 — station-backed generation, idempotency, failure, media, and restart evidence |
+| `npm run verify` | PASS, exit 0 with approved Docker access — lint, 108 unit, 53 integration, build, 3 browser, API, production, and isolated Compose build/init/health/recreation gates |
+| `npm audit --omit=dev --audit-level=high` | EXIT 1 — the known two high React Router RSC-only advisories; this declarative `BrowserRouter` application has no RSC/framework/action/SSR path, and npm offers only a breaking forced downgrade |
+| `stat -c '%F mode=%a' .env` and `git check-ignore -v .env` | PASS — regular file, mode `600`, ignored at `.gitignore:24`; value not read or printed |
+| redacted `docker compose config --format json` assertion | PASS — `credentialServices=["worker"]`, `workerOnly=true`; no value/header printed |
+| `git diff --check` | PASS, exit 0 |
+
+The sandboxed full gate passed through production smoke and then hit only BuildKit's read-only user activity path. The approved rerun used the local Docker engine, created and removed only unique `localcast-slice1-*` smoke resources, and passed. It did not touch Caddy, the loopback listening deployment, or operator data. No live OpenAI request was made during Slice 2.

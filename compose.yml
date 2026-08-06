@@ -22,6 +22,7 @@ x-localcast-common: &localcast-common
     OPENAI_SPEECH_FORMAT: ${OPENAI_SPEECH_FORMAT:-mp3}
     FFPROBE_PATH: /usr/bin/ffprobe
     LOCALCAST_ALLOW_FAKE_PROVIDERS: "false"
+    LOCALCAST_RSS_PRIVATE_HOSTS: ${LOCALCAST_RSS_PRIVATE_HOSTS:-}
   volumes:
     - localcast_data:/var/lib/localcast/data
     - localcast_media:/var/lib/localcast/media

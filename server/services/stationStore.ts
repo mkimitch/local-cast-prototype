@@ -86,7 +86,19 @@ export class StationStore {
 	}
 
 	deleteNote(id: string): boolean {
-		return this.database.prepare('DELETE FROM notes WHERE id = ?').run(id).changes === 1;
+		const remove = this.database.transaction(() => {
+			const timestamp = this.now();
+			this.database.prepare(`
+				UPDATE stations
+				SET revision = revision + 1, updated_at = ?
+				WHERE EXISTS (
+					SELECT 1 FROM station_notes sn
+					WHERE sn.station_id = stations.id AND sn.note_id = ?
+				)
+			`).run(timestamp, id);
+			return this.database.prepare('DELETE FROM notes WHERE id = ?').run(id).changes === 1;
+		});
+		return remove.immediate();
 	}
 
 	listStations(): Station[] {

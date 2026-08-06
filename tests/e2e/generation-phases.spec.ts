@@ -39,8 +39,9 @@ test('explicit browser action observes durable ordered phases across reload', as
 	const deadline = Date.now() + 30_000;
 	while (Date.now() < deadline) {
 		const active = page.locator('.step[data-state="active"] .step__label');
-		if (await active.count()) {
-			const label = (await active.textContent())?.trim();
+		const labels = await active.allTextContents();
+		if (labels.length > 0) {
+			const label = labels[0]?.trim();
 			if (label && observed.at(-1) !== label) observed.push(label);
 			if (label === 'Freezing supplied evidence' && !reloaded) {
 				reloaded = true;
@@ -91,4 +92,77 @@ test('explicit browser action observes durable ordered phases across reload', as
 	const eventsDatabaseEvidence = runs[0].job;
 	expect(eventsDatabaseEvidence.phase).toBe('complete');
 	expect(eventsDatabaseEvidence.attemptCount).toBe(1);
+});
+
+test('RSS and Atom source lifecycle, FTS search, and selected-feed generation stay explicit and grounded', async ({page}) => {
+	test.setTimeout(45_000);
+	await page.goto(`${origin}/sources`);
+	const addFeed = async (name: string, url: string) => {
+		await page.getByRole('button', {name: 'Add RSS or Atom feed'}).click();
+		await page.getByLabel('Source name').fill(name);
+		await page.getByLabel('Credential-free HTTP(S) feed URL').fill(url);
+		await page.getByRole('button', {name: 'Save feed', exact: true}).click();
+		await expect(page.getByRole('heading', {name})).toBeVisible();
+	};
+	await addFeed('Selected RSS feed', 'http://127.0.0.1:43181/feed.xml');
+	await addFeed('Unselected Atom feed', 'http://127.0.0.1:43181/atom.xml');
+
+	await page.getByRole('button', {name: 'Synchronize Selected RSS feed'}).click();
+	await expect(page.getByText(/Selected RSS feed synchronized/)).toBeAttached();
+	const inspectSelected = page.getByRole('button', {name: 'Inspect items from Selected RSS feed'});
+	await inspectSelected.click();
+	await expect(page.getByRole('region', {name: 'Selected RSS feed items'})).toBeFocused();
+	await page.getByRole('button', {name: 'Close source item review'}).click();
+	await expect(inspectSelected).toBeFocused();
+	await page.getByLabel('Search feed items and pasted notes').fill('lighthouse');
+	await page.getByRole('button', {name: 'Search', exact: true}).click();
+	await expect(page.getByRole('heading', {name: 'Browser Feed Lighthouse'})).toBeVisible();
+	await expect(page.getByText('Feed item', {exact: true})).toBeVisible();
+	await expect(page).toHaveURL(/q=lighthouse/);
+	await page.reload();
+	await expect(page.getByRole('heading', {name: 'Browser Feed Lighthouse'})).toBeVisible();
+	await expect(page.getByRole('link', {name: 'Open original source for Browser Feed Lighthouse'})).toHaveAttribute('rel', 'noopener noreferrer');
+
+	await page.getByRole('button', {name: 'Edit source Selected RSS feed'}).click();
+	await page.getByLabel('Source name').fill('Selected RSS feed updated');
+	await page.getByRole('button', {name: 'Save feed changes'}).click();
+	await expect(page.getByRole('heading', {name: 'Selected RSS feed updated'})).toBeVisible();
+	await page.getByRole('button', {name: 'Disable source Unselected Atom feed'}).click();
+	await expect(page.getByText('Inactive', {exact: true})).toBeVisible();
+	await page.getByRole('button', {name: 'Enable source Unselected Atom feed'}).click();
+
+	await page.getByRole('button', {name: 'Synchronize Unselected Atom feed'}).click();
+	await expect(page.getByText(/Unselected Atom feed synchronized/)).toBeAttached();
+	const before = await (await page.request.get('http://127.0.0.1:43181/request-log')).json() as {paths: string[]};
+	await page.goto(`${origin}/stations`);
+	await page.getByLabel('Station name').fill('Feed-backed browser station');
+	await page.getByLabel('Topic and editorial direction').fill('Explain only the selected supplied feed facts.');
+	const selected = page.getByRole('checkbox', {name: 'Selected RSS feed updated'});
+	await selected.focus();
+	await page.keyboard.press('Space');
+	await expect(selected).toBeChecked();
+	await page.getByRole('button', {name: 'Save station', exact: true}).click();
+	const storedSources = await (await page.request.get(`${origin}/api/sources`)).json() as Array<{id: string; name: string}>;
+	const selectedSourceId = storedSources.find(source => source.name === 'Selected RSS feed updated')!.id;
+	await page.request.patch(`${origin}/api/sources/${encodeURIComponent(selectedSourceId)}`, {data: {isActive: false}});
+	await page.reload();
+	let stationRow = page.getByRole('article').filter({has: page.getByRole('heading', {name: 'Feed-backed browser station'})});
+	await stationRow.getByRole('button', {name: 'Edit station Feed-backed browser station'}).click();
+	const inactiveSelection = page.getByRole('checkbox', {name: 'Selected RSS feed updated (inactive)'});
+	await expect(inactiveSelection).toBeEnabled();
+	await inactiveSelection.focus();
+	await page.keyboard.press('Space');
+	await expect(inactiveSelection).not.toBeChecked();
+	await page.getByRole('button', {name: 'Cancel'}).click();
+	await page.request.patch(`${origin}/api/sources/${encodeURIComponent(selectedSourceId)}`, {data: {isActive: true}});
+	await page.reload();
+	stationRow = page.getByRole('article').filter({has: page.getByRole('heading', {name: 'Feed-backed browser station'})});
+	await stationRow.getByRole('button', {name: 'Sync and generate'}).click();
+	await expect(page.getByText('AI-generated LocalCast audio')).toBeVisible({timeout: 30_000});
+	await expect(page.getByText('Browser Feed Lighthouse').last()).toBeVisible();
+
+	const after = await (await page.request.get('http://127.0.0.1:43181/request-log')).json() as {paths: string[]};
+	const newPaths = after.paths.slice(before.paths.length);
+	expect(newPaths).toEqual(['/feed.xml']);
+	expect(after.paths).not.toContain('/article');
 });

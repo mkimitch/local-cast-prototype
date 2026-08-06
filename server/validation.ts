@@ -3,35 +3,32 @@ import type {AppSettings} from '../src/types';
 import type {EpisodeMode} from '../src/types';
 import type {CreateSourceInput, UpdateSourceInput} from './services/sourceStore';
 import type {SaveNoteInput, SaveStationInput} from './services/stationStore';
+import {hasEmbeddedUrlCredential} from './services/safeFeedFetcher';
 
 type ValidationResult<T> = {ok: true; value: T} | {ok: false; error: string};
 
 const optionalTrimmedString = z.string().trim().min(1).optional();
-const sourceStatusSchema = z.enum(['healthy', 'error', 'syncing']);
+const feedUrlSchema = z.string().trim().url().max(2048).refine(value => {
+	const url = new URL(value);
+	return (url.protocol === 'http:' || url.protocol === 'https:') && !hasEmbeddedUrlCredential(url) && !url.hash;
+}, {message: 'feed URL must be a credential-free HTTP(S) URL without a fragment'}).transform(value => new URL(value).href);
 
 const createSourceSchema = z.object({
 	type: z.literal('rss'),
 	name: z.string().trim().min(1).max(200),
-	url: z.string().trim().url().max(2048),
-	description: optionalTrimmedString,
-	category: optionalTrimmedString,
+	url: feedUrlSchema,
+	description: z.string().trim().min(1).max(2_000).optional(),
+	category: z.string().trim().min(1).max(100).optional(),
 	isActive: z.boolean().default(true),
-	status: sourceStatusSchema.default('healthy'),
 }).strict();
 
 const updateSourceSchema = z.object({
-	type: z.literal('rss').optional(),
 	name: z.string().trim().min(1).max(200).optional(),
-	url: z.union([z.string().trim().min(1), z.null()]).optional(),
-	description: z.union([z.string().trim().min(1), z.null()]).optional(),
-	category: z.union([z.string().trim().min(1), z.null()]).optional(),
+	url: feedUrlSchema.optional(),
+	description: z.union([z.string().trim().min(1).max(2_000), z.null()]).optional(),
+	category: z.union([z.string().trim().min(1).max(100), z.null()]).optional(),
 	isActive: z.boolean().optional(),
-	status: sourceStatusSchema.optional(),
 }).strict().refine(value => Object.keys(value).length > 0, {message: 'at least one source field is required'});
-
-const legacyBriefingRunSchema = z.object({
-	sourceIds: z.array(z.string().trim().min(1)).min(1).max(200),
-}).strict();
 
 const stationBriefingRunSchema = z.object({
 	stationId: z.string().trim().min(1).max(200),
@@ -39,8 +36,8 @@ const stationBriefingRunSchema = z.object({
 }).strict();
 
 const httpUrlSchema = z.string().trim().url().max(2048).refine(value => {
-	const protocol = new URL(value).protocol;
-	return protocol === 'http:' || protocol === 'https:';
+	const url = new URL(value);
+	return (url.protocol === 'http:' || url.protocol === 'https:') && !hasEmbeddedUrlCredential(url);
 }, {message: 'original URL must use http or https'});
 
 const noteSchema = z.object({
@@ -55,7 +52,7 @@ const stationSchema = z.object({
 	topicInstruction: z.string().trim().min(1).max(4_000),
 	defaultMode: z.enum(['brief', 'deep']),
 	noteIds: z.array(z.string().trim().min(1).max(200)).max(200),
-	sourceIds: z.array(z.string().trim().min(1).max(200)).max(200),
+	sourceIds: z.array(z.string().trim().min(1).max(200)).max(20),
 }).strict();
 
 const followUpSchema = z.object({
@@ -80,29 +77,17 @@ const parse = <T>(schema: z.ZodType<T>, value: unknown): ValidationResult<T> => 
 	return {ok: false, error: result.error.issues[0]?.message || 'Request validation failed'};
 };
 
-export const parseCreateSourceInput = (body: unknown): ValidationResult<CreateSourceInput> => parse(createSourceSchema, body);
+export const parseCreateSourceInput = (body: unknown): ValidationResult<CreateSourceInput> => parse(createSourceSchema as z.ZodType<CreateSourceInput>, body);
 
 export const parseUpdateSourceInput = (body: unknown): ValidationResult<UpdateSourceInput> => {
 	const parsed = parse(updateSourceSchema, body);
 	if (!parsed.ok) return parsed;
-
-	return {
-		ok: true,
-		value: {
-			...parsed.value,
-			url: parsed.value.url ?? undefined,
-			description: parsed.value.description ?? undefined,
-			category: parsed.value.category ?? undefined,
-		},
-	};
+	return {ok: true, value: parsed.value};
 };
 
-export type BriefingRunRequest = {sourceIds: string[]} | {stationId: string; mode?: EpisodeMode};
+export type BriefingRunRequest = {stationId: string; mode?: EpisodeMode};
 
-export const parseBriefingRunRequest = (body: unknown): ValidationResult<BriefingRunRequest> => parse(z.union([
-	stationBriefingRunSchema,
-	legacyBriefingRunSchema,
-]), body);
+export const parseBriefingRunRequest = (body: unknown): ValidationResult<BriefingRunRequest> => parse(stationBriefingRunSchema, body);
 
 export const parseNoteBody = (body: unknown): ValidationResult<SaveNoteInput> => parse(noteSchema, body);
 

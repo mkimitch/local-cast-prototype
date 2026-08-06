@@ -1,7 +1,7 @@
 # LocalCast autonomous build plan
 
-Status: Slice 1 green on 2026-08-06; the commit containing this plan is its checkpoint
-Current slice: **1 — COMPLETE; STOPPED AT OPERATOR LISTENING APPROVAL GATE**
+Status: Slice 2 green on 2026-08-06; the commit containing this plan is its checkpoint
+Current slice: **2 — COMPLETE; continue with Slice 3**
 Execution policy: one vertical slice, one green checkpoint commit
 
 ## How to use this plan
@@ -147,9 +147,9 @@ From the browser, the operator saves one station and one pasted note, clicks **S
 
 Suggested commit: `feat(prototype): complete real provider walking skeleton`
 
-The representative 78.912-second sample is the only live episode generated in this slice. The operator-requested listening gate overrides automatic continuation: do not start Slice 2 or generate longer audio until the operator approves that sample.
+The representative 78.912-second sample was the only live episode generated in this slice. The operator approved it at checkpoint `1790e91f1b37d518b18f4834b59cb7d9ba160823` as the functional single-host baseline, with `marin` acceptable for prototype use but not the preferred final audio identity. No longer live episode was generated in Slice 2.
 
-## Slice 2 — RSS/Atom ingestion, deduplication, conditional fetching, and FTS5
+## Slice 2 — RSS/Atom ingestion, deduplication, conditional fetching, and FTS5 — COMPLETE 2026-08-06
 
 ### Outcome
 
@@ -313,6 +313,14 @@ Every provider path has honest status and contract evidence; the deployment is r
 ### Rows closed by this slice
 
 `ID-01`, `TRUST-01`, `GRD-04`, `TXT-02` through `TXT-04`, `TTS-02`, `TTS-04`, `PROV-03`, `DATA-02` through `DATA-04`, `JOB-03`, `JOB-05`, `MEDIA-04`, `DEP-02` through `DEP-04`, all still-open `SEC-*` and `PRIV-*` rows, `OPS-01` through `OPS-04`, all `A11Y-*` rows, the still-open `ARC-*` rows, and `NG-01` through `NG-14`. The final gate reruns every non-deferred matrix row, including requirements closed in earlier slices.
+
+## First post-prototype audio milestone — deferred two-host format
+
+This milestone begins only after the currently defined prototype and must preserve the green single-host path. `Sol` is a qualitative benchmark only: it is not assumed to be an API voice and must not be imitated or treated as a dependency.
+
+The milestone covers a source-grounded outline and fact ledger before dialogue; restrained dialogue without invented anecdotes, fake experiences, or manufactured disagreement; two configurable voice profiles; ordered bounded turns; per-turn TTS caching, provenance, and retry; deterministic pauses, stitching, and loudness normalization; speaker-labelled transcripts and per-turn citations; and listening-quality comparisons with the single-host format.
+
+When current slices naturally touch script/transcript boundaries, backwards-compatible versioned ordered segments may carry stable segment ID, text, citation IDs, and optional speaker-role/voice-profile fields. The current format remains one `host`; optional speaker labels must not require a broad migration or weaken the walking skeleton. Slice 6 media hardening measures delivered loudness and documents a podcast-compatible normalization target, using the approved sample’s approximately `-22.7 LUFS` integrated and `-5.2 dBFS` true peak as baseline evidence rather than a Slice 2 prerequisite.
 
 ## Final phase gate
 
