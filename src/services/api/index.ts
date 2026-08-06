@@ -1,4 +1,4 @@
-import type {AppSettings, BriefingRun, Source, SourceItem} from '../../types';
+import type {AppSettings, BriefingRun, EpisodeMode, Note, Source, SourceItem, Station} from '../../types';
 
 export interface SourceService {
   getSources(): Promise<Source[]>;
@@ -13,6 +13,16 @@ export interface BriefingService {
   getRuns(): Promise<BriefingRun[]>;
   getRun(id: string): Promise<BriefingRun | undefined>;
   startRun(sourceIds: string[]): Promise<BriefingRun>;
+  startStationRun(stationId: string, mode?: EpisodeMode): Promise<BriefingRun>;
+}
+
+export interface StationService {
+  getNotes(): Promise<Note[]>;
+  saveNote(input: Pick<Note, 'title' | 'body' | 'author' | 'originalUrl'>, id?: string): Promise<Note>;
+  deleteNote(id: string): Promise<void>;
+  getStations(): Promise<Station[]>;
+  saveStation(input: Pick<Station, 'name' | 'topicInstruction' | 'defaultMode' | 'noteIds' | 'sourceIds'>, id?: string): Promise<Station>;
+  deleteStation(id: string): Promise<void>;
 }
 
 export interface ProviderService {
@@ -24,4 +34,5 @@ export interface ProviderService {
 export {ApiBriefingService} from './ApiBriefingService';
 export {ApiProviderService} from './ApiProviderService';
 export {ApiSourceService} from './ApiSourceService';
+export {ApiStationService} from './ApiStationService';
 export {apiBaseUrl, getServiceMode, HttpClientError} from './httpClient';

@@ -183,6 +183,9 @@ export default function SettingsView() {
           <p className="field-help">
             Provider credentials and endpoints are configured only on the LocalCast server. They are never entered or stored in this browser.
           </p>
+          <p className="field-help">
+            On explicit generation, OpenAI text receives station direction plus selected supplied titles, URLs, notes, and evidence; OpenAI TTS receives the final narration. A later follow-up question sends that episode&apos;s transcript, cited evidence, and the question. LocalCast does not authorize autonomous web research. Generated voices and audio are AI-generated.
+          </p>
           <dl className="content-grid content-grid--two">
             {(['text', 'speech'] as const).map(kind => {
               const provider = settings.providers[kind];
@@ -197,6 +200,8 @@ export default function SettingsView() {
                       </span>
                     </p>
                     <p className="field-help">{provider.reason}</p>
+                    {provider.model && <p className="field-help">Model: {provider.model}{provider.voice ? ` · voice: ${provider.voice}` : ''}</p>}
+                    {provider.verifiedAt && <p className="field-help">Verified: {new Date(provider.verifiedAt).toLocaleString()}</p>}
                   </dd>
                 </div>
               );
@@ -204,7 +209,7 @@ export default function SettingsView() {
           </dl>
           {!settings.generationEnabled && (
             <p className="empty-state" role="status">
-              Sync and generate remains disabled until both providers are configured and verified by the server.
+              Sync and generate remains disabled until both providers are configured on the server.
             </p>
           )}
         </div>

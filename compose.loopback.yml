@@ -1,0 +1,6 @@
+# Explicit operator/development override for a loopback-only listening socket.
+# The base Compose file intentionally publishes no host port for Caddy-managed use.
+services:
+  app:
+    ports:
+      - "127.0.0.1:${LOCALCAST_LISTEN_PORT:-8787}:8787"

@@ -1,12 +1,15 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import {createHash, randomUUID} from 'node:crypto';
 import type {BriefingSection, SourceItem} from '../../src/types';
 import type {ServerConfig} from '../config';
+import type {EpisodeEvidence, GeneratedSection, PublishedAudio} from '../episodes/types';
 import type {GenerationJobStore} from '../jobs/generationJobStore';
 import type {GenerationProcessor} from '../jobs/generationProcessor';
 import {GenerationError} from '../jobs/types';
 import type {GenerationJob} from '../jobs/types';
 import {briefingStore} from '../services/briefingStore';
+import {episodeStore} from '../services/episodeStore';
 import {sourceStore} from '../services/sourceStore';
 
 const assertNotAborted = (signal: AbortSignal): void => {
@@ -30,11 +33,9 @@ const wait = (milliseconds: number, signal: AbortSignal): Promise<void> => {
 	});
 };
 
-export const deterministicFakeMp3Bytes = (): Buffer => {
-	const bytes = Buffer.alloc(417, 0);
-	bytes.set([0xff, 0xfb, 0x90, 0x64], 0);
-	return bytes;
-};
+const deterministicFakeMp3 = 'SUQzBAAAAAAAIlRTU0UAAAAOAAADTGF2ZjYyLjMuMTAwAAAAAAAAAAAAAAD/84TAAAAAAAAAAAAASW5mbwAAAA8AAAAXAAAJYAAeHh4eKCgoKDMzMzMzPT09PUdHR0dRUVFRUVxcXFxmZmZmcHBwcHB6enp6hYWFhY+Pj4+PmZmZmaOjo6Ourq6urri4uLjCwsLCzMzMzMzX19fX4eHh4evr6+vr9fX19f////8AAAAATGF2YzYyLjExAAAAAAAAAAAAAAAAJAKgAAAAAAAACWANTP/jAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/80TEAAAAA0gAAAAATEFNRTMuMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVMQU1FMy7/80TEUwAAA0gAAAAAMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVMQU1FMy7/80TEpgAAA0gAAAAAMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVMQU1FMy7/80TErAAAA0gAAAAAMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVMQU1FMy7/80TErAAAA0gAAAAAMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVMQU1FMy7/80TErAAAA0gAAAAAMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVMQU1FMy7/80TErAAAA0gAAAAAMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVMQU1FMy7/80TErAAAA0gAAAAAMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVMQU1FMy7/80TErAAAA0gAAAAAMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVMQU1FMy7/80TErAAAA0gAAAAAMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVMQU1FMy7/80TErAAAA0gAAAAAMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVMQU1FMy7/80TErAAAA0gAAAAAMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVMQU1FMy7/80TErAAAA0gAAAAAMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVMQU1FMy7/80TErAAAA0gAAAAAMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVMQU1FMy7/80TErAAAA0gAAAAAMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVMQU1FMy7/80TErAAAA0gAAAAAMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVMQU1FMy7/80TErAAAA0gAAAAAMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVMQU1FMy7/80TErAAAA0gAAAAAMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVMQU1FMy7/80TErAAAA0gAAAAAMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVMQU1FMy7/80TErAAAA0gAAAAAMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVMQU1FMy7/80TErAAAA0gAAAAAMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVX/80TErAAAA0gAAAAAVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVX/80TErAAAA0gAAAAAVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVU=';
+
+export const deterministicFakeMp3Bytes = (): Buffer => Buffer.from(deterministicFakeMp3, 'base64');
 
 const fakeSections = (job: GenerationJob, items: SourceItem[]): BriefingSection[] => {
 	const citedItems = items.slice(0, 5);
@@ -61,6 +62,41 @@ const fakeSections = (job: GenerationJob, items: SourceItem[]): BriefingSection[
 	];
 };
 
+const exactOpeningExcerpt = (body: string): string => {
+	const sentenceEnd = body.indexOf('.');
+	return body.slice(0, sentenceEnd >= 4 && sentenceEnd < 320 ? sentenceEnd + 1 : Math.min(body.length, 320)).trimEnd();
+};
+
+const fakeGeneratedSections = (job: GenerationJob, evidence: EpisodeEvidence[]): GeneratedSection[] => [
+	{
+		id: `section-${job.id}-disclosure`,
+		title: 'AI audio disclosure',
+		type: 'intro',
+		segments: [{
+			id: `claim-${job.id}-disclosure`,
+			kind: 'transition',
+			text: 'This LocalCast audio was generated by AI.',
+			citations: [],
+			supportStatus: 'not_required',
+		}],
+	},
+	{
+		id: `section-${job.id}-sources`,
+		title: 'Source summary',
+		type: 'news_summary',
+		segments: evidence.slice(0, 5).map((item, index) => {
+			const excerpt = exactOpeningExcerpt(item.body);
+			return {
+				id: `claim-${job.id}-source-${index}`,
+				kind: 'factual' as const,
+				text: excerpt,
+				citations: [{snapshotId: item.id, excerpt}],
+				supportStatus: 'supported' as const,
+			};
+		}),
+	},
+];
+
 export class DeterministicFakeGenerationProcessor implements GenerationProcessor {
 	constructor(
 		private readonly config: ServerConfig,
@@ -72,7 +108,21 @@ export class DeterministicFakeGenerationProcessor implements GenerationProcessor
 
 		const selecting = this.jobs.updatePhase(job.id, workerId, 'selecting', this.config.leaseMs);
 		await this.atPhase('selecting', signal);
-		const sourceItems = sourceStore.listSourceItems({sourceIds: selecting.payload.sourceIds, limit: 25});
+		const evidence = selecting.payload.version === 2
+			? episodeStore.finalizeEvidence(selecting.payload.requestId, job.runId)
+			: undefined;
+		const sourceItems: SourceItem[] = selecting.payload.version === 1
+			? sourceStore.listSourceItems({sourceIds: selecting.payload.sourceIds, limit: 25})
+			: evidence!.map(item => ({
+				id: item.id,
+				sourceId: item.kind,
+				title: item.title,
+				content: item.body,
+				url: item.originalUrl,
+				author: item.author,
+				publishedAt: item.publishedAt,
+				gatheredAt: selecting.payload.requestedAt,
+			}));
 		if (sourceItems.length === 0) {
 			throw new GenerationError('INSUFFICIENT_SOURCE_MATERIAL', 'No stored source material is available for this test job', false);
 		}
@@ -92,12 +142,41 @@ export class DeterministicFakeGenerationProcessor implements GenerationProcessor
 		this.jobs.updatePhase(job.id, workerId, 'rendering_audio', this.config.leaseMs);
 		await this.atPhase('rendering_audio', signal);
 		this.jobs.renewLease(job.id, workerId, this.config.leaseMs);
-		const audioId = `audio-${job.id}`;
+		const audioId = selecting.payload.version === 2 ? `audio-${job.runId}` : `audio-${job.id}`;
 		const fileName = `${audioId}.mp3`;
 		const destination = path.join(this.config.mediaPath, fileName);
-		const temporary = `${destination}.${process.pid}.tmp`;
-		fs.writeFileSync(temporary, deterministicFakeMp3Bytes(), {flag: 'w', mode: 0o640});
-		fs.renameSync(temporary, destination);
+		const temporary = `${destination}.${randomUUID()}.tmp`;
+		const bytes = deterministicFakeMp3Bytes();
+		if (!fs.existsSync(destination)) {
+			fs.writeFileSync(temporary, bytes, {flag: 'wx', mode: 0o640});
+			fs.renameSync(temporary, destination);
+		}
+
+		if (selecting.payload.version === 2) {
+			const request = episodeStore.getRequest(selecting.payload.requestId);
+			if (!request || !evidence) throw new GenerationError('INVALID_JOB_PAYLOAD', 'The deterministic test request is invalid', false);
+			const audio: PublishedAudio = {
+				id: audioId,
+				storageFilename: fileName,
+				durationMs: 500,
+				byteLength: bytes.byteLength,
+				sha256: createHash('sha256').update(bytes).digest('hex'),
+				mimeType: 'audio/mpeg',
+				validatedAt: fs.statSync(destination).mtime.toISOString(),
+				provider: 'Deterministic test speech',
+				model: 'fixture-mp3-v1',
+				voice: 'fixture-silence',
+			};
+			this.jobs.complete(job.id, workerId, () => episodeStore.publishEpisode({
+				runId: job.runId,
+				request,
+				sections: fakeGeneratedSections(job, evidence),
+				audio,
+				textProvider: 'Deterministic test text',
+				textModel: 'fixture-text-v1',
+			}));
+			return;
+		}
 
 		briefingStore.updateRun(job.runId, {
 			summary,

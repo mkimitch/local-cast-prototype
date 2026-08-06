@@ -9,6 +9,8 @@ import {followUpRouter} from './routes/followUp';
 import {healthRouter} from './routes/health';
 import {settingsRouter} from './routes/settings';
 import {sourcesRouter} from './routes/sources';
+import {stationsRouter} from './routes/stations';
+import {createMediaRouter} from './routes/media';
 
 const isAllowedOrigin = (config: ServerConfig, origin: string): boolean => config.trustedOrigins.includes(new URL(origin).origin);
 
@@ -52,9 +54,11 @@ export const createApp = (config: ServerConfig) => {
 
 	app.use('/api', healthRouter);
 	app.use('/api', sourcesRouter);
+	app.use('/api', stationsRouter);
 	app.use('/api', briefingRunsRouter);
 	app.use('/api', settingsRouter);
 	app.use('/api', followUpRouter);
+	app.use(createMediaRouter(config));
 
 	app.use('/api', (_req, res) => {
 		res.status(404).json({code: 'NOT_FOUND', error: 'API route not found', correlationId: res.locals.correlationId});

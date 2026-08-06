@@ -3,7 +3,7 @@ import {fileURLToPath} from 'node:url';
 import path from 'node:path';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const projectName = `localcast-slice0-${process.pid}`;
+const projectName = `localcast-slice1-${process.pid}`;
 const environment = {
 	...process.env,
 	LOCALCAST_IMAGE_TAG: 'slice0-smoke',
@@ -11,6 +11,7 @@ const environment = {
 	LOCALCAST_TRUSTED_ORIGINS: 'http://localcast.test',
 	TEXT_PROVIDER: 'not_configured',
 	SPEECH_PROVIDER: 'not_configured',
+	OPENAI_API_KEY: '',
 };
 const baseArguments = ['compose', '-f', 'compose.yml', '--project-name', projectName];
 
@@ -53,6 +54,9 @@ const dockerGlobal = (arguments_) => {
 
 try {
 	const configuration = JSON.parse(docker(['--profile', 'init', 'config', '--format', 'json']));
+	const credentialConfiguration = JSON.parse(docker(['--profile', 'init', 'config', '--format', 'json'], {
+		env: {...environment, OPENAI_API_KEY: 'compose-contract-canary'},
+	}));
 	const {app, worker, 'storage-init': storageInit} = configuration.services;
 	assert(app && worker && storageInit, 'Compose must declare app, worker, and storage-init services');
 	assert(!app.ports && !worker.ports && !storageInit.ports, 'base Compose topology must publish no host port');
@@ -62,6 +66,12 @@ try {
 	assert(storageInit.profiles?.includes('init'), 'storage initialization must require an explicit Compose profile');
 	assert(!app.depends_on && !worker.depends_on, 'normal app/worker startup must not initialize fresh storage');
 	assert(app.environment.LOCALCAST_ALLOW_FAKE_PROVIDERS === 'false', 'production Compose must disable fake providers');
+	assert(!Object.hasOwn(app.environment, 'OPENAI_API_KEY'), 'app must not receive the OpenAI credential');
+	assert(!Object.hasOwn(storageInit.environment, 'OPENAI_API_KEY'), 'storage initializer must not receive the OpenAI credential');
+	assert(worker.environment.OPENAI_API_KEY === '', 'worker must support an explicit empty credential and report NOT CONFIGURED');
+	assert(credentialConfiguration.services.worker.environment.OPENAI_API_KEY === 'compose-contract-canary', 'configured credential must reach the worker');
+	assert(!Object.hasOwn(credentialConfiguration.services.app.environment, 'OPENAI_API_KEY'), 'configured credential must not reach the app');
+	assert(!Object.hasOwn(credentialConfiguration.services['storage-init'].environment, 'OPENAI_API_KEY'), 'configured credential must not reach storage initialization');
 	assert(app.read_only && worker.read_only && storageInit.read_only, 'all containers must use a read-only root filesystem');
 	assert(app.healthcheck && worker.healthcheck, 'app and worker health checks must be declared');
 	for (const service of [app, worker, storageInit]) {
@@ -89,6 +99,7 @@ try {
 	docker(['exec', '-T', 'app', 'node', '-e', `
 		const fs = require('node:fs');
 		(async () => {
+			if (process.env.OPENAI_API_KEY) process.exit(1);
 			const health = await fetch('http://127.0.0.1:8787/api/health').then(response => response.json());
 			if (!health.ok || health.providers.text.status !== 'NOT CONFIGURED') process.exit(1);
 			const page = await fetch('http://127.0.0.1:8787/').then(response => response.text());
@@ -107,6 +118,11 @@ try {
 			console.error(error);
 			process.exit(1);
 		});
+	`]);
+	docker(['exec', '-T', 'worker', 'node', '-e', `
+		const {spawnSync} = require('node:child_process');
+		if (process.env.OPENAI_API_KEY) process.exit(1);
+		if (spawnSync('/usr/bin/ffprobe', ['-version'], {stdio: 'ignore'}).status !== 0) process.exit(1);
 	`]);
 
 	docker(['stop', 'app', 'worker'], {stdio: 'inherit'});

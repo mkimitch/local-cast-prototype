@@ -244,6 +244,17 @@ The worker renews its owned lease during long phases and aborts local work if re
 
 The persisted recovery policy requeues stale work, closes the prior attempt as `recovered`, and starts a new attempt from `syncing`. Graceful interruption requeues immediately as `interrupted`. Transcript/media publication remains idempotent across replay, with temporary media excluded from completed state.
 
+## D-027 — The real OpenAI boundary is fixed, worker-only, and reverified per worker session
+
+Status: **ACCEPTED**
+Date: 2026-08-06
+
+Slice 1 uses the fixed official OpenAI API origin with `gpt-5.4-mini`, low reasoning effort, and strict Responses API output for drafting and support classification. Provider-generated segments are all factual, cited, and support-checked; LocalCast alone adds the fixed non-factual AI disclosure and section labels. Tools, search, redirects, arbitrary provider URLs, and production fallback are absent.
+
+Only the worker receives `OPENAI_API_KEY`. It is not inherited by `ffprobe`, copied into the image, returned by APIs, or exposed to browser code. A worker boot downgrades configured capabilities to `CONTRACT TESTED ONLY`; only successful calls in that worker session set `LIVE VERIFIED`. Missing credentials record `NOT CONFIGURED` and disable enqueueing.
+
+OpenAI speech uses `gpt-4o-mini-tts`, voice `marin`, MP3 output, and speed `1.05`. Each reusable media filename is bound to a SHA-256 rendering fingerprint over narration and speech settings, so a recovered attempt cannot pair regenerated text with older audio. Temporary names are unique, stale internal temp files are cleaned, ffprobe requires MP3 format plus positive duration, and completed media is published only with byte length and checksum.
+
 ## Open operator decisions
 
 These are genuine inputs that cannot be inferred safely. They do not block documentation bootstrap. A slice must stop before it needs an unresolved value.
@@ -257,10 +268,12 @@ Provide the canonical HTTPS `PUBLIC_BASE_URL`, whether the existing Caddy instan
 
 ### O-002 — OpenAI model, voice, budget, and credential
 
-Status: **OPEN**
+Status: **ACCEPTED — RESOLVED 2026-08-06**
 Needed by: Slice 1
 
-Supply the server-side OpenAI credential and a small live-test spend boundary. Model and voice remain validated server configuration and can use implementation-documented defaults unless the operator overrides them. The key must never be pasted into tracked files or chat.
+The operator authorized a project-specific key stored only in ignored root `.env`, explicit cloud processing of deliberately supplied LocalCast station/evidence fields and generated narration, and at most $5.00 for prototype implementation/live verification. Approved configuration is text `gpt-5.4-mini` with low reasoning effort and speech `gpt-4o-mini-tts` with voice `marin` and MP3 output. This consent excludes unrelated host files, credentials, logs, other services, private-network data, and autonomous web research.
+
+Slice 1 used one redacted model-access probe, one draft call, one support call, the representative TTS render, and one TTS-only duration correction. Reliable account-level cost accounting was unavailable, so LocalCast does not claim to enforce or independently prove the $5 ceiling. No longer episode may be generated before operator listening approval.
 
 ### O-003 — Piper executable and voice asset
 

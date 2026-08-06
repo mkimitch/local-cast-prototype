@@ -1,6 +1,7 @@
 import type {AppSettings} from '../../src/types';
-import {providerSummaryForConfig, serverConfig} from '../config';
+import {serverConfig} from '../config';
 import {db} from '../database/index';
+import {providerCheckStore} from './providerCheckStore';
 
 type AppearanceSettings = Omit<AppSettings, 'providers' | 'generationEnabled'>;
 
@@ -36,7 +37,7 @@ class SettingsStore {
 	}
 
 	private withProviderStatus(appearance: AppearanceSettings): AppSettings {
-		const status = providerSummaryForConfig(serverConfig);
+		const status = providerCheckStore.summary(serverConfig);
 		return {
 			...appearance,
 			providers: {text: status.text, speech: status.speech},

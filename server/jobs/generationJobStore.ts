@@ -1,5 +1,6 @@
 import Database from 'better-sqlite3';
-import {randomUUID} from 'node:crypto';
+import {createHash, randomUUID} from 'node:crypto';
+import type {EpisodeMode} from '../../src/types';
 import {activeJobPhases, generationJobPayloadSchema} from './types';
 import type {ActiveJobPhase, GenerationJob, GenerationJobPayload, JobAttempt, JobEvent, JobPhase} from './types';
 
@@ -81,7 +82,7 @@ export class GenerationJobStore {
 				const existing = this.database.prepare('SELECT * FROM generation_jobs WHERE idempotency_key = ?').get(idempotencyKey) as JobRow | undefined;
 				if (existing) {
 					const job = this.fromRow(existing);
-					if (JSON.stringify(job.payload.sourceIds) !== JSON.stringify(uniqueSourceIds)) throw new IdempotencyConflictError();
+					if (job.payload.version !== 1 || JSON.stringify(job.payload.sourceIds) !== JSON.stringify(uniqueSourceIds)) throw new IdempotencyConflictError();
 					return {job, created: false};
 				}
 			}
@@ -118,6 +119,97 @@ export class GenerationJobStore {
 		return enqueue.immediate();
 	}
 
+	enqueueStation(stationId: string, requestedMode: EpisodeMode | undefined, idempotencyKey?: string): {job: GenerationJob; created: boolean} {
+		const enqueue = this.database.transaction(() => {
+			if (idempotencyKey) {
+				const existing = this.database.prepare('SELECT * FROM generation_jobs WHERE idempotency_key = ?').get(idempotencyKey) as JobRow | undefined;
+				if (existing) {
+					const job = this.fromRow(existing);
+					if (job.payload.version !== 2) throw new IdempotencyConflictError();
+					const request = this.database.prepare('SELECT station_id_snapshot, requested_mode FROM generation_requests WHERE id = ?').get(job.payload.requestId) as {station_id_snapshot: string; requested_mode: EpisodeMode} | undefined;
+					if (!request || request.station_id_snapshot !== stationId || request.requested_mode !== (requestedMode || request.requested_mode)) throw new IdempotencyConflictError();
+					return {job, created: false};
+				}
+			}
+
+			const station = this.database.prepare('SELECT * FROM stations WHERE id = ?').get(stationId) as {
+				id: string;
+				revision: number;
+				name: string;
+				topic_instruction: string;
+				default_mode: EpisodeMode;
+			} | undefined;
+			if (!station) throw new JobStateError('Selected station does not exist');
+
+			const notes = this.database.prepare(`
+				SELECT n.*, sn.sort_order
+				FROM station_notes sn
+				JOIN notes n ON n.id = sn.note_id
+				WHERE sn.station_id = ?
+				ORDER BY sn.sort_order
+			`).all(stationId) as Array<{
+				id: string;
+				revision: number;
+				title: string;
+				body: string;
+				author: string | null;
+				original_url: string | null;
+				sort_order: number;
+			}>;
+			const sources = this.database.prepare('SELECT source_id, sort_order FROM station_sources WHERE station_id = ? ORDER BY sort_order').all(stationId) as Array<{source_id: string; sort_order: number}>;
+			const mode = requestedMode || station.default_mode;
+			if (sources.length > 0) throw new JobStateError('RSS-backed generation is unavailable until selected-feed synchronization is implemented in Slice 2');
+			if (mode === 'deep') throw new JobStateError('Deep generation is unavailable until the representative listening sample is approved');
+			const timestamp = this.now();
+			const runId = `run-${this.createId()}`;
+			const jobId = `job-${this.createId()}`;
+			const requestId = `request-${this.createId()}`;
+			const canonicalRequest = JSON.stringify({
+				station: {id: station.id, revision: station.revision, name: station.name, topicInstruction: station.topic_instruction},
+				mode,
+				notes: notes.map(note => ({id: note.id, revision: note.revision, title: note.title, body: note.body, author: note.author, originalUrl: note.original_url})),
+				sourceIds: sources.map(source => source.source_id),
+			});
+			const requestHash = createHash('sha256').update(canonicalRequest).digest('hex');
+			const payload: GenerationJobPayload = {version: 2, requestId, requestedAt: timestamp};
+
+			this.database.prepare(`
+				INSERT INTO briefing_runs (
+					id, title, status, created_at, completed_at, summary, mode,
+					station_id_snapshot, station_name_snapshot, station_revision, ai_generated
+				) VALUES (?, ?, 'queued', ?, NULL, NULL, ?, ?, ?, ?, 1)
+			`).run(runId, `${station.name} — ${timestamp.slice(0, 10)}`, timestamp, mode, station.id, station.name, station.revision);
+
+			this.database.prepare(`
+				INSERT INTO generation_requests (
+					id, run_id, station_id_snapshot, station_revision, station_name,
+					topic_instruction, requested_mode, request_hash, requested_at
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+			`).run(requestId, runId, station.id, station.revision, station.name, station.topic_instruction, mode, requestHash, timestamp);
+
+			const insertNote = this.database.prepare(`
+				INSERT INTO generation_request_notes (
+					request_id, note_id_snapshot, note_revision, title, body, author, original_url, sort_order
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+			`);
+			for (const note of notes) insertNote.run(requestId, note.id, note.revision, note.title, note.body, note.author, note.original_url, note.sort_order);
+
+			const insertSource = this.database.prepare('INSERT INTO generation_request_sources (request_id, source_id_snapshot, sort_order) VALUES (?, ?, ?)');
+			for (const source of sources) insertSource.run(requestId, source.source_id, source.sort_order);
+
+			this.database.prepare(`
+				INSERT INTO generation_jobs (
+					id, run_id, idempotency_key, payload_version, payload_json, state, phase,
+					attempt_count, retryable, created_at, updated_at
+				) VALUES (?, ?, ?, 2, ?, 'queued', 'queued', 0, 0, ?, ?)
+			`).run(jobId, runId, idempotencyKey ?? null, JSON.stringify(payload), timestamp, timestamp);
+			this.insertEvent(jobId, undefined, 'queued', 'Queued by explicit user action', timestamp);
+			return {job: this.get(jobId)!, created: true};
+		});
+
+		return enqueue.immediate();
+	}
+
 	claimNext(workerId: string, leaseMs: number): GenerationJob | undefined {
 		const claim = this.database.transaction(() => {
 			const timestamp = this.now();
@@ -138,7 +230,7 @@ export class GenerationJobStore {
 				}
 
 				const payload = generationJobPayloadSchema.safeParse(rawPayload);
-				if (!payload.success || row.payload_version !== 1) {
+				if (!payload.success || row.payload_version !== payload.data.version) {
 					this.failMalformedQueuedJob(row, timestamp);
 					continue;
 				}
@@ -200,12 +292,13 @@ export class GenerationJobStore {
 		return renew.immediate();
 	}
 
-	complete(jobId: string, workerId: string): GenerationJob {
+	complete(jobId: string, workerId: string, publish?: () => void): GenerationJob {
 		const complete = this.database.transaction(() => {
 			const current = this.requireOwnedRunningJob(jobId, workerId);
 			if (current.phase !== 'rendering_audio') throw new JobStateError('Only a rendered job can complete');
 
 			const timestamp = this.now();
+			publish?.();
 			this.database.prepare(`
 				UPDATE generation_jobs
 				SET state = 'complete', phase = 'complete', lease_owner = NULL, lease_expires_at = NULL,
@@ -338,7 +431,14 @@ export class GenerationJobStore {
 		}
 
 		const payload = generationJobPayloadSchema.safeParse(rawPayload);
-		if (!payload.success || row.payload_version !== 1) throw new JobStateError('Persisted generation job payload is invalid');
+		if (!payload.success || row.payload_version !== payload.data.version) throw new JobStateError('Persisted generation job payload is invalid');
+		const failedPhase = row.state === 'failed'
+			? (this.database.prepare(`
+				SELECT phase FROM generation_job_events
+				WHERE job_id = ? AND phase IN ('syncing', 'selecting', 'drafting', 'validating', 'rendering_audio')
+				ORDER BY id DESC LIMIT 1
+			`).get(row.id) as {phase: ActiveJobPhase} | undefined)?.phase
+			: undefined;
 
 		return {
 			id: row.id,
@@ -352,6 +452,7 @@ export class GenerationJobStore {
 			leaseExpiresAt: row.lease_expires_at ?? undefined,
 			errorCode: row.error_code ?? undefined,
 			errorMessage: row.error_message ?? undefined,
+			failedPhase,
 			retryable: row.retryable === 1,
 			createdAt: row.created_at,
 			updatedAt: row.updated_at,

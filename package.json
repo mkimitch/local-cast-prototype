@@ -29,13 +29,16 @@
     "smoke:api": "node scripts/smoke-api.mjs",
     "smoke:production": "node scripts/smoke-production.mjs",
     "smoke:compose": "node scripts/smoke-compose.mjs",
+    "verify:live-browser": "node scripts/verify-live-sample.mjs",
     "verify": "npm run lint && npm run test && npm run test:integration && npm run build && npm run test:e2e && npm run smoke:api && npm run smoke:production && npm run smoke:compose"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
+    "@tanstack/react-query": "^5.90.5",
     "better-sqlite3": "^12.11.1",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
+    "react-router-dom": "^7.18.2",
     "rss-parser": "^3.13.0",
     "zod": "4.4.3"
   },

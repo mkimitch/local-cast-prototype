@@ -21,6 +21,8 @@ describe('server environment contract', () => {
 		['automatic interval sync', {LOCALCAST_RUNTIME_MODE: 'development', RSS_SYNC_INTERVAL_MINUTES: '15'}, /automatic RSS/],
 		['wildcard origin', {LOCALCAST_RUNTIME_MODE: 'development', LOCALCAST_TRUSTED_ORIGINS: '*'}, /wildcard/],
 		['non-http origin', {LOCALCAST_RUNTIME_MODE: 'development', LOCALCAST_TRUSTED_ORIGINS: 'file:///tmp/index.html'}, /http or https/],
+		['OpenAI credential in app', {LOCALCAST_RUNTIME_MODE: 'development', LOCALCAST_PROCESS_ROLE: 'app', OPENAI_API_KEY: 'credential-canary'}, /only in the worker/],
+		['mixed OpenAI pair', {LOCALCAST_RUNTIME_MODE: 'development', TEXT_PROVIDER: 'openai', SPEECH_PROVIDER: 'not_configured'}, /selected together/],
 	])('rejects %s', (_name, environment, error) => {
 		expect(() => parseServerConfig(environment)).toThrow(error);
 	});
@@ -85,5 +87,48 @@ describe('server environment contract', () => {
 		expect(status.generationEnabled).toBe(true);
 		expect(status.text.status).toBe('CONTRACT TESTED ONLY');
 		expect(status.speech.status).toBe('CONTRACT TESTED ONLY');
+	});
+
+	it('accepts the approved OpenAI pair while keeping the credential worker-only', () => {
+		const appConfig = parseServerConfig({
+			LOCALCAST_RUNTIME_MODE: 'development',
+			LOCALCAST_PROCESS_ROLE: 'app',
+			TEXT_PROVIDER: 'openai',
+			SPEECH_PROVIDER: 'openai',
+		});
+		const workerConfig = parseServerConfig({
+			LOCALCAST_RUNTIME_MODE: 'development',
+			LOCALCAST_PROCESS_ROLE: 'worker',
+			TEXT_PROVIDER: 'openai',
+			SPEECH_PROVIDER: 'openai',
+			OPENAI_API_KEY: 'credential-canary',
+		});
+
+		expect(appConfig.openAiApiKey).toBeUndefined();
+		expect(workerConfig.openAiApiKey).toBe('credential-canary');
+		expect(workerConfig).toMatchObject({
+			openAiTextModel: 'gpt-5.4-mini',
+			openAiReasoningEffort: 'low',
+			openAiSpeechModel: 'gpt-4o-mini-tts',
+			openAiSpeechVoice: 'marin',
+			openAiSpeechFormat: 'mp3',
+		});
+		expect(providerSummaryForConfig(appConfig)).toMatchObject({
+			generationEnabled: true,
+			text: {adapter: 'OpenAI', status: 'CONTRACT TESTED ONLY', model: 'gpt-5.4-mini'},
+			speech: {adapter: 'OpenAI', status: 'CONTRACT TESTED ONLY', model: 'gpt-4o-mini-tts', voice: 'marin'},
+		});
+	});
+
+	it('treats an explicitly empty worker credential as not configured', () => {
+		const config = parseServerConfig({
+			LOCALCAST_RUNTIME_MODE: 'development',
+			LOCALCAST_PROCESS_ROLE: 'worker',
+			TEXT_PROVIDER: 'openai',
+			SPEECH_PROVIDER: 'openai',
+			OPENAI_API_KEY: '',
+		});
+
+		expect(config.openAiApiKey).toBeUndefined();
 	});
 });

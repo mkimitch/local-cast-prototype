@@ -13,8 +13,14 @@ x-localcast-common: &localcast-common
     LOCALCAST_WEB_DIST_PATH: /app/dist
     LOCALCAST_INSTALLATION_ID: ${LOCALCAST_INSTALLATION_ID:?Set a unique LocalCast installation ID}
     LOCALCAST_TRUSTED_ORIGINS: ${LOCALCAST_TRUSTED_ORIGINS:?Set the exact Caddy origin}
-    TEXT_PROVIDER: ${TEXT_PROVIDER:-not_configured}
-    SPEECH_PROVIDER: ${SPEECH_PROVIDER:-not_configured}
+    TEXT_PROVIDER: ${TEXT_PROVIDER:-openai}
+    SPEECH_PROVIDER: ${SPEECH_PROVIDER:-openai}
+    OPENAI_TEXT_MODEL: ${OPENAI_TEXT_MODEL:-gpt-5.4-mini}
+    OPENAI_REASONING_EFFORT: ${OPENAI_REASONING_EFFORT:-low}
+    OPENAI_SPEECH_MODEL: ${OPENAI_SPEECH_MODEL:-gpt-4o-mini-tts}
+    OPENAI_SPEECH_VOICE: ${OPENAI_SPEECH_VOICE:-marin}
+    OPENAI_SPEECH_FORMAT: ${OPENAI_SPEECH_FORMAT:-mp3}
+    FFPROBE_PATH: /usr/bin/ffprobe
     LOCALCAST_ALLOW_FAKE_PROVIDERS: "false"
   volumes:
     - localcast_data:/var/lib/localcast/data
@@ -61,6 +67,7 @@ services:
       <<: *localcast-environment
       LOCALCAST_PROCESS_ROLE: worker
       LOCALCAST_WORKER_ID: compose-worker
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
     healthcheck:
       test: ["CMD", "node", "-e", "const fs=require('node:fs');const cmd=fs.readFileSync('/proc/1/cmdline','utf8');if(!cmd.includes('worker.js')||!fs.existsSync(process.env.DATABASE_PATH))process.exit(1)"]
       interval: 2s

@@ -53,6 +53,56 @@ const migration003 = `
 	CREATE INDEX idx_sources_next_sync_after ON sources(next_sync_after);
 `;
 
+const migration004 = `
+	CREATE TABLE localcast_metadata (
+		key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TEXT NOT NULL
+	);
+	CREATE TABLE generation_jobs (
+		id TEXT PRIMARY KEY,
+		run_id TEXT NOT NULL UNIQUE REFERENCES briefing_runs(id) ON DELETE CASCADE,
+		idempotency_key TEXT UNIQUE,
+		payload_version INTEGER NOT NULL,
+		payload_json TEXT NOT NULL,
+		state TEXT NOT NULL CHECK (state IN ('queued', 'running', 'complete', 'failed')),
+		phase TEXT NOT NULL CHECK (phase IN ('queued', 'syncing', 'selecting', 'drafting', 'validating', 'rendering_audio', 'complete', 'failed')),
+		active_slot INTEGER NOT NULL DEFAULT 1 CHECK (active_slot = 1),
+		attempt_count INTEGER NOT NULL DEFAULT 0,
+		lease_owner TEXT,
+		lease_expires_at TEXT,
+		error_code TEXT,
+		error_message TEXT,
+		retryable INTEGER NOT NULL DEFAULT 0,
+		created_at TEXT NOT NULL,
+		updated_at TEXT NOT NULL,
+		started_at TEXT,
+		completed_at TEXT
+	);
+	CREATE UNIQUE INDEX idx_generation_jobs_active_slot ON generation_jobs(active_slot) WHERE state = 'running';
+	CREATE INDEX idx_generation_jobs_fifo ON generation_jobs(state, datetime(created_at), id);
+	CREATE INDEX idx_generation_jobs_lease ON generation_jobs(state, lease_expires_at);
+	CREATE TABLE generation_attempts (
+		id TEXT PRIMARY KEY,
+		job_id TEXT NOT NULL REFERENCES generation_jobs(id) ON DELETE CASCADE,
+		attempt_number INTEGER NOT NULL,
+		worker_id TEXT NOT NULL,
+		started_at TEXT NOT NULL,
+		finished_at TEXT,
+		outcome TEXT CHECK (outcome IN ('running', 'complete', 'failed', 'interrupted', 'recovered')),
+		error_code TEXT,
+		error_message TEXT,
+		UNIQUE (job_id, attempt_number)
+	);
+	CREATE TABLE generation_job_events (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		job_id TEXT NOT NULL REFERENCES generation_jobs(id) ON DELETE CASCADE,
+		attempt_number INTEGER,
+		phase TEXT NOT NULL CHECK (phase IN ('queued', 'syncing', 'selecting', 'drafting', 'validating', 'rendering_audio', 'complete', 'failed')),
+		detail TEXT,
+		created_at TEXT NOT NULL
+	);
+	CREATE INDEX idx_generation_job_events_order ON generation_job_events(job_id, id);
+`;
+
 export const installFrozenMigrationSnapshot = (database: Database.Database, migrationId: string): void => {
 	database.exec(initialSchema);
 	database.prepare('INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)').run('001_initial_schema', '2026-01-01T00:00:00.000Z');
@@ -62,7 +112,11 @@ export const installFrozenMigrationSnapshot = (database: Database.Database, migr
 	database.prepare('INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)').run('002_source_item_identity', '2026-01-02T00:00:00.000Z');
 	if (migrationId === '002_source_item_identity') return;
 
-	if (migrationId !== '003_source_sync_metadata') throw new Error(`Unknown frozen migration snapshot: ${migrationId}`);
 	database.exec(migration003);
 	database.prepare('INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)').run('003_source_sync_metadata', '2026-01-03T00:00:00.000Z');
+	if (migrationId === '003_source_sync_metadata') return;
+
+	if (migrationId !== '004_generation_jobs') throw new Error(`Unknown frozen migration snapshot: ${migrationId}`);
+	database.exec(migration004);
+	database.prepare('INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)').run('004_generation_jobs', '2026-01-04T00:00:00.000Z');
 };

@@ -1,17 +1,15 @@
-import dotenv from 'dotenv';
 import path from 'node:path';
 import {z} from 'zod';
-
-dotenv.config();
 
 export const providerStatuses = ['LIVE VERIFIED', 'CONTRACT TESTED ONLY', 'NOT CONFIGURED'] as const;
 export type ProviderStatus = typeof providerStatuses[number];
 export type RuntimeMode = 'development' | 'test' | 'production';
 export type ProcessRole = 'app' | 'worker' | 'storage-init';
-export type BackendTextProvider = 'not_configured' | 'fake';
-export type BackendSpeechProvider = 'not_configured' | 'fake';
+export type BackendTextProvider = 'not_configured' | 'fake' | 'openai';
+export type BackendSpeechProvider = 'not_configured' | 'fake' | 'openai';
 
 const nonEmptyString = z.string().trim().min(1);
+const optionalCredential = z.preprocess(value => typeof value === 'string' && value.trim() === '' ? undefined : value, nonEmptyString.optional());
 
 const optionalBoolean = z.preprocess(value => {
 	if (value === undefined || value === '') return false;
@@ -38,8 +36,15 @@ const rawEnvironmentSchema = z.object({
 	LOCALCAST_INSTALLATION_ID: nonEmptyString.optional(),
 	LOCALCAST_TRUSTED_ORIGINS: z.string().optional(),
 	CORS_ORIGIN: z.string().optional(),
-	TEXT_PROVIDER: z.enum(['not_configured', 'fake']).optional(),
-	SPEECH_PROVIDER: z.enum(['not_configured', 'fake']).optional(),
+	TEXT_PROVIDER: z.enum(['not_configured', 'fake', 'openai']).optional(),
+	SPEECH_PROVIDER: z.enum(['not_configured', 'fake', 'openai']).optional(),
+	OPENAI_API_KEY: optionalCredential,
+	OPENAI_TEXT_MODEL: nonEmptyString.optional(),
+	OPENAI_REASONING_EFFORT: z.enum(['low']).optional(),
+	OPENAI_SPEECH_MODEL: nonEmptyString.optional(),
+	OPENAI_SPEECH_VOICE: nonEmptyString.optional(),
+	OPENAI_SPEECH_FORMAT: z.literal('mp3').optional(),
+	FFPROBE_PATH: nonEmptyString.optional(),
 	LOCALCAST_ALLOW_FAKE_PROVIDERS: optionalBoolean,
 	LOCALCAST_FAKE_FAILURE_PHASE: z.enum(['syncing', 'selecting', 'drafting', 'validating', 'rendering_audio']).optional(),
 	LOCALCAST_FAKE_PHASE_DELAY_MS: z.preprocess(value => value === undefined || value === '' ? 0 : Number(value), z.number().int().min(0).max(10000)),
@@ -65,6 +70,13 @@ export interface ServerConfig {
 	trustedOrigins: string[];
 	textProvider: BackendTextProvider;
 	speechProvider: BackendSpeechProvider;
+	openAiApiKey?: string;
+	openAiTextModel: string;
+	openAiReasoningEffort: 'low';
+	openAiSpeechModel: string;
+	openAiSpeechVoice: string;
+	openAiSpeechFormat: 'mp3';
+	ffprobePath: string;
 	allowFakeProviders: boolean;
 	fakeFailurePhase?: 'syncing' | 'selecting' | 'drafting' | 'validating' | 'rendering_audio';
 	fakePhaseDelayMs: number;
@@ -135,6 +147,14 @@ export const parseServerConfig = (environment: NodeJS.ProcessEnv): ServerConfig 
 		throw new Error('Invalid LocalCast environment: fake providers require test mode and explicit opt-in');
 	}
 
+	if (processRole !== 'worker' && env.OPENAI_API_KEY) {
+		throw new Error('Invalid LocalCast environment: OPENAI_API_KEY is allowed only in the worker process');
+	}
+
+	if (textProvider === 'openai' && speechProvider !== 'openai' || textProvider !== 'openai' && speechProvider === 'openai') {
+		throw new Error('Invalid LocalCast environment: the Slice 1 OpenAI text and speech providers must be selected together');
+	}
+
 	if (env.LOCALCAST_FAKE_FAILURE_PHASE && (!env.LOCALCAST_ALLOW_FAKE_PROVIDERS || runtimeMode !== 'test')) {
 		throw new Error('Invalid LocalCast environment: fake failure injection requires test mode and explicit opt-in');
 	}
@@ -187,6 +207,13 @@ export const parseServerConfig = (environment: NodeJS.ProcessEnv): ServerConfig 
 		trustedOrigins,
 		textProvider,
 		speechProvider,
+		openAiApiKey: env.OPENAI_API_KEY,
+		openAiTextModel: env.OPENAI_TEXT_MODEL || 'gpt-5.4-mini',
+		openAiReasoningEffort: env.OPENAI_REASONING_EFFORT || 'low',
+		openAiSpeechModel: env.OPENAI_SPEECH_MODEL || 'gpt-4o-mini-tts',
+		openAiSpeechVoice: env.OPENAI_SPEECH_VOICE || 'marin',
+		openAiSpeechFormat: env.OPENAI_SPEECH_FORMAT || 'mp3',
+		ffprobePath: env.FFPROBE_PATH || 'ffprobe',
 		allowFakeProviders: env.LOCALCAST_ALLOW_FAKE_PROVIDERS,
 		fakeFailurePhase: env.LOCALCAST_FAKE_FAILURE_PHASE,
 		fakePhaseDelayMs: env.LOCALCAST_FAKE_PHASE_DELAY_MS,
@@ -203,21 +230,32 @@ export interface ProviderSummary {
 	adapter: string;
 	status: ProviderStatus;
 	reason: string;
+	model?: string;
+	voice?: string;
+	verifiedAt?: string;
 }
 
 export const providerSummaryForConfig = (config: ServerConfig): {text: ProviderSummary; speech: ProviderSummary; generationEnabled: boolean} => {
 	const fakeEnabled = config.runtimeMode === 'test' && config.allowFakeProviders;
-	const text: ProviderSummary = config.textProvider === 'fake' && fakeEnabled
-		? {adapter: 'Deterministic test text', status: 'CONTRACT TESTED ONLY', reason: 'Enabled only for isolated tests'}
-		: {adapter: 'Text provider', status: 'NOT CONFIGURED', reason: 'Configure a supported server-side text provider'};
-	const speech: ProviderSummary = config.speechProvider === 'fake' && fakeEnabled
-		? {adapter: 'Deterministic test speech', status: 'CONTRACT TESTED ONLY', reason: 'Enabled only for isolated tests'}
-		: {adapter: 'Speech provider', status: 'NOT CONFIGURED', reason: 'Configure a supported server-side speech provider'};
+	const text: ProviderSummary = config.textProvider === 'openai'
+		? {adapter: 'OpenAI', model: config.openAiTextModel, status: 'CONTRACT TESTED ONLY', reason: 'Configured; live verification is pending'}
+		: config.textProvider === 'fake' && fakeEnabled
+			? {adapter: 'Deterministic test text', status: 'CONTRACT TESTED ONLY', reason: 'Enabled only for isolated tests'}
+			: {adapter: 'Text provider', status: 'NOT CONFIGURED', reason: 'Configure a supported server-side text provider'};
+	const speech: ProviderSummary = config.speechProvider === 'openai'
+		? {adapter: 'OpenAI', model: config.openAiSpeechModel, voice: config.openAiSpeechVoice, status: 'CONTRACT TESTED ONLY', reason: 'Configured; live verification is pending'}
+		: config.speechProvider === 'fake' && fakeEnabled
+			? {adapter: 'Deterministic test speech', status: 'CONTRACT TESTED ONLY', reason: 'Enabled only for isolated tests'}
+			: {adapter: 'Speech provider', status: 'NOT CONFIGURED', reason: 'Configure a supported server-side speech provider'};
 
 	return {
 		text,
 		speech,
-		generationEnabled: text.status === 'CONTRACT TESTED ONLY' && speech.status === 'CONTRACT TESTED ONLY' && fakeEnabled,
+		generationEnabled: (
+			config.textProvider === 'openai' && config.speechProvider === 'openai'
+		) || (
+			text.status === 'CONTRACT TESTED ONLY' && speech.status === 'CONTRACT TESTED ONLY' && fakeEnabled
+		),
 	};
 };
 

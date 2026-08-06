@@ -230,6 +230,182 @@ const migrations: Migration[] = [
 			`).run(now);
 		},
 	},
+	{
+		id: '005_real_provider_walking_skeleton',
+		up: db => {
+			db.exec(`
+				CREATE TABLE IF NOT EXISTS notes (
+					id TEXT PRIMARY KEY,
+					revision INTEGER NOT NULL DEFAULT 1 CHECK (revision > 0),
+					title TEXT NOT NULL,
+					body TEXT NOT NULL,
+					author TEXT,
+					original_url TEXT,
+					created_at TEXT NOT NULL,
+					updated_at TEXT NOT NULL
+				);
+
+				CREATE TABLE IF NOT EXISTS stations (
+					id TEXT PRIMARY KEY,
+					revision INTEGER NOT NULL DEFAULT 1 CHECK (revision > 0),
+					name TEXT NOT NULL,
+					topic_instruction TEXT NOT NULL,
+					default_mode TEXT NOT NULL CHECK (default_mode IN ('brief', 'deep')),
+					created_at TEXT NOT NULL,
+					updated_at TEXT NOT NULL
+				);
+
+				CREATE TABLE IF NOT EXISTS station_notes (
+					station_id TEXT NOT NULL REFERENCES stations(id) ON DELETE CASCADE,
+					note_id TEXT NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+					sort_order INTEGER NOT NULL,
+					PRIMARY KEY (station_id, note_id)
+				);
+
+				CREATE TABLE IF NOT EXISTS station_sources (
+					station_id TEXT NOT NULL REFERENCES stations(id) ON DELETE CASCADE,
+					source_id TEXT NOT NULL REFERENCES sources(id) ON DELETE CASCADE,
+					sort_order INTEGER NOT NULL,
+					PRIMARY KEY (station_id, source_id)
+				);
+
+				CREATE TABLE IF NOT EXISTS generation_requests (
+					id TEXT PRIMARY KEY,
+					run_id TEXT NOT NULL UNIQUE REFERENCES briefing_runs(id) ON DELETE CASCADE,
+					station_id_snapshot TEXT NOT NULL,
+					station_revision INTEGER NOT NULL,
+					station_name TEXT NOT NULL,
+					topic_instruction TEXT NOT NULL,
+					requested_mode TEXT NOT NULL CHECK (requested_mode IN ('brief', 'deep')),
+					request_hash TEXT NOT NULL,
+					requested_at TEXT NOT NULL
+				);
+
+				CREATE TABLE IF NOT EXISTS generation_request_notes (
+					request_id TEXT NOT NULL REFERENCES generation_requests(id) ON DELETE CASCADE,
+					note_id_snapshot TEXT NOT NULL,
+					note_revision INTEGER NOT NULL,
+					title TEXT NOT NULL,
+					body TEXT NOT NULL,
+					author TEXT,
+					original_url TEXT,
+					sort_order INTEGER NOT NULL,
+					PRIMARY KEY (request_id, note_id_snapshot)
+				);
+
+				CREATE TABLE IF NOT EXISTS generation_request_sources (
+					request_id TEXT NOT NULL REFERENCES generation_requests(id) ON DELETE CASCADE,
+					source_id_snapshot TEXT NOT NULL,
+					sort_order INTEGER NOT NULL,
+					PRIMARY KEY (request_id, source_id_snapshot)
+				);
+
+				CREATE TABLE IF NOT EXISTS episode_evidence_snapshots (
+					id TEXT PRIMARY KEY,
+					run_id TEXT NOT NULL REFERENCES briefing_runs(id) ON DELETE CASCADE,
+					request_id TEXT NOT NULL REFERENCES generation_requests(id) ON DELETE CASCADE,
+					kind TEXT NOT NULL CHECK (kind IN ('note', 'feed')),
+					original_id_snapshot TEXT NOT NULL,
+					title TEXT NOT NULL,
+					body TEXT NOT NULL,
+					author TEXT,
+					original_url TEXT,
+					published_at TEXT,
+					content_sha256 TEXT NOT NULL,
+					sort_order INTEGER NOT NULL,
+					UNIQUE (run_id, id)
+				);
+
+				CREATE TABLE IF NOT EXISTS transcript_claims (
+					id TEXT PRIMARY KEY,
+					run_id TEXT NOT NULL REFERENCES briefing_runs(id) ON DELETE CASCADE,
+					section_id TEXT NOT NULL REFERENCES briefing_sections(id) ON DELETE CASCADE,
+					kind TEXT NOT NULL CHECK (kind IN ('factual', 'transition')),
+					text TEXT NOT NULL,
+					support_status TEXT NOT NULL CHECK (support_status IN ('not_required', 'supported')),
+					sort_order INTEGER NOT NULL
+				);
+
+				CREATE TABLE IF NOT EXISTS episode_citations (
+					claim_id TEXT NOT NULL REFERENCES transcript_claims(id) ON DELETE CASCADE,
+					snapshot_id TEXT NOT NULL REFERENCES episode_evidence_snapshots(id) ON DELETE RESTRICT,
+					excerpt TEXT NOT NULL,
+					sort_order INTEGER NOT NULL,
+					PRIMARY KEY (claim_id, snapshot_id, sort_order)
+				);
+
+				CREATE TABLE IF NOT EXISTS provider_checks (
+					capability TEXT PRIMARY KEY CHECK (capability IN ('text', 'speech')),
+					adapter TEXT NOT NULL,
+					model TEXT NOT NULL,
+					voice TEXT,
+					configuration_fingerprint TEXT NOT NULL,
+					status TEXT NOT NULL CHECK (status IN ('LIVE VERIFIED', 'CONTRACT TESTED ONLY', 'NOT CONFIGURED')),
+					reason TEXT NOT NULL,
+					verified_at TEXT,
+					updated_at TEXT NOT NULL
+				);
+
+				CREATE INDEX IF NOT EXISTS idx_station_notes_order ON station_notes(station_id, sort_order);
+				CREATE INDEX IF NOT EXISTS idx_station_sources_order ON station_sources(station_id, sort_order);
+				CREATE INDEX IF NOT EXISTS idx_evidence_run_order ON episode_evidence_snapshots(run_id, sort_order);
+				CREATE INDEX IF NOT EXISTS idx_claims_run_order ON transcript_claims(run_id, section_id, sort_order);
+				CREATE INDEX IF NOT EXISTS idx_citations_claim_order ON episode_citations(claim_id, sort_order);
+			`);
+
+			const runColumns: Array<[string, string]> = [
+				['mode', "TEXT CHECK (mode IN ('brief', 'deep'))"],
+				['station_id_snapshot', 'TEXT'],
+				['station_name_snapshot', 'TEXT'],
+				['station_revision', 'INTEGER'],
+				['text_provider', 'TEXT'],
+				['text_model', 'TEXT'],
+				['speech_provider', 'TEXT'],
+				['speech_model', 'TEXT'],
+				['speech_voice', 'TEXT'],
+				['ai_generated', 'INTEGER NOT NULL DEFAULT 0'],
+			];
+			for (const [name, definition] of runColumns) {
+				if (!hasColumn(db, 'briefing_runs', name)) db.exec(`ALTER TABLE briefing_runs ADD COLUMN ${name} ${definition}`);
+			}
+
+			const audioColumns: Array<[string, string]> = [
+				['storage_filename', 'TEXT'],
+				['mime_type', 'TEXT'],
+				['byte_length', 'INTEGER'],
+				['sha256', 'TEXT'],
+				['validated_at', 'TEXT'],
+				['provider', 'TEXT'],
+				['model', 'TEXT'],
+				['voice', 'TEXT'],
+				['ai_generated', 'INTEGER NOT NULL DEFAULT 0'],
+			];
+			for (const [name, definition] of audioColumns) {
+				if (!hasColumn(db, 'audio_assets', name)) db.exec(`ALTER TABLE audio_assets ADD COLUMN ${name} ${definition}`);
+			}
+
+			const settingsRows = db.prepare('SELECT id, settings_json FROM app_settings').all() as Array<{id: string; settings_json: string}>;
+			const updateSettings = db.prepare('UPDATE app_settings SET settings_json = ?, updated_at = ? WHERE id = ?');
+			const allowedSettings = ['orbTheme', 'theme', 'contrastMode', 'colorVisionMode', 'textSize', 'density'];
+			const timestamp = new Date().toISOString();
+			for (const row of settingsRows) {
+				try {
+					const current = JSON.parse(row.settings_json) as Record<string, unknown>;
+					const sanitized = Object.fromEntries(allowedSettings.flatMap(key => current[key] === undefined ? [] : [[key, current[key]]]));
+					updateSettings.run(JSON.stringify(sanitized), timestamp, row.id);
+				} catch {
+					updateSettings.run('{}', timestamp, row.id);
+				}
+			}
+
+			db.prepare(`
+				UPDATE briefing_runs
+				SET status = 'failed', completed_at = COALESCE(completed_at, ?), summary = NULL
+				WHERE status NOT IN ('complete', 'failed')
+					AND NOT EXISTS (SELECT 1 FROM generation_jobs WHERE generation_jobs.run_id = briefing_runs.id)
+			`).run(timestamp);
+		},
+	},
 ];
 
 export const migrationIds = migrations.map(migration => migration.id);

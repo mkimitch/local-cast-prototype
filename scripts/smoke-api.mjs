@@ -228,7 +228,8 @@ try {
 	assert(completed.sections.some(section => section.sourceItemIds.length > 0), 'deterministic output should contain a source citation');
 	assert(completed.audioAsset?.format === 'mp3', 'worker should persist an MP3 asset record');
 	const audioFile = path.join(mediaPath, path.basename(completed.audioAsset.url));
-	assert(fs.statSync(audioFile).size === 417, 'test speech adapter should publish deterministic fixture bytes');
+	const audioBytes = fs.readFileSync(audioFile);
+	assert(audioBytes.byteLength > 1_000 && audioBytes.subarray(0, 3).toString('ascii') === 'ID3', 'test speech adapter should publish a decodable deterministic MP3 fixture');
 	await stopProcess(worker);
 	worker = undefined;
 

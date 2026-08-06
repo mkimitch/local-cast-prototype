@@ -1,13 +1,51 @@
 # LocalCast build state
 
-Last updated: 2026-08-05 18:33 CDT
+Last updated: 2026-08-06 00:19 CDT
 Branch: `codex/localcast-prototype`
 Pre-bootstrap HEAD: `910485b77ead63450660b0b97544889960e45e3f`
 Slice 0 base HEAD: `e720d5818ab15efccfa143c94d6514c0c9a2baad`
-Current checkpoint: Slice 0 green; checkpoint commit pending final diff review
-Implementation slice: **0 — COMPLETE**
-Next slice: **1 — entry blocked by O-002 (OpenAI credential, cloud-processing consent, model/voice, and minimal live-test budget)**
-Overall state: **SLICE 0 FULL GATE GREEN; CHECKPOINT PENDING**
+Current base checkpoint: Slice 0 at `c2604ed93b4c6b0a977405b5f74a7f40baae3f47`
+Current checkpoint: **Slice 1 — the commit containing this state document**
+Implementation slice: **1 — GREEN**
+Next action: **operator listening approval; Slice 2 is not started**
+Overall state: **STOPPED AT THE AUTHORIZED LISTENING GATE**
+
+## Slice 1 result
+
+O-002 is resolved. The repository now has saved pasted notes and stations, immutable generation requests/evidence, a durable OpenAI text/support/TTS pipeline, strict citation and MP3 validation, real same-origin media, resolved transcript citations, native browser playback, honest provider status, and server-only external-provider disclosure. RSS-backed and deep generation remain explicitly disabled until Slice 2 and the listening approval respectively; neither is silently simulated.
+
+Three bounded read-only reviewers independently audited architecture/correctness, runtime/Docker/tests, and security/privacy/accessibility after targeted implementation. No reviewer edited files. The primary thread fixed their converged findings: factual-transition grounding bypass, transcript/audio replay mismatch, PID-stable temp collisions, inherited ffprobe credentials, weak MP3 format checking, stale/live provider state, missing-key enqueueing, premature RSS/deep generation, deterministic v2 fixture publication, media integrity/path checks, migration-004 upgrade coverage, and visible playback failure state.
+
+### Credential and provider boundary
+
+- `.env` is a regular file, mode `600`, ignored by `.gitignore:24`; its value was never displayed, logged, copied, or committed.
+- A redacted Compose config assertion returned only `credentialServices=[{name:"worker",present:true}]` and `workerOnly=true`. App and storage-init do not receive the key. `ffprobe` receives an explicit minimal environment without the key.
+- The smallest live access probe was `GET /v1/models/gpt-5.4-mini`; it returned HTTP 200 with an exact model match. No response body, key, or Authorization header was retained.
+- The live pipeline used `gpt-5.4-mini` with low reasoning effort, then `gpt-4o-mini-tts`, `marin`, MP3. Text and speech reached `LIVE VERIFIED` at `2026-08-06T04:39:25.308Z` and `2026-08-06T04:39:40.688Z` respectively.
+- Live-call scope was one model-access probe, one draft, one support classification, one representative TTS render, and one TTS-only duration correction. Reliable account-level usage accounting was unavailable; the application does not claim to enforce the authorized $5 ceiling.
+
+### Listening sample
+
+- Episode: `run-737b6807-a8e1-4cff-95d7-9797138b7671`
+- Page: `http://127.0.0.1:43182/episodes/run-737b6807-a8e1-4cff-95d7-9797138b7671`
+- Media: `http://127.0.0.1:43182/media/audio-run-737b6807-a8e1-4cff-95d7-9797138b7671`
+- The source note and station were created through LocalCast APIs; the persistent worker job used the immutable request/evidence records before either provider call. The completed run has 5 sections, 7 factual claims/citations, the spoken and visible AI-generated disclosure, and no external browser request.
+- Persisted and HTTP media agree at 1,262,592 bytes with SHA-256 `2a8d83087085974c226691ee285168c9f91a52c60cf74f39406b3240a8fa8071` and `audio/mpeg`. `ffprobe` reports codec `mp3`, format `mp3`, duration `78.912000` seconds.
+- Headless Chromium decoded the media at 78.912 seconds and observed real `loadedmetadata`, `play`, `playing`, `pause`, `seeking`, `seeked`, and `timeupdate` events, 7 resolved citations, no third-party origin, and no browser credential field.
+- The database records, request/evidence, transcript/citations, provider checks, media metadata, and MP3 checksum survived app/worker container recreation. The isolated listening deployment remains loopback-only and running for operator review.
+
+### Slice 1 verification evidence
+
+| Exact command | Result |
+| --- | --- |
+| `NODE_ENV=test LOCALCAST_RUNTIME_MODE=test DATABASE_PATH=:memory: MEDIA_PATH=/tmp/localcast-vitest-unit-review npx vitest run tests/unit/openai-provider.test.ts tests/unit/provider-status.test.ts tests/unit/config.test.ts tests/unit/migrations.test.ts` | PASS after one migration-fixture repair — 4 files, 60 tests |
+| `NODE_ENV=test LOCALCAST_RUNTIME_MODE=test DATABASE_PATH=:memory: MEDIA_PATH=/tmp/localcast-vitest-integration-review npx vitest run tests/integration/station-generation.test.ts tests/integration/media-route.test.ts` | PASS, exit 0 — 2 files, 7 tests |
+| `npx playwright test tests/e2e/foundation.spec.ts tests/e2e/generation-phases.spec.ts` | PASS, exit 0 — note/station lifecycle plus persistent generation, resolved citation, real deterministic MP3 decode/play |
+| `LOCALCAST_LIVE_URL=http://127.0.0.1:43182 LOCALCAST_LIVE_EPISODE_ID=run-737b6807-a8e1-4cff-95d7-9797138b7671 npm run verify:live-browser` | PASS, exit 0 — 78.912 seconds, required media events, 7 citations, zero external origins/credential fields |
+| `npm run verify` | PASS, exit 0 at 2026-08-06 — 61 unit, 38 integration, build, 2 Playwright, API smoke, production smoke, and isolated Compose build/init/no-key/recreation smoke |
+| `npm audit --omit=dev --audit-level=high` | EXIT 1 — two high advisories from `react-router` 7.18.2; GHSA-qwww-vcr4-c8h2 states it applies only to unstable RSC APIs. LocalCast uses declarative `BrowserRouter`, no RSC/framework/actions/SSR path. No patched 7.x release exists; this is recorded, not represented as zero risk. |
+
+The first sandboxed full gate passed through production smoke and failed only because BuildKit could not write its user-level activity directory. The required rerun used approved Docker access. The final full gate created only unique `localcast-slice1-*` smoke resources and removed their containers, networks, and volumes. It did not touch the separate listening deployment or Caddy.
 
 ## Slice 0 result
 
@@ -150,7 +188,7 @@ See `DECISIONS.md` for the complete rationale and exceptions to the default stac
 
 ## Current blockers and repair ledger
 
-No Slice 0 implementation blocker remains. Slice 1 cannot perform its required fixture-free OpenAI text/TTS chain without O-002.
+No Slice 1 implementation blocker remains. The active stop is the operator-requested listening approval gate, not a failed check. O-001 and O-004 remain future Slice 4 inputs; O-003 remains optional live verification for Slice 6.
 
 | Slice | Deterministic failure or entry block | Attempts | State |
 | --- | --- | --- | --- |
@@ -158,9 +196,14 @@ No Slice 0 implementation blocker remains. Slice 1 cannot perform its required f
 | 0 | Compose profile/probe scenario | 3 evidence-based runs, 2 repairs | GREEN |
 | 0 | Millisecond lease expiry | 1 repair | GREEN |
 | 0 | SIGKILL targeted the TypeScript launcher rather than worker child | 1 repair | GREEN |
-| 1 | O-002: no authorized OpenAI credential/cloud-processing consent/live-test budget | 0 repair attempts; external input required | ENTRY BLOCKED after Slice 0 checkpoint |
+| 1 | O-002: OpenAI authority/configuration | Operator supplied the approved server-only configuration, consent, and spend boundary | RESOLVED |
+| 1 | Live sample initially measured 96.360 seconds | One TTS-only speed correction to `1.05`; no second text generation | GREEN — 78.912 seconds |
+| 1 | Reused-audio metadata timestamp and crash mismatch review findings | One content-binding/stable-metadata/unique-temp repair | GREEN — provider contracts pass |
+| 1 | Frozen migration-004 fixture exposed unreconciled orphan history | One additive migration-005 reconciliation repair | GREEN — migration suite passes |
+| 1 | API smoke retained the obsolete 417-byte fake MP3 assertion | One assertion repair against a real deterministic ID3 MP3 fixture | GREEN — API smoke passes |
+| 1 | Compose empty credential failed schema parsing instead of reporting `NOT CONFIGURED` | One empty-to-unset config repair | GREEN — final Compose no-key startup passes |
 
-Open operator decisions are listed in `DECISIONS.md`. Slice 1 requires an OpenAI credential and live-test budget. Slice 4 requires Caddy origin/topology/log handling and a real podcast client. Piper contract support can complete without a model; only an optional `LIVE VERIFIED` Piper check requires installation/model authorization.
+No deterministic failure remained after three repair attempts for the same cause. Open operator decisions are listed in `DECISIONS.md`. Slice 4 still requires Caddy origin/topology/log handling and a real podcast client. Piper contract support can complete without a model; only optional `LIVE VERIFIED` Piper evidence requires installation/model authorization.
 
 ## Assumptions recorded at bootstrap
 
@@ -173,4 +216,4 @@ Open operator decisions are listed in `DECISIONS.md`. Slice 1 requires an OpenAI
 
 ## Next action
 
-Review and commit the green Slice 0 diff as `feat(prototype): establish durable generation foundation`. Then enter Slice 1 and hard-stop on O-002 unless the operator supplies server-side OpenAI configuration, explicit consent to send the minimal synthetic live-check material to OpenAI, and a live-test spend boundary. Never place the credential in Git, documentation, logs, screenshots, or chat.
+The operator should listen at the recorded loopback URL and approve or reject the voice, pacing, and overall sample. Do not start Slice 2 and do not generate longer audio before that approval.

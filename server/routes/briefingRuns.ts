@@ -1,9 +1,10 @@
 import {Router} from 'express';
 import type {BriefingRun} from '../../src/types';
-import {providerSummaryForConfig, serverConfig} from '../config';
+import {serverConfig} from '../config';
 import {generationJobStore} from '../jobs/index';
 import {IdempotencyConflictError, JobStateError} from '../jobs/generationJobStore';
 import {briefingStore} from '../services/briefingStore';
+import {providerCheckStore} from '../services/providerCheckStore';
 import {parseBriefingRunRequest, parseIdempotencyKey} from '../validation';
 
 export const briefingRunsRouter = Router();
@@ -20,6 +21,7 @@ const withJob = (run: BriefingRun): BriefingRun => {
 			attemptCount: job.attemptCount,
 			errorCode: job.errorCode,
 			errorMessage: job.errorMessage,
+			failedPhase: job.failedPhase,
 			retryable: job.retryable,
 		},
 	};
@@ -30,7 +32,7 @@ briefingRunsRouter.get('/briefing-runs', (_req, res) => {
 });
 
 briefingRunsRouter.post('/briefing-runs', (req, res) => {
-	const providerStatus = providerSummaryForConfig(serverConfig);
+	const providerStatus = providerCheckStore.summary(serverConfig);
 	if (!providerStatus.generationEnabled) {
 		res.status(503).json({code: 'PROVIDER_NOT_CONFIGURED', error: 'Text and speech providers are not configured'});
 		return;
@@ -49,7 +51,9 @@ briefingRunsRouter.post('/briefing-runs', (req, res) => {
 	}
 
 	try {
-		const result = generationJobStore.enqueue(parsed.value.sourceIds, idempotency.value);
+		const result = 'stationId' in parsed.value
+			? generationJobStore.enqueueStation(parsed.value.stationId, parsed.value.mode, idempotency.value)
+			: generationJobStore.enqueue(parsed.value.sourceIds, idempotency.value);
 		const run = briefingStore.getRun(result.job.runId);
 		if (!run) throw new Error('Queued run could not be loaded');
 		res.status(result.created ? 201 : 200).json(withJob(run));

@@ -1,136 +1,60 @@
-import { useEffect, useState } from 'react';
-import { Play, Clock, CheckCircle, AlertTriangle } from 'lucide-react';
-import { briefingService, providerService, sourceService } from '../../services';
-import { AppSettings, BriefingRun } from '../../types';
+import {useQuery} from '@tanstack/react-query';
+import {AlertTriangle, CheckCircle, Clock, Play} from 'lucide-react';
+import {Link} from 'react-router-dom';
+import {briefingService} from '../../services';
+import type {BriefingRun} from '../../types';
 
-interface RunsProps {
-  onNavigateToRun: (id: string) => void;
-}
+const statusIcon = (status: BriefingRun['status']) => {
+  if (status === 'complete') return <CheckCircle className="icon-success" size={20} />;
+  if (status === 'failed') return <AlertTriangle className="icon-danger" size={20} />;
+  return <Clock className="icon-primary is-pulsing" size={20} />;
+};
 
-export default function RunsView({ onNavigateToRun }: RunsProps) {
-  const [runs, setRuns] = useState<BriefingRun[]>([]);
-  const [activeSourcesCount, setActiveSourcesCount] = useState(0);
-  const [settings, setSettings] = useState<AppSettings | null>(null);
-  const [loadError, setLoadError] = useState<string>();
-  const [isEnqueueing, setIsEnqueueing] = useState(false);
-
-  const loadData = async () => {
-    try {
-      const [allRuns, allSources, appSettings] = await Promise.all([
-        briefingService.getRuns(),
-        sourceService.getSources(),
-        providerService.getSettings()
-      ]);
-      setRuns(allRuns);
-      setActiveSourcesCount(allSources.filter(s => s.isActive && s.type === 'rss').length);
-      setSettings(appSettings);
-      setLoadError(undefined);
-    } catch {
-      setLoadError('LocalCast could not load briefing runs from its local API.');
-    }
-  };
-
-  useEffect(() => {
-    loadData();
-    // Auto refresh runs list periodically to catch background updates
-    const interval = setInterval(() => {
-      loadData();
-    }, 3000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const handleGenerate = async () => {
-    if (isEnqueueing) return;
-    setIsEnqueueing(true);
-    try {
-      const allSources = await sourceService.getSources();
-      const activeSourceIds = allSources.filter(s => s.isActive && s.type === 'rss').map(s => s.id);
-      const newRun = await briefingService.startRun(activeSourceIds);
-      onNavigateToRun(newRun.id);
-    } catch {
-      setLoadError('LocalCast could not enqueue this briefing. Check provider status and try again.');
-      setIsEnqueueing(false);
-    }
-  };
-
-  const canGenerate = Boolean(settings?.generationEnabled) && activeSourcesCount > 0;
-  const generationHelp = !settings?.generationEnabled
-    ? 'Generation is unavailable until text and speech providers are configured on the server.'
-    : activeSourcesCount === 0
-      ? 'Add and enable at least one source before generating.'
-      : 'Synchronize active sources and create a briefing.';
-
-  const getStatusIcon = (status: BriefingRun['status']) => {
-    switch (status) {
-      case 'complete': return <CheckCircle className="icon-success" size={20} />;
-      case 'failed': return <AlertTriangle className="icon-danger" size={20} />;
-      default: return <Clock className="icon-primary is-pulsing" size={20} />;
-    }
-  };
+export default function RunsView() {
+  const runs = useQuery({
+    queryKey: ['episodes'],
+    queryFn: () => briefingService.getRuns(),
+    refetchInterval: query => query.state.data?.some(run => !['complete', 'failed'].includes(run.status)) ? 1_000 : false,
+  });
 
   return (
     <div className="page">
       <div className="page-header page-header--responsive">
         <div>
-          <h1 className="page-title">Briefing Runs</h1>
-          <p className="page-description">History of your generated personal podcasts.</p>
+          <h1 className="page-title">Episodes</h1>
+          <p className="page-description">Durable generation history, cited transcripts, and persisted audio.</p>
         </div>
-        <button
-          onClick={handleGenerate}
-          disabled={!canGenerate || isEnqueueing}
-          aria-describedby="runs-generation-help"
-          className="button button--primary"
-        >
-          <Play size={16} />
-          {isEnqueueing ? 'Enqueueing...' : 'Sync and generate'}
-        </button>
+        <Link to="/stations" className="button button--primary"><Play size={16} /> Choose a station</Link>
       </div>
 
-      <p id="runs-generation-help" className="page-description">{generationHelp}</p>
-      {loadError && <p role="alert" className="empty-state">{loadError}</p>}
+      {runs.isError && <p role="alert" className="empty-state">LocalCast could not load episodes from its local API.</p>}
+      {runs.isLoading && <p role="status" className="loading-message">Loading episodes...</p>}
 
       <div className="card">
         <div className="card-list">
-          {runs.map(run => (
-            <button
-              type="button"
-              key={run.id} 
-              className="run-row"
-              onClick={() => onNavigateToRun(run.id)}
-            >
+          {runs.data?.map(run => (
+            <Link key={run.id} className="run-row" to={`/episodes/${encodeURIComponent(run.id)}`}>
               <div className="run-row__main">
-                <div className="run-row__status">
-                  {getStatusIcon(run.status)}
-                </div>
+                <div className="run-row__status">{statusIcon(run.status)}</div>
                 <div>
-                  <h3 className="run-row__title">{run.title}</h3>
+                  <h2 className="run-row__title">{run.title}</h2>
                   <div className="run-row__meta">
                     <span className="run-row__status-text">{run.status.replace('_', ' ')}</span>
+                    {run.mode && <><span>•</span><span>{run.mode}</span></>}
                     <span>•</span>
                     <span>Started {new Date(run.createdAt).toLocaleString()}</span>
                   </div>
                 </div>
               </div>
-              <div className="run-row__cta">
-                View Details
-              </div>
-            </button>
+              <span className="run-row__cta">View details</span>
+            </Link>
           ))}
-          {runs.length === 0 && (
+          {runs.data?.length === 0 && (
             <div className="empty-state empty-state--large">
-              <div className="empty-state__icon">
-                <Play size={24} />
-              </div>
-              <h3 className="empty-state__title">No runs yet</h3>
-              <p className="empty-state__copy">Create your first audio briefing from supplied material.</p>
-              <button
-                onClick={handleGenerate}
-                disabled={!canGenerate || isEnqueueing}
-                aria-describedby="runs-generation-help"
-                className="button button--secondary"
-              >
-                {isEnqueueing ? 'Enqueueing...' : 'Sync and generate'}
-              </button>
+              <Play size={24} />
+              <h2 className="empty-state__title">No episodes yet</h2>
+              <p className="empty-state__copy">Save supplied material and generate from a station.</p>
+              <Link to="/stations" className="button button--secondary">Open stations & notes</Link>
             </div>
           )}
         </div>

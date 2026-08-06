@@ -1,8 +1,9 @@
 import {Router} from 'express';
 import fs from 'node:fs';
-import {providerSummaryForConfig, serverConfig} from '../config';
+import {serverConfig} from '../config';
 import {db} from '../database/index';
 import {inspectDatabaseHealth} from '../database/connection';
+import {providerCheckStore} from '../services/providerCheckStore';
 
 export const healthRouter = Router();
 
@@ -15,7 +16,7 @@ healthRouter.get('/health', (_req, res) => {
 			service: 'local-cast-api',
 			timestamp: new Date().toISOString(),
 			runtimeMode: serverConfig.runtimeMode,
-			providers: providerSummaryForConfig(serverConfig),
+			providers: providerCheckStore.summary(serverConfig),
 			database,
 			mediaWritable: true,
 		});

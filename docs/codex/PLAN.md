@@ -1,7 +1,7 @@
 # LocalCast autonomous build plan
 
-Status: Slice 0 full gate green; checkpoint pending
-Current slice: **1 entry check**, blocked until O-002 is resolved
+Status: Slice 1 green on 2026-08-06; the commit containing this plan is its checkpoint
+Current slice: **1 — COMPLETE; STOPPED AT OPERATOR LISTENING APPROVAL GATE**
 Execution policy: one vertical slice, one green checkpoint commit
 
 ## How to use this plan
@@ -107,7 +107,7 @@ A production-shaped, credential-free foundation: explicit runtime modes, validat
 
 Suggested commit: `feat(prototype): establish durable generation foundation`
 
-## Slice 1 — True walking skeleton with one real text and one real speech provider
+## Slice 1 — True walking skeleton with one real text and one real speech provider — COMPLETE 2026-08-06
 
 ### Entry requirements
 
@@ -146,6 +146,8 @@ From the browser, the operator saves one station and one pasted note, clicks **S
 ### Checkpoint
 
 Suggested commit: `feat(prototype): complete real provider walking skeleton`
+
+The representative 78.912-second sample is the only live episode generated in this slice. The operator-requested listening gate overrides automatic continuation: do not start Slice 2 or generate longer audio until the operator approves that sample.
 
 ## Slice 2 — RSS/Atom ingestion, deduplication, conditional fetching, and FTS5
 

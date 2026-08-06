@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Play, Activity, Clock, Rss, RefreshCw, AlertCircle } from 'lucide-react';
-import { sourceService, briefingService, providerService } from '../../services';
-import { Source, BriefingRun, AppSettings } from '../../types';
+import { sourceService, briefingService, providerService, stationService } from '../../services';
+import { Source, BriefingRun, AppSettings, Station } from '../../types';
 import { ViewState } from '../../App';
 
 interface DashboardProps {
@@ -13,6 +13,7 @@ export default function Dashboard({ onNavigateToRun, onNavigate }: DashboardProp
   const [sources, setSources] = useState<Source[]>([]);
   const [runs, setRuns] = useState<BriefingRun[]>([]);
   const [settings, setSettings] = useState<AppSettings | null>(null);
+  const [stations, setStations] = useState<Station[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isEnqueueing, setIsEnqueueing] = useState(false);
   const [loadError, setLoadError] = useState<string>();
@@ -20,14 +21,16 @@ export default function Dashboard({ onNavigateToRun, onNavigate }: DashboardProp
   useEffect(() => {
     const load = async () => {
       try {
-        const [allSources, allRuns, appSettings] = await Promise.all([
+        const [allSources, allRuns, appSettings, savedStations] = await Promise.all([
           sourceService.getSources(),
           briefingService.getRuns(),
-          providerService.getSettings()
+          providerService.getSettings(),
+          stationService.getStations(),
         ]);
         setSources(allSources.filter(s => s.isActive && s.type === 'rss'));
         setRuns(allRuns);
         setSettings(appSettings);
+        setStations(savedStations);
       } catch {
         setLoadError('LocalCast could not reach its local API. Check that the application service is running.');
       } finally {
@@ -41,8 +44,9 @@ export default function Dashboard({ onNavigateToRun, onNavigate }: DashboardProp
     if (isEnqueueing) return;
     setIsEnqueueing(true);
     try {
-      const activeSourceIds = sources.map(s => s.id);
-      const newRun = await briefingService.startRun(activeSourceIds);
+      const station = stations[0];
+      if (!station) return;
+      const newRun = await briefingService.startStationRun(station.id, station.defaultMode);
       onNavigateToRun(newRun.id);
     } catch {
       setLoadError('LocalCast could not enqueue this briefing. Check provider status and try again.');
@@ -53,12 +57,12 @@ export default function Dashboard({ onNavigateToRun, onNavigate }: DashboardProp
   if (isLoading) return <div className="loading-skeleton" aria-label="Loading dashboard" />;
   if (loadError || !settings) return <div className="empty-state" role="alert">{loadError || 'Dashboard settings are unavailable.'}</div>;
 
-  const canGenerate = settings.generationEnabled && sources.length > 0;
+  const canGenerate = settings.generationEnabled && Boolean(stations[0] && stations[0].noteIds.length + stations[0].sourceIds.length > 0);
   const generationHelp = !settings.generationEnabled
     ? 'Generation is unavailable until text and speech providers are configured on the server.'
-    : sources.length === 0
-      ? 'Add and enable at least one source before generating.'
-      : 'Synchronize selected sources and create a briefing.';
+    : stations.length === 0
+      ? 'Save a station with supplied material before generating.'
+      : 'OpenAI receives the selected station direction and evidence; OpenAI TTS receives the final narration. Audio is AI-generated.';
 
   return (
     <div className="page page--wide">
@@ -126,6 +130,7 @@ export default function Dashboard({ onNavigateToRun, onNavigate }: DashboardProp
             <Play size={18} />
             {isEnqueueing ? 'Enqueueing...' : 'Sync and generate'}
           </button>
+          {stations.length === 0 && <button className="button button--link" onClick={() => onNavigate('stations')}>Create a station &rarr;</button>}
         </div>
       </div>
 

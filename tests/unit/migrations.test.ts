@@ -28,7 +28,7 @@ describe('additive migration history', () => {
 		expect(db.prepare("SELECT name FROM sqlite_master WHERE name = 'generation_jobs'").get()).toBeTruthy();
 	});
 
-	it.each(['001_initial_schema', '002_source_item_identity', '003_source_sync_metadata'])('upgrades a %s snapshot without losing data', migrationId => {
+	it.each(['001_initial_schema', '002_source_item_identity', '003_source_sync_metadata', '004_generation_jobs'])('upgrades a %s snapshot without losing data', migrationId => {
 		const db = database();
 		installFrozenMigrationSnapshot(db, migrationId);
 		db.prepare(`

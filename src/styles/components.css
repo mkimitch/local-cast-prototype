@@ -1938,3 +1938,21 @@ html.dark .orb-theme-preview {
     flex-direction: column;
   }
 }
+
+.audio-ready-card audio,
+.audio-player audio {
+  width: 100%;
+  min-width: 16rem;
+}
+
+.sidebar__nav-item,
+.run-row {
+  text-decoration: none;
+}
+
+.transcript-quote blockquote {
+  margin: var(--space-2) 0;
+  padding-inline-start: var(--space-3);
+  border-inline-start: 3px solid var(--color-border);
+  color: var(--color-text-muted);
+}

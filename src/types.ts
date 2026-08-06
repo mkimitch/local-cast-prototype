@@ -31,6 +31,31 @@ export interface SourceItem {
   gatheredAt: string;
 }
 
+export interface Note {
+  id: string;
+  revision: number;
+  title: string;
+  body: string;
+  author?: string;
+  originalUrl?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type EpisodeMode = 'brief' | 'deep';
+
+export interface Station {
+  id: string;
+  revision: number;
+  name: string;
+  topicInstruction: string;
+  defaultMode: EpisodeMode;
+  noteIds: string[];
+  sourceIds: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type RunStatus = 'queued' | 'syncing' | 'selecting' | 'drafting' | 'validating' | 'rendering_audio' | 'complete' | 'failed';
 
 export interface BriefingSection {
@@ -41,6 +66,25 @@ export interface BriefingSection {
   sourceItemIds: string[];
   importanceScore: number;
   followUpPrompts: string[];
+  segments?: TranscriptSegment[];
+}
+
+export interface TranscriptCitation {
+  snapshotId: string;
+  title: string;
+  kind: 'note' | 'feed';
+  excerpt: string;
+  author?: string;
+  originalUrl?: string;
+  publishedAt?: string;
+}
+
+export interface TranscriptSegment {
+  id: string;
+  kind: 'factual' | 'transition';
+  text: string;
+  supportStatus: 'supported' | 'not_required';
+  citations: TranscriptCitation[];
 }
 
 export interface AudioAsset {
@@ -48,12 +92,23 @@ export interface AudioAsset {
   url: string;
   durationMs: number;
   format: string;
+  mimeType?: string;
+  byteLength?: number;
+  sha256?: string;
+  validatedAt?: string;
+  provider?: string;
+  model?: string;
+  voice?: string;
+  aiGenerated?: boolean;
 }
 
 export interface ProviderSummary {
   adapter: string;
   status: 'LIVE VERIFIED' | 'CONTRACT TESTED ONLY' | 'NOT CONFIGURED';
   reason: string;
+  model?: string;
+  voice?: string;
+  verifiedAt?: string;
 }
 
 export interface AppSettings {
@@ -79,12 +134,24 @@ export interface BriefingRun {
   summary?: string;
   sections: BriefingSection[];
   audioAsset?: AudioAsset;
+  mode?: EpisodeMode;
+  station?: {
+    id: string;
+    name: string;
+    revision: number;
+  };
+  providers?: {
+    text: {adapter: string; model: string};
+    speech: {adapter: string; model: string; voice?: string};
+  };
+  aiGenerated?: boolean;
   job?: {
     id: string;
     phase: RunStatus;
     attemptCount: number;
     errorCode?: string;
     errorMessage?: string;
+    failedPhase?: 'syncing' | 'selecting' | 'drafting' | 'validating' | 'rendering_audio';
     retryable: boolean;
   };
 }

@@ -1,6 +1,8 @@
 import {z} from 'zod';
 import type {AppSettings} from '../src/types';
+import type {EpisodeMode} from '../src/types';
 import type {CreateSourceInput, UpdateSourceInput} from './services/sourceStore';
+import type {SaveNoteInput, SaveStationInput} from './services/stationStore';
 
 type ValidationResult<T> = {ok: true; value: T} | {ok: false; error: string};
 
@@ -27,8 +29,33 @@ const updateSourceSchema = z.object({
 	status: sourceStatusSchema.optional(),
 }).strict().refine(value => Object.keys(value).length > 0, {message: 'at least one source field is required'});
 
-const briefingRunSchema = z.object({
+const legacyBriefingRunSchema = z.object({
 	sourceIds: z.array(z.string().trim().min(1)).min(1).max(200),
+}).strict();
+
+const stationBriefingRunSchema = z.object({
+	stationId: z.string().trim().min(1).max(200),
+	mode: z.enum(['brief', 'deep']).optional(),
+}).strict();
+
+const httpUrlSchema = z.string().trim().url().max(2048).refine(value => {
+	const protocol = new URL(value).protocol;
+	return protocol === 'http:' || protocol === 'https:';
+}, {message: 'original URL must use http or https'});
+
+const noteSchema = z.object({
+	title: z.string().trim().min(1).max(200),
+	body: z.string().trim().min(1).max(50_000),
+	author: z.string().trim().min(1).max(200).optional(),
+	originalUrl: httpUrlSchema.optional(),
+}).strict();
+
+const stationSchema = z.object({
+	name: z.string().trim().min(1).max(200),
+	topicInstruction: z.string().trim().min(1).max(4_000),
+	defaultMode: z.enum(['brief', 'deep']),
+	noteIds: z.array(z.string().trim().min(1).max(200)).max(200),
+	sourceIds: z.array(z.string().trim().min(1).max(200)).max(200),
 }).strict();
 
 const followUpSchema = z.object({
@@ -70,7 +97,16 @@ export const parseUpdateSourceInput = (body: unknown): ValidationResult<UpdateSo
 	};
 };
 
-export const parseBriefingRunRequest = (body: unknown): ValidationResult<{sourceIds: string[]}> => parse(briefingRunSchema, body);
+export type BriefingRunRequest = {sourceIds: string[]} | {stationId: string; mode?: EpisodeMode};
+
+export const parseBriefingRunRequest = (body: unknown): ValidationResult<BriefingRunRequest> => parse(z.union([
+	stationBriefingRunSchema,
+	legacyBriefingRunSchema,
+]), body);
+
+export const parseNoteBody = (body: unknown): ValidationResult<SaveNoteInput> => parse(noteSchema, body);
+
+export const parseStationBody = (body: unknown): ValidationResult<SaveStationInput> => parse(stationSchema, body);
 
 export const parseIdempotencyKey = (value: unknown): ValidationResult<string | undefined> => {
 	if (value === undefined) return {ok: true, value: undefined};

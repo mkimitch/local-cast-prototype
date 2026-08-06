@@ -2,11 +2,22 @@ import {z} from 'zod';
 
 export const jobPhases = ['queued', 'syncing', 'selecting', 'drafting', 'validating', 'rendering_audio', 'complete', 'failed'] as const;
 export const activeJobPhases = ['syncing', 'selecting', 'drafting', 'validating', 'rendering_audio'] as const;
-export const generationJobPayloadSchema = z.object({
+const legacyGenerationJobPayloadSchema = z.object({
 	version: z.literal(1),
 	sourceIds: z.array(z.string().min(1)).max(200),
 	requestedAt: z.iso.datetime(),
-});
+}).strict();
+
+const stationGenerationJobPayloadSchema = z.object({
+	version: z.literal(2),
+	requestId: z.string().min(1).max(200),
+	requestedAt: z.iso.datetime(),
+}).strict();
+
+export const generationJobPayloadSchema = z.discriminatedUnion('version', [
+	legacyGenerationJobPayloadSchema,
+	stationGenerationJobPayloadSchema,
+]);
 
 export type JobPhase = typeof jobPhases[number];
 export type ActiveJobPhase = typeof activeJobPhases[number];
@@ -36,6 +47,7 @@ export interface GenerationJob {
 	leaseExpiresAt?: string;
 	errorCode?: string;
 	errorMessage?: string;
+	failedPhase?: ActiveJobPhase;
 	retryable: boolean;
 	createdAt: string;
 	updatedAt: string;
