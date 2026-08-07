@@ -35,6 +35,8 @@ const rawEnvironmentSchema = z.object({
 	LOCALCAST_WEB_DIST_PATH: nonEmptyString.optional(),
 	LOCALCAST_INSTALLATION_ID: nonEmptyString.optional(),
 	LOCALCAST_TRUSTED_ORIGINS: z.string().optional(),
+	PUBLIC_BASE_URL: nonEmptyString.optional(),
+	LOCALCAST_PODCAST_TOKEN_FILE: nonEmptyString.optional(),
 	CORS_ORIGIN: z.string().optional(),
 	TEXT_PROVIDER: z.enum(['not_configured', 'fake', 'openai']).optional(),
 	SPEECH_PROVIDER: z.enum(['not_configured', 'fake', 'openai']).optional(),
@@ -71,6 +73,8 @@ export interface ServerConfig {
 	webDistPath: string;
 	installationId?: string;
 	trustedOrigins: string[];
+	publicBaseUrl?: string;
+	podcastTokenFile?: string;
 	textProvider: BackendTextProvider;
 	speechProvider: BackendSpeechProvider;
 	openAiApiKey?: string;
@@ -94,6 +98,29 @@ export interface ServerConfig {
 	rssPrivateHosts: string[];
 }
 
+const isLoopbackHostname = (hostname: string): boolean => (
+	hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]' || hostname === '::1'
+);
+
+const normalizeHttpOrigin = (value: string, label: string, requireSecureNonLoopback: boolean): string => {
+	let url: URL;
+	try {
+		url = new URL(value);
+	} catch {
+		throw new Error(`Invalid LocalCast environment: ${label} must be an absolute HTTP(S) origin`);
+	}
+	if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+		throw new Error(`Invalid LocalCast environment: ${label} must use http or https`);
+	}
+	if (url.username || url.password || url.pathname !== '/' || url.search || url.hash) {
+		throw new Error(`Invalid LocalCast environment: ${label} must contain only an origin with no credentials, path, query, or fragment`);
+	}
+	if (requireSecureNonLoopback && url.protocol !== 'https:' && !isLoopbackHostname(url.hostname)) {
+		throw new Error(`Invalid LocalCast environment: ${label} must use HTTPS except for an explicit loopback test origin`);
+	}
+	return url.origin;
+};
+
 const splitOrigins = (value: string | undefined): string[] => {
 	if (!value?.trim()) return [];
 
@@ -103,11 +130,7 @@ const splitOrigins = (value: string | undefined): string[] => {
 		.filter(Boolean)
 		.map(origin => {
 			if (origin === '*') throw new Error('Invalid LocalCast environment: wildcard trusted origins are forbidden');
-			const url = new URL(origin);
-			if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-				throw new Error('Invalid LocalCast environment: trusted origins must use http or https');
-			}
-			return url.origin;
+			return normalizeHttpOrigin(origin, 'trusted origins', false);
 		}))];
 };
 
@@ -157,6 +180,9 @@ export const parseServerConfig = (environment: NodeJS.ProcessEnv): ServerConfig 
 	const mediaPath = env.MEDIA_PATH || 'data/media';
 	const resolvedDatabasePath = databasePath === ':memory:' ? databasePath : absolutePath(databasePath);
 	const resolvedMediaPath = absolutePath(mediaPath);
+	const publicBaseUrl = env.PUBLIC_BASE_URL
+		? normalizeHttpOrigin(env.PUBLIC_BASE_URL, 'PUBLIC_BASE_URL', runtimeMode === 'production')
+		: undefined;
 
 	if (env.NODE_ENV === 'production' && runtimeMode !== 'production') {
 		throw new Error('Invalid LocalCast environment: production builds require production runtime mode');
@@ -179,6 +205,9 @@ export const parseServerConfig = (environment: NodeJS.ProcessEnv): ServerConfig 
 
 	if (processRole !== 'worker' && env.OPENAI_API_KEY) {
 		throw new Error('Invalid LocalCast environment: OPENAI_API_KEY is allowed only in the worker process');
+	}
+	if (processRole !== 'app' && (env.PUBLIC_BASE_URL || env.LOCALCAST_PODCAST_TOKEN_FILE)) {
+		throw new Error('Invalid LocalCast environment: podcast origin and token file are allowed only in the app process');
 	}
 
 	if (textProvider === 'openai' && speechProvider !== 'openai' || textProvider !== 'openai' && speechProvider === 'openai') {
@@ -222,6 +251,17 @@ export const parseServerConfig = (environment: NodeJS.ProcessEnv): ServerConfig 
 		if (databaseDirectory === resolvedMediaPath || isNested(mediaRelativeToData) || isNested(dataRelativeToMedia)) {
 			throw new Error('Invalid LocalCast environment: production database and media directories must be distinct');
 		}
+		if (processRole === 'app') {
+			if (!publicBaseUrl) {
+				throw new Error('Invalid LocalCast environment: production app requires an explicit PUBLIC_BASE_URL');
+			}
+			if (trustedOrigins.length !== 1 || trustedOrigins[0] !== publicBaseUrl) {
+				throw new Error('Invalid LocalCast environment: production app trusted origin must exactly match PUBLIC_BASE_URL');
+			}
+			if (!env.LOCALCAST_PODCAST_TOKEN_FILE || !path.isAbsolute(env.LOCALCAST_PODCAST_TOKEN_FILE)) {
+				throw new Error('Invalid LocalCast environment: production app requires an absolute LOCALCAST_PODCAST_TOKEN_FILE');
+			}
+		}
 	}
 
 	if (databasePath === ':memory:' && runtimeMode !== 'test') {
@@ -238,6 +278,8 @@ export const parseServerConfig = (environment: NodeJS.ProcessEnv): ServerConfig 
 		webDistPath: absolutePath(env.LOCALCAST_WEB_DIST_PATH || 'dist'),
 		installationId: env.LOCALCAST_INSTALLATION_ID,
 		trustedOrigins,
+		publicBaseUrl,
+		podcastTokenFile: env.LOCALCAST_PODCAST_TOKEN_FILE ? absolutePath(env.LOCALCAST_PODCAST_TOKEN_FILE) : undefined,
 		textProvider,
 		speechProvider,
 		openAiApiKey: env.OPENAI_API_KEY,

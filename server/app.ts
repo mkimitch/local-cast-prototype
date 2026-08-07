@@ -11,18 +11,54 @@ import {settingsRouter} from './routes/settings';
 import {sourcesRouter} from './routes/sources';
 import {stationsRouter} from './routes/stations';
 import {createMediaRouter} from './routes/media';
+import {createPodcastRouter, sendPodcastNotFound} from './routes/podcast';
 
-const isAllowedOrigin = (config: ServerConfig, origin: string): boolean => config.trustedOrigins.includes(new URL(origin).origin);
+const isAllowedOrigin = (config: ServerConfig, origin: string): boolean => {
+	const url = new URL(origin);
+	return origin === url.origin && !url.username && !url.password && config.trustedOrigins.includes(url.origin);
+};
+
+const optionalExactHeader = (req: Request, name: string, expected: string): boolean => {
+	const value = req.headers[name];
+	if (value === undefined) return true;
+	return typeof value === 'string' && !value.includes(',') && value.trim().toLowerCase() === expected.toLowerCase();
+};
+
+const isCanonicalProxyRequest = (config: ServerConfig, req: Request): boolean => {
+	if (!config.publicBaseUrl) return true;
+	const publicUrl = new URL(config.publicBaseUrl);
+	const host = req.headers.host;
+	if (typeof host !== 'string' || host.toLowerCase() !== publicUrl.host.toLowerCase()) return false;
+	if (req.headers.forwarded !== undefined) return false;
+	if (!optionalExactHeader(req, 'x-forwarded-host', publicUrl.host)) return false;
+	if (!optionalExactHeader(req, 'x-forwarded-proto', publicUrl.protocol.slice(0, -1))) return false;
+	const expectedPort = publicUrl.port || (publicUrl.protocol === 'https:' ? '443' : '80');
+	if (!optionalExactHeader(req, 'x-forwarded-port', expectedPort)) return false;
+	return true;
+};
+
+const isPodcastTarget = (req: Request): boolean => {
+	const pathname = req.originalUrl.split('?', 1)[0];
+	return pathname === '/podcast' || pathname.startsWith('/podcast/');
+};
 
 export const createApp = (config: ServerConfig) => {
 	const app = express();
 	app.disable('x-powered-by');
+	app.set('trust proxy', false);
 	app.use(express.json({limit: '1mb'}));
 
 	app.use((req, res, next) => {
 		const correlationId = randomUUID();
 		res.locals.correlationId = correlationId;
 		res.header('X-Correlation-Id', correlationId);
+		res.header('Referrer-Policy', 'no-referrer');
+
+		if (!isCanonicalProxyRequest(config, req)) {
+			if (isPodcastTarget(req)) sendPodcastNotFound(res);
+			else res.status(421).json({code: 'MISDIRECTED_REQUEST', error: 'Request host is not accepted', correlationId});
+			return;
+		}
 
 		const origin = req.headers.origin;
 		if (typeof origin === 'string') {
@@ -34,7 +70,8 @@ export const createApp = (config: ServerConfig) => {
 			}
 
 			if (!allowed) {
-				res.status(403).json({code: 'ORIGIN_NOT_ALLOWED', error: 'Request origin is not allowed', correlationId});
+				if (isPodcastTarget(req)) sendPodcastNotFound(res);
+				else res.status(403).json({code: 'ORIGIN_NOT_ALLOWED', error: 'Request origin is not allowed', correlationId});
 				return;
 			}
 
@@ -43,7 +80,7 @@ export const createApp = (config: ServerConfig) => {
 		}
 
 		res.header('Access-Control-Allow-Headers', 'Content-Type, Idempotency-Key');
-		res.header('Access-Control-Allow-Methods', 'GET,POST,PATCH,PUT,DELETE,OPTIONS');
+		res.header('Access-Control-Allow-Methods', 'GET,HEAD,POST,PATCH,PUT,DELETE,OPTIONS');
 		if (req.method === 'OPTIONS') {
 			res.status(204).send();
 			return;
@@ -58,6 +95,7 @@ export const createApp = (config: ServerConfig) => {
 	app.use('/api', briefingRunsRouter);
 	app.use('/api', settingsRouter);
 	app.use('/api', followUpRouter);
+	app.use(createPodcastRouter(config));
 	app.use(createMediaRouter(config));
 
 	app.use('/api', (_req, res) => {
@@ -74,7 +112,11 @@ export const createApp = (config: ServerConfig) => {
 		});
 	}
 
-	app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
+	app.use((error: unknown, req: Request, res: Response, _next: NextFunction) => {
+		if (isPodcastTarget(req)) {
+			sendPodcastNotFound(res);
+			return;
+		}
 		const correlationId = res.locals.correlationId as string | undefined;
 		const errorName = error instanceof Error ? error.name : 'UnknownError';
 		console.error(`[request:${correlationId || 'unknown'}] ${errorName}`);

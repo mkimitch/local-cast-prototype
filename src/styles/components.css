@@ -1348,6 +1348,65 @@
   gap: var(--space-8);
 }
 
+.podcast-setup {
+  gap: var(--space-5);
+}
+
+.podcast-setup__controls,
+.podcast-setup__status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.podcast-setup__controls {
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.podcast-setup__status {
+  min-width: 0;
+}
+
+.podcast-setup__masked {
+  margin: var(--space-2) 0 0;
+  color: var(--color-text-muted);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+}
+
+html.dark .podcast-setup .button--primary {
+  color: var(--color-text-inverse);
+}
+
+html.dark .podcast-setup .button--primary:hover:not(:disabled) {
+  background: #60a5fa;
+}
+
+@media (max-width: 30rem) {
+  .podcast-setup__controls,
+  .podcast-setup__controls .button {
+    width: 100%;
+  }
+
+  .podcast-setup__controls .button {
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .podcast-setup__controls .button svg {
+    flex: none;
+  }
+
+  .podcast-setup__controls .button span {
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+}
+
 .choice-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

@@ -1,0 +1,27 @@
+# Isolated verification override. It replaces production named-volume targets
+# with disposable bind paths supplied by the smoke harness.
+services:
+  storage-init:
+    volumes:
+      - type: bind
+        source: ${LOCALCAST_SMOKE_DATA_PATH:?Set disposable smoke data path}
+        target: /var/lib/localcast/data
+      - type: bind
+        source: ${LOCALCAST_SMOKE_MEDIA_PATH:?Set disposable smoke media path}
+        target: /var/lib/localcast/media
+  app:
+    volumes:
+      - type: bind
+        source: ${LOCALCAST_SMOKE_DATA_PATH:?Set disposable smoke data path}
+        target: /var/lib/localcast/data
+      - type: bind
+        source: ${LOCALCAST_SMOKE_MEDIA_PATH:?Set disposable smoke media path}
+        target: /var/lib/localcast/media
+  worker:
+    volumes:
+      - type: bind
+        source: ${LOCALCAST_SMOKE_DATA_PATH:?Set disposable smoke data path}
+        target: /var/lib/localcast/data
+      - type: bind
+        source: ${LOCALCAST_SMOKE_MEDIA_PATH:?Set disposable smoke media path}
+        target: /var/lib/localcast/media

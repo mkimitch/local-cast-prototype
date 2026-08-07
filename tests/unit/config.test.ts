@@ -9,6 +9,8 @@ const productionEnvironment = {
 	MEDIA_PATH: '/var/lib/localcast/media',
 	LOCALCAST_INSTALLATION_ID: 'localcast-test-installation',
 	LOCALCAST_TRUSTED_ORIGINS: 'https://localcast.example.test',
+	PUBLIC_BASE_URL: 'https://localcast.example.test',
+	LOCALCAST_PODCAST_TOKEN_FILE: '/run/secrets/localcast-podcast-token',
 } satisfies NodeJS.ProcessEnv;
 
 describe('server environment contract', () => {
@@ -21,7 +23,9 @@ describe('server environment contract', () => {
 		['automatic interval sync', {LOCALCAST_RUNTIME_MODE: 'development', RSS_SYNC_INTERVAL_MINUTES: '15'}, /automatic RSS/],
 		['wildcard origin', {LOCALCAST_RUNTIME_MODE: 'development', LOCALCAST_TRUSTED_ORIGINS: '*'}, /wildcard/],
 		['non-http origin', {LOCALCAST_RUNTIME_MODE: 'development', LOCALCAST_TRUSTED_ORIGINS: 'file:///tmp/index.html'}, /http or https/],
+		['origin with path', {LOCALCAST_RUNTIME_MODE: 'development', LOCALCAST_TRUSTED_ORIGINS: 'https://localcast.example.test/path'}, /only an origin/],
 		['OpenAI credential in app', {LOCALCAST_RUNTIME_MODE: 'development', LOCALCAST_PROCESS_ROLE: 'app', OPENAI_API_KEY: 'credential-canary'}, /only in the worker/],
+		['podcast configuration in worker', {LOCALCAST_RUNTIME_MODE: 'development', LOCALCAST_PROCESS_ROLE: 'worker', PUBLIC_BASE_URL: 'https://localcast.example.test'}, /only in the app/],
 		['mixed OpenAI pair', {LOCALCAST_RUNTIME_MODE: 'development', TEXT_PROVIDER: 'openai', SPEECH_PROVIDER: 'not_configured'}, /selected together/],
 	])('rejects %s', (_name, environment, error) => {
 		expect(() => parseServerConfig(environment)).toThrow(error);
@@ -54,6 +58,13 @@ describe('server environment contract', () => {
 		[{...productionEnvironment, MEDIA_PATH: undefined}, /MEDIA_PATH/],
 		[{...productionEnvironment, LOCALCAST_INSTALLATION_ID: 'short'}, /INSTALLATION_ID/],
 		[{...productionEnvironment, LOCALCAST_INSTALLATION_ID: 'replace-with-a-unique-installation-id'}, /INSTALLATION_ID/],
+		[{...productionEnvironment, PUBLIC_BASE_URL: undefined}, /PUBLIC_BASE_URL/],
+		[{...productionEnvironment, LOCALCAST_PODCAST_TOKEN_FILE: undefined}, /PODCAST_TOKEN_FILE/],
+		[{...productionEnvironment, LOCALCAST_PODCAST_TOKEN_FILE: 'relative/token'}, /absolute LOCALCAST_PODCAST_TOKEN_FILE/],
+		[{...productionEnvironment, PUBLIC_BASE_URL: 'http://localcast.example.test'}, /must use HTTPS/],
+		[{...productionEnvironment, PUBLIC_BASE_URL: 'https://user@localcast.example.test'}, /only an origin/],
+		[{...productionEnvironment, PUBLIC_BASE_URL: 'https://localcast.example.test/path'}, /only an origin/],
+		[{...productionEnvironment, PUBLIC_BASE_URL: 'https://other.example.test'}, /exactly match/],
 		[{...productionEnvironment, MEDIA_PATH: '/var/lib/localcast/data'}, /must be distinct/],
 		[{...productionEnvironment, MEDIA_PATH: '/var/lib/localcast/data/../data'}, /must be distinct/],
 		[{...productionEnvironment, MEDIA_PATH: '/var/lib/localcast/data/media'}, /must be distinct/],
@@ -76,6 +87,8 @@ describe('server environment contract', () => {
 		expect(config.runtimeMode).toBe('production');
 		expect(config.databasePath).toBe(productionEnvironment.DATABASE_PATH);
 		expect(config.trustedOrigins).toEqual(['https://localcast.example.test']);
+		expect(config.publicBaseUrl).toBe('https://localcast.example.test');
+		expect(config.podcastTokenFile).toBe('/run/secrets/localcast-podcast-token');
 		expect(status.generationEnabled).toBe(false);
 	});
 

@@ -3,6 +3,8 @@
 .codex
 .env*
 !.env.example
+.secrets
+.operator
 node_modules
 dist
 dist-server

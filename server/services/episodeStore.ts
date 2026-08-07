@@ -33,6 +33,16 @@ type EvidenceRow = {
 	network_scope: EpisodeEvidence['networkScope'];
 };
 
+export interface PublishedMediaRecord {
+	assetId: string;
+	runId: string;
+	storageFilename: string;
+	byteLength: number;
+	mimeType: string;
+	sha256: string;
+	validatedAt: string;
+}
+
 const contentHash = (value: string): string => createHash('sha256').update(value).digest('hex');
 
 export const episodeEvidenceLimits = {
@@ -349,14 +359,58 @@ export class EpisodeStore {
 		);
 	}
 
-	getPublishedMedia(assetId: string): {storageFilename: string; byteLength: number; mimeType: string; sha256: string} | undefined {
+	getPublishedMedia(assetId: string): PublishedMediaRecord | undefined {
 		return this.database.prepare(`
-			SELECT aa.storage_filename AS storageFilename, aa.byte_length AS byteLength,
-				aa.mime_type AS mimeType, aa.sha256
+			SELECT aa.id AS assetId, aa.run_id AS runId,
+				aa.storage_filename AS storageFilename, aa.byte_length AS byteLength,
+				aa.mime_type AS mimeType, aa.sha256, aa.validated_at AS validatedAt
 			FROM audio_assets aa
 			JOIN briefing_runs br ON br.id = aa.run_id
-			WHERE aa.id = ? AND br.status = 'complete' AND aa.storage_filename IS NOT NULL
-		`).get(assetId) as {storageFilename: string; byteLength: number; mimeType: string; sha256: string} | undefined;
+			WHERE aa.id = ? AND br.status = 'complete' AND br.script_format_version = 1
+				AND aa.storage_filename IS NOT NULL AND aa.validated_at IS NOT NULL
+		`).get(assetId) as PublishedMediaRecord | undefined;
+	}
+
+	getPublishedMediaByRunId(runId: string): PublishedMediaRecord | undefined {
+		return this.database.prepare(`
+			SELECT aa.id AS assetId, aa.run_id AS runId,
+				aa.storage_filename AS storageFilename, aa.byte_length AS byteLength,
+				aa.mime_type AS mimeType, aa.sha256, aa.validated_at AS validatedAt
+			FROM audio_assets aa
+			JOIN briefing_runs br ON br.id = aa.run_id
+			WHERE aa.run_id = ?
+				AND br.status = 'complete'
+				AND br.ai_generated = 1
+				AND br.script_format_version = 1
+				AND aa.format = 'mp3'
+				AND aa.mime_type = 'audio/mpeg'
+				AND aa.storage_filename IS NOT NULL
+				AND aa.validated_at IS NOT NULL
+				AND aa.ai_generated = 1
+				AND aa.byte_length > 0
+				AND aa.duration_ms > 0
+				AND length(aa.sha256) = 64
+				AND EXISTS (
+					SELECT 1
+					FROM transcript_claims tc
+					JOIN episode_citations ec ON ec.claim_id = tc.id
+					WHERE tc.run_id = br.id
+						AND tc.kind = 'factual'
+						AND tc.support_status = 'supported'
+				)
+				AND NOT EXISTS (
+					SELECT 1
+					FROM transcript_claims tc
+					WHERE tc.run_id = br.id
+						AND tc.kind = 'factual'
+						AND (
+							tc.support_status <> 'supported'
+							OR NOT EXISTS (
+								SELECT 1 FROM episode_citations ec WHERE ec.claim_id = tc.id
+							)
+						)
+				)
+		`).get(runId) as PublishedMediaRecord | undefined;
 	}
 }
 

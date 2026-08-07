@@ -1,7 +1,7 @@
 # LocalCast autonomous build plan
 
-Status: Slice 3 green on 2026-08-06; the commit containing this plan is its checkpoint
-Current slice: **3 — COMPLETE; Slice 4 entry is blocked on O-001 and O-004**
+Status: Slice 4 green on 2026-08-06; the checkpoint is the commit containing this plan
+Current slice: **4 — COMPLETE; Slice 5 has not started**
 Execution policy: one vertical slice, one green checkpoint commit
 
 ## How to use this plan
@@ -215,7 +215,7 @@ OpenAI's per-request speech input bound requires long single-host narrations to 
 
 Suggested commit: `feat(prototype): finish grounded episode workflow`
 
-## Slice 4 — Private RSS delivery, byte-range MP3s, and real podcast clients
+## Slice 4 — Private RSS delivery, byte-range MP3s, and real podcast clients — COMPLETE 2026-08-06
 
 ### Entry requirements
 
@@ -227,6 +227,8 @@ Suggested commit: `feat(prototype): finish grounded episode workflow`
 ### Outcome
 
 The one private feed validates, imports into an approved real client on the trusted LAN, refreshes, downloads/streams a real episode, and seeks through byte ranges.
+
+Deterministic tests, the authorized Caddy attachment, HTTPS/TLS health, real persisted enclosure delivery, app/worker recreation, and fresh-canary zero-retention checks are green. The operator attests that gPodder 3.11.5 Portable passed add, refresh, download/play, seek, restart, refresh, and replay with a downloaded SHA-256 exactly matching LocalCast persistence and no `*.log` file found in the client configuration. After that manual gate, a separately authorized mount-only remediation moved the canonical Caddyfile to `/opt/stacks/caddy/conf/Caddyfile`, recreated only Caddy, and re-proved configuration, route, TLS, certificate, persistence, and zero-retention equivalence.
 
 ### Work
 

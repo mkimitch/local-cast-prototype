@@ -1,19 +1,36 @@
 import {spawnSync} from 'node:child_process';
+import {randomBytes} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
+import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const projectName = `localcast-slice1-${process.pid}`;
+const proxyNetwork = `localcast-slice4-proxy-${process.pid}`;
+const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'localcast-compose-smoke-'));
+fs.chmodSync(temporaryRoot, 0o700);
+const dataPath = path.join(temporaryRoot, 'data');
+const mediaPath = path.join(temporaryRoot, 'media');
+fs.mkdirSync(dataPath, {mode: 0o750});
+fs.mkdirSync(mediaPath, {mode: 0o750});
+const podcastTokenPath = path.join(temporaryRoot, 'podcast-token');
+fs.writeFileSync(podcastTokenPath, randomBytes(32).toString('base64url'), {mode: 0o600});
 const environment = {
 	...process.env,
 	LOCALCAST_IMAGE_TAG: 'slice0-smoke',
 	LOCALCAST_INSTALLATION_ID: `localcast-compose-smoke-${process.pid}`,
-	LOCALCAST_TRUSTED_ORIGINS: 'http://localcast.test',
+	LOCALCAST_TRUSTED_ORIGINS: 'http://127.0.0.1:8787',
+	PUBLIC_BASE_URL: 'http://127.0.0.1:8787',
+	LOCALCAST_PODCAST_TOKEN_SOURCE: podcastTokenPath,
+	LOCALCAST_CADDY_NETWORK: proxyNetwork,
+	LOCALCAST_SMOKE_DATA_PATH: dataPath,
+	LOCALCAST_SMOKE_MEDIA_PATH: mediaPath,
 	TEXT_PROVIDER: 'not_configured',
 	SPEECH_PROVIDER: 'not_configured',
 	OPENAI_API_KEY: '',
 };
-const baseArguments = ['compose', '-f', 'compose.yml', '--project-name', projectName];
+const baseArguments = ['compose', '-f', 'compose.yml', '-f', 'compose.caddy.yml', '-f', 'compose.smoke.yml', '--project-name', projectName];
 
 const assert = (condition, message) => {
 	if (!condition) throw new Error(message);
@@ -53,6 +70,7 @@ const dockerGlobal = (arguments_) => {
 };
 
 try {
+	dockerGlobal(['network', 'create', '--driver', 'bridge', proxyNetwork]);
 	const configuration = JSON.parse(docker(['--profile', 'init', 'config', '--format', 'json']));
 	const credentialConfiguration = JSON.parse(docker(['--profile', 'init', 'config', '--format', 'json'], {
 		env: {...environment, OPENAI_API_KEY: 'compose-contract-canary'},
@@ -72,11 +90,20 @@ try {
 	assert(credentialConfiguration.services.worker.environment.OPENAI_API_KEY === 'compose-contract-canary', 'configured credential must reach the worker');
 	assert(!Object.hasOwn(credentialConfiguration.services.app.environment, 'OPENAI_API_KEY'), 'configured credential must not reach the app');
 	assert(!Object.hasOwn(credentialConfiguration.services['storage-init'].environment, 'OPENAI_API_KEY'), 'configured credential must not reach storage initialization');
+	assert(app.environment.PUBLIC_BASE_URL === 'http://127.0.0.1:8787', 'app must receive the explicit canonical origin');
+	assert(app.environment.LOCALCAST_PODCAST_TOKEN_FILE === '/run/secrets/localcast-podcast-token', 'app must receive only the podcast token file path');
+	assert(!Object.hasOwn(worker.environment, 'PUBLIC_BASE_URL') && !Object.hasOwn(worker.environment, 'LOCALCAST_PODCAST_TOKEN_FILE'), 'worker must not receive podcast origin or token-file configuration');
+	assert(!Object.hasOwn(storageInit.environment, 'PUBLIC_BASE_URL') && !Object.hasOwn(storageInit.environment, 'LOCALCAST_PODCAST_TOKEN_FILE'), 'storage initializer must not receive podcast origin or token-file configuration');
+	assert(app.secrets?.length === 1 && app.secrets[0].target === 'localcast-podcast-token', 'app alone must mount the protected podcast token secret at the runtime secret path');
+	assert(!worker.secrets && !storageInit.secrets, 'worker and storage initializer must not mount the podcast token');
+	assert(app.networks?.caddy?.aliases?.includes('localcast-app'), 'app must have the approved Caddy network alias');
+	assert(!Object.hasOwn(worker.networks || {}, 'caddy') && !Object.hasOwn(storageInit.networks || {}, 'caddy'), 'worker and storage initializer must remain off the Caddy network');
 	assert(app.read_only && worker.read_only && storageInit.read_only, 'all containers must use a read-only root filesystem');
 	assert(app.healthcheck && worker.healthcheck, 'app and worker health checks must be declared');
 	for (const service of [app, worker, storageInit]) {
 		const targets = service.volumes.map(volume => volume.target).sort();
 		assert(JSON.stringify(targets) === JSON.stringify(['/var/lib/localcast/data', '/var/lib/localcast/media']), 'each role must mount the same durable data and media volumes');
+		assert(service.volumes.every(volume => volume.type === 'bind'), 'smoke roles must use only disposable bind storage');
 	}
 
 	docker(['build'], {stdio: 'inherit'});
@@ -95,6 +122,9 @@ try {
 	assert(dockerGlobal(['inspect', appId, '--format', '{{.State.Health.Status}}']) === 'healthy', 'app container must become healthy');
 	assert(dockerGlobal(['inspect', workerId, '--format', '{{.State.Health.Status}}']) === 'healthy', 'worker container must become healthy');
 	assert(dockerGlobal(['port', appId]) === '', 'application container must have no published host socket');
+	assert(dockerGlobal(['inspect', appId, '--format', `{{if index .NetworkSettings.Networks "${proxyNetwork}"}}attached{{end}}`]) === 'attached', 'app must join the disposable proxy network');
+	assert(dockerGlobal(['inspect', workerId, '--format', `{{if index .NetworkSettings.Networks "${proxyNetwork}"}}attached{{end}}`]) === '', 'worker must remain off the proxy network');
+	dockerGlobal(['run', '--rm', '--network', proxyNetwork, 'localcast:slice0-smoke', 'node', '-e', `const http=require('node:http');const req=http.request({host:'localcast-app',port:8787,path:'/api/health',headers:{Host:'127.0.0.1:8787'}},res=>{res.resume();if(res.statusCode!==200)process.exitCode=1});req.on('error',()=>process.exit(1));req.end()`]);
 
 	docker(['exec', '-T', 'app', 'node', '-e', `
 		const fs = require('node:fs');
@@ -106,7 +136,7 @@ try {
 			if (!page.includes('<title>LocalCast</title>')) process.exit(1);
 			const created = await fetch('http://127.0.0.1:8787/api/sources', {
 				method: 'POST',
-				headers: {'Content-Type': 'application/json', Origin: 'http://localcast.test'},
+				headers: {'Content-Type': 'application/json', Origin: 'http://127.0.0.1:8787'},
 				body: JSON.stringify({type: 'rss', name: 'Compose persistence marker', url: 'https://example.test/feed.xml', isActive: true}),
 			});
 			if (created.status !== 201) process.exit(1);
@@ -171,7 +201,7 @@ try {
 	assert(JSON.stringify(runningServices) === JSON.stringify(['app', 'worker']), 'exactly one app and one worker service must remain running');
 	console.log('Compose topology and persistence smoke checks passed');
 } finally {
-	const cleanup = spawnSync('docker', [...baseArguments, 'down', '--volumes', '--remove-orphans', '--timeout', '10'], {
+	const cleanup = spawnSync('docker', [...baseArguments, 'down', '--remove-orphans', '--timeout', '10'], {
 		cwd: repoRoot,
 		env: environment,
 		encoding: 'utf8',
@@ -180,4 +210,6 @@ try {
 	if (cleanup.status !== 0) {
 		console.error(`Compose smoke cleanup failed:\n${cleanup.stdout || ''}${cleanup.stderr || ''}`);
 	}
+	spawnSync('docker', ['network', 'rm', proxyNetwork], {cwd: repoRoot, env: environment, encoding: 'utf8'});
+	fs.rmSync(temporaryRoot, {recursive: true, force: true});
 }

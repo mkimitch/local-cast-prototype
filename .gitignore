@@ -31,6 +31,8 @@ build/
 *.service
 !.env.example
 !.env.test
+.secrets/
+.operator/
 
 # Database & data
 data/

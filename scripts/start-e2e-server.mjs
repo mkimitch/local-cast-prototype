@@ -1,10 +1,14 @@
 import {spawn} from 'node:child_process';
+import {randomBytes} from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'localcast-e2e-'));
 const port = process.env.E2E_PORT || '43179';
+const publicBaseUrl = `http://127.0.0.1:${port}`;
+const podcastTokenFile = path.join(root, 'podcast-token');
+fs.writeFileSync(podcastTokenFile, randomBytes(32).toString('base64url'), {mode: 0o600});
 const environment = {
 	...process.env,
 	NODE_ENV: 'production',
@@ -15,7 +19,7 @@ const environment = {
 	MEDIA_PATH: path.join(root, 'media'),
 	LOCALCAST_WEB_DIST_PATH: path.resolve('dist'),
 	LOCALCAST_INSTALLATION_ID: `localcast-e2e-installation-${process.pid}`,
-	LOCALCAST_TRUSTED_ORIGINS: `http://127.0.0.1:${port}`,
+	LOCALCAST_TRUSTED_ORIGINS: publicBaseUrl,
 	TEXT_PROVIDER: 'not_configured',
 	SPEECH_PROVIDER: 'not_configured',
 	LOCALCAST_ALLOW_FAKE_PROVIDERS: 'false',
@@ -32,7 +36,12 @@ const runInitialization = () => new Promise((resolve, reject) => {
 
 await runInitialization();
 const application = spawn(process.execPath, ['dist-server/index.js'], {
-	env: {...environment, LOCALCAST_PROCESS_ROLE: 'app'},
+	env: {
+		...environment,
+		LOCALCAST_PROCESS_ROLE: 'app',
+		PUBLIC_BASE_URL: publicBaseUrl,
+		LOCALCAST_PODCAST_TOKEN_FILE: podcastTokenFile,
+	},
 	stdio: 'inherit',
 });
 

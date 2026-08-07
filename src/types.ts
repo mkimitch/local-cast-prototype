@@ -147,6 +147,13 @@ export interface ProviderSummary {
   verifiedAt?: string;
 }
 
+export interface PodcastStatus {
+  configured: boolean;
+  publicBaseUrl?: string;
+  aiGeneratedAudio: true;
+  privateFeed: true;
+}
+
 export interface AppSettings {
   orbTheme?: string;
   theme: 'system' | 'light' | 'dark';

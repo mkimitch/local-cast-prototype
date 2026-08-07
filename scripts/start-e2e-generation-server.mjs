@@ -1,4 +1,5 @@
 import {spawn} from 'node:child_process';
+import {randomBytes} from 'node:crypto';
 import {createServer} from 'node:http';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -10,6 +11,9 @@ const appPort = process.env.E2E_GENERATION_PORT || '43180';
 const feedPort = process.env.E2E_FEED_PORT || '43181';
 const databasePath = path.join(root, 'localcast.sqlite');
 const mediaPath = path.join(root, 'media');
+const publicBaseUrl = `http://127.0.0.1:${appPort}`;
+const podcastTokenFile = path.join(root, 'podcast-token');
+fs.writeFileSync(podcastTokenFile, randomBytes(32).toString('base64url'), {mode: 0o600});
 const environment = {
 	...process.env,
 	NODE_ENV: 'test',
@@ -19,7 +23,7 @@ const environment = {
 	DATABASE_PATH: databasePath,
 	MEDIA_PATH: mediaPath,
 	LOCALCAST_WEB_DIST_PATH: path.resolve('dist'),
-	LOCALCAST_TRUSTED_ORIGINS: `http://127.0.0.1:${appPort}`,
+	LOCALCAST_TRUSTED_ORIGINS: publicBaseUrl,
 	TEXT_PROVIDER: 'fake',
 	SPEECH_PROVIDER: 'fake',
 	LOCALCAST_ALLOW_FAKE_PROVIDERS: 'true',
@@ -113,7 +117,12 @@ await new Promise((resolve, reject) => {
 });
 
 const spawnApplication = () => spawn(process.execPath, ['--import', 'tsx', 'server/index.ts'], {
-	env: {...environment, LOCALCAST_PROCESS_ROLE: 'app'},
+	env: {
+		...environment,
+		LOCALCAST_PROCESS_ROLE: 'app',
+		PUBLIC_BASE_URL: publicBaseUrl,
+		LOCALCAST_PODCAST_TOKEN_FILE: podcastTokenFile,
+	},
 	stdio: 'inherit',
 });
 application = spawnApplication();

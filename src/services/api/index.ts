@@ -1,4 +1,4 @@
-import type {AppSettings, BriefingRun, EpisodeMode, MaterialSearchResult, Note, Source, SourceItem, Station} from '../../types';
+import type {AppSettings, BriefingRun, EpisodeMode, MaterialSearchResult, Note, PodcastStatus, Source, SourceItem, Station} from '../../types';
 
 export interface SourceService {
   getSources(): Promise<Source[]>;
@@ -34,8 +34,14 @@ export interface ProviderService {
   onSettingsChanged(callback: (settings: AppSettings) => void): () => void;
 }
 
+export interface PodcastService {
+  getStatus(): Promise<PodcastStatus>;
+  copySubscriptionUrlToClipboard(): Promise<void>;
+}
+
 export {ApiBriefingService} from './ApiBriefingService';
 export {ApiProviderService} from './ApiProviderService';
+export {ApiPodcastService} from './ApiPodcastService';
 export {ApiSourceService} from './ApiSourceService';
 export {ApiStationService} from './ApiStationService';
 export {apiBaseUrl, getServiceMode, HttpClientError} from './httpClient';

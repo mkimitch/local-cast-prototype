@@ -3,6 +3,7 @@ import { Save, Server, Palette, Eye, Type, Layout, Moon, Sun, Monitor } from 'lu
 import { providerService } from '../../services';
 import { AppSettings } from '../../types';
 import { ORB_THEMES, OrbThemeName } from '../audio/OrbVisualizer';
+import PodcastSetup from './PodcastSetup';
 
 export default function SettingsView() {
   const [settings, setSettings] = useState<AppSettings | null>(null);
@@ -58,7 +59,7 @@ export default function SettingsView() {
       <div className="page-header page-header--bottom-aligned">
         <div>
           <h1 tabIndex={-1} className="page-title">Settings</h1>
-          <p className="page-description">Review server-side provider status and adjust appearance.</p>
+          <p className="page-description">Review private delivery and server-side provider status, then adjust appearance.</p>
         </div>
         <div className="saving-status">
           {isSaving && (
@@ -70,6 +71,8 @@ export default function SettingsView() {
       </div>
 
       {error && <p className="empty-state" role="alert">{error}</p>}
+
+      <PodcastSetup />
 
       <div className="card">
         <div className="card__header card__header--plain">

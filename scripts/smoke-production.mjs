@@ -1,5 +1,6 @@
 import {spawn} from 'node:child_process';
-import {createServer} from 'node:http';
+import {randomBytes} from 'node:crypto';
+import {createServer, request as httpRequest} from 'node:http';
 import {fileURLToPath} from 'node:url';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -10,13 +11,23 @@ const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'localcast-productio
 const databasePath = path.join(temporaryRoot, 'data', 'localcast.sqlite');
 const mediaPath = path.join(temporaryRoot, 'media');
 const installationId = `localcast-production-smoke-${process.pid}`;
-const trustedOrigin = 'http://localcast.test';
+const podcastTokenFile = path.join(temporaryRoot, 'podcast-token');
+fs.writeFileSync(podcastTokenFile, randomBytes(32).toString('base64url'), {mode: 0o600});
 let application;
 let output = '';
 
 const assert = (condition, message) => {
 	if (!condition) throw new Error(message);
 };
+
+const statusWithExactHeaders = (url, headers) => new Promise((resolve, reject) => {
+	const request = httpRequest(url, {headers}, response => {
+		response.resume();
+		response.once('end', () => resolve(response.statusCode));
+	});
+	request.once('error', reject);
+	request.end();
+});
 
 const reservePort = async () => {
 	const server = createServer();
@@ -41,12 +52,16 @@ const runEnvironment = (role, port, extra = {}) => ({
 	MEDIA_PATH: mediaPath,
 	LOCALCAST_WEB_DIST_PATH: path.join(repoRoot, 'dist'),
 	LOCALCAST_INSTALLATION_ID: installationId,
-	LOCALCAST_TRUSTED_ORIGINS: trustedOrigin,
+	LOCALCAST_TRUSTED_ORIGINS: `http://127.0.0.1:${port}`,
 	TEXT_PROVIDER: 'not_configured',
 	SPEECH_PROVIDER: 'not_configured',
 	LOCALCAST_ALLOW_FAKE_PROVIDERS: 'false',
 	RSS_SYNC_ON_START: '',
 	RSS_SYNC_INTERVAL_MINUTES: '',
+	...(role === 'app' ? {
+		PUBLIC_BASE_URL: `http://127.0.0.1:${port}`,
+		LOCALCAST_PODCAST_TOKEN_FILE: podcastTokenFile,
+	} : {}),
 	...extra,
 });
 
@@ -139,10 +154,21 @@ try {
 	const sources = await (await fetch(`${origin}/api/sources`)).json();
 	const runs = await (await fetch(`${origin}/api/briefing-runs`)).json();
 	assert(sources.length === 0 && runs.length === 0, 'production startup must not seed demo rows');
+	const podcastStatusResponse = await fetch(`${origin}/api/podcast/status`);
+	const podcastStatus = await podcastStatusResponse.json();
+	assert(podcastStatusResponse.ok && podcastStatus.configured === true && podcastStatus.publicBaseUrl === origin, 'production podcast status must expose only safe configured metadata');
+	assert(!JSON.stringify(podcastStatus).includes('/feed.xml'), 'routine podcast status must not expose the subscription URL');
+	assert((await fetch(`${origin}/api/podcast/subscription-url`, {method: 'POST'})).status === 403, 'subscription copy must require an exact same-origin browser action');
+	const copiedResponse = await fetch(`${origin}/api/podcast/subscription-url`, {method: 'POST', headers: {Origin: origin}});
+	const copied = await copiedResponse.json();
+	assert(copiedResponse.ok && typeof copied.subscriptionUrl === 'string' && copied.subscriptionUrl.startsWith(`${origin}/podcast/`) && copied.subscriptionUrl.endsWith('/feed.xml'), 'explicit same-origin copy must return one private feed URL');
+	copied.subscriptionUrl = '';
+	assert(await statusWithExactHeaders(`${origin}/api/health`, {Host: 'unexpected.test'}) === 421, 'unexpected Host must fail closed');
+	assert(await statusWithExactHeaders(`${origin}/api/health`, {Forwarded: 'host=unexpected.test;proto=https'}) === 421, 'untrusted Forwarded metadata must fail closed');
 
 	const generation = await fetch(`${origin}/api/briefing-runs`, {
 		method: 'POST',
-		headers: {'Content-Type': 'application/json', Origin: trustedOrigin},
+		headers: {'Content-Type': 'application/json', Origin: origin},
 		body: JSON.stringify({sourceIds: ['missing']}),
 	});
 	assert(generation.status === 503 && (await generation.json()).code === 'PROVIDER_NOT_CONFIGURED', 'unconfigured production must fail without fake output');

@@ -241,3 +241,83 @@ The first sandboxed `npm run verify` passed through production smoke and failed 
 ### Slice 4 entry stop
 
 O-001 and O-004 remain open. No Slice 4 implementation began. Resume requires the canonical trusted-LAN HTTPS origin, Caddy attachment/log-redaction facts, and an approved reachable podcast client/version with local subscription storage or explicit vendor-cloud token disclosure acceptance. The podcast token must later be supplied only through ignored server-side configuration.
+
+## 2026-08-06 — Slice 4 private podcast delivery and client gate
+
+Starting checkpoint was exactly `80ac0cd4e70e0893f0f9a1b12e99d274f366af80` on `codex/localcast-prototype` with a clean worktree and index. Both approved DNS servers returned only `192.168.1.167` for `localcast.home.arpa`. The original Caddyfile and Compose hashes matched `7c9fc9078cc876a18e5a3e1f3091fbe9d40775ef02923acc045f8f92c0d00ec7` and `dfe5ad8ec35c0fdd08fa0e4c573b78a125fc758f92608c5063bf55b98560407a`; `caddy_default` existed with the `localcast-app` alias free. The rollback image tag `localcast:pre-slice4-80ac0cd4` was created before implementation.
+
+### Implementation and independent review
+
+The slice extends the existing Express/SQLite/media architecture with canonical production origin enforcement, no-follow protected token loading, one completed-only podcast projection, strict RSS serialization, shared validated media delivery, exact conditional/range handling, a transient operator clipboard flow, app-only secret/network Compose overlays, and purpose-built canary verification/scanning. No migration or speculative multi-host audio refactor was needed. The version-1 single-`host` ordered transcript remains the publication boundary, preserving the deferred post-prototype audio milestone.
+
+Three independent read-only reviewers covered deployment/accessibility, gPodder/feed/media interoperability, and security/privacy. No reviewer edited files or used credentials. Findings fixed before the full gate included conditional-header precedence, strict publishability alignment, negative publication fixtures, strict RSS metadata evidence, the complete route token matrix, descriptor-bound media streaming, clipboard cleanup, trace/screenshot suppression, narrow/200%-text reflow, dark/high-contrast button contrast, and comprehensive accepted/rejected canary sink coverage. Closure security review found no repository blocker.
+
+### Automated repository evidence
+
+| Exact command | Result |
+| --- | --- |
+| `env BUILDX_CONFIG=/tmp/localcast-slice4-buildx npm run verify` | PASS, exit 0 — lint, 151 unit, 71 integration, build, 8 browser/axe, API smoke, production smoke, and disposable Compose smoke |
+| `node --check` run separately for `create-podcast-token.mjs`, `verify-podcast-canary.mjs`, `scan-podcast-canary.mjs`, `live-compose.mjs`, and `capture-journal-cursor.mjs` | PASS, exit 0 for all five |
+| `git diff --check` | PASS, exit 0 before durable-document update |
+
+The first complete browser gate exposed a pre-existing sidebar contrast issue only because a new test had changed the whole page to dark/high-contrast. The repair retained the existing whole-page default axe scan and scoped the additional theme assertions to the new private-feed surface; the complete gate then passed. No test was weakened or replaced by a mock.
+
+### Authorized deployment evidence
+
+`scripts/live-compose.mjs` reconciled the two persisted installation markers without displaying their value, built `localcast:prototype`, and recreated only the existing `localcast-slice1-listening` app and worker against their original named data/media volumes. Only app joined `caddy_default` with alias `localcast-app`; worker remained off that network. Both were healthy with restart count 0, and neither published a host port. The approved episode remained complete with script version 1, 5 sections, 7 citations, 1,262,592-byte validated MP3, SHA-256 `2a8d83087085974c226691ee285168c9f91a52c60cf74f39406b3240a8fa8071`, and ffprobe duration `78.912000` seconds.
+
+The original Caddyfile was backed up exactly to `/opt/stacks/caddy/Caddyfile.pre-localcast-80ac0cd4`, retaining its recorded hash. The new host Caddyfile validated under Caddy 2.11.1. Because Caddy Compose bind-mounted that file as one read-only inode, pathname replacement did not update the running container's mount: the prescribed path command validated the original inode and the first reload correctly reported `config is unchanged`. Repair cycle 1 revalidated the exact new candidate from stdin and gracefully loaded it from stdin. Caddy was not restarted/recreated at that gate. The authoritative host Caddyfile had SHA-256 `7df64b949d4438f4d8fb62706214960ff96b4b8142e4decc5d264b49e1c20e5a`; the running runtime had the same behavior, while the container's `/etc/caddy/Caddyfile` retained the original inode pending the separately authorized remediation recorded below.
+
+After runtime load, all baselines matched with TLS verification result 0: `pdf.home.arpa` 401 JSON, `weather.home.arpa` 404 JSON, `menu.home.arpa` 404 JSON, and `app.home.arpa` 200 text. `https://localcast.home.arpa/api/health` returned 200 JSON. Caddy restart count remained 0, and `/opt/stacks/caddy/config/caddy-runtime.json` was mode `600`.
+
+### Zero-retention gate
+
+A disposable 256-bit accepted canary and an in-memory derived rejected token exercised feed GET/HEAD, enclosure GET/HEAD, an exact 1,024-byte range, invalid feed/enclosure GET/HEAD/range equivalence, and a 502 Caddy runtime-error path while only the disposable app was stopped. Output contained only assertion IDs, methods, status codes, lengths, and checksums.
+
+The first scan produced zero token matches but failed closed on raw-log permissions, one `/var/log/README` documentation symlink outside the scan root, and Git's root safe-directory guard. One bounded scanner repair scanned the link text without following it, supplied the exact repository as Git's one-shot safe directory, and used a read-only/no-network host scan boundary. A complete rerun used a fresh canary and passed all request assertions. Every sink then reported `matches=0 errors=0`: Caddy runtime files; Caddy/app/worker active and rotated Docker JSON logs; systemd journal after the protected cursor; `/var/log`; Caddy data/config; LocalCast data/media; repository/Git diff; relevant `/tmp`; and container metadata/image history. The app restarted healthy with restart count 0. No OpenAI call occurred.
+
+Final primary diff review then found two additional fail-closed edges: an unexpected browser Origin on a token-bearing path should retain the same generic podcast `404`, and publication should positively require an AI-generated run with at least one supported cited factual claim rather than rely on the absence of known-bad facts. One narrow repair added both guards and negative fixtures. The first targeted invocation used `vitest` without `npx` and exited 127 before collection; the corrected repository-local command passed 2 files/5 tests, lint passed, and a complete `env BUILDX_CONFIG=/tmp/localcast-slice4-buildx npm run verify` rerun passed 151 unit, 71 integration, build, 8 browser/axe, API, production, and disposable Compose gates. The production image was rebuilt and only app was force-recreated with the existing real secret; it returned healthy without touching worker, Caddy, or volumes.
+
+Only after that fresh zero-match result, a real token was created in ignored `.secrets/podcast-token` under mode-`700` `.secrets`, with file mode `600`, and only app was force-recreated to mount it read-only. Worker identity and health remained unchanged. The public Caddy root was then exported only to ignored mode-`0644` `.operator/localcast-caddy-root.crt`; its subject is `CN=Caddy Local Authority - 2026 ECC Root` and certificate SHA-256 fingerprint is `E7:33:C4:0B:63:DE:27:CE:20:F3:30:43:89:58:B1:03:35:16:E6:ED:69:1E:2B:E9:BA:72:E1:E2:4E:E1:A4:66`.
+
+### Client gate result
+
+The earlier stop was satisfied by operator-attested manual evidence. gPodder 3.11.5 Portable on Windows 11 passed subscription add, feed refresh, approved-sample download/play, enclosure seek, restart, refresh, and replay. The downloaded SHA-256 was `2a8d83087085974c226691ee285168c9f91a52c60cf74f39406b3240a8fa8071`, exactly matching LocalCast. The operator's recursive gPodder configuration search for `*.log` files produced no output. The client remained outside synchronized storage with gPodder.net, vendor accounts, sync, cloud backup, OPML sharing, and file logging disabled or unconfigured. These are operator-attested results, not independently automated observations; no private subscription URL or client token store was requested or inspected.
+
+### Dedicated Caddy configuration mount remediation
+
+The manual client gate preceded this mount-only remediation. Preflight reconfirmed branch `codex/localcast-prototype`, base HEAD `80ac0cd4e70e0893f0f9a1b12e99d274f366af80`, the exact recognized Slice 4 diff, no staged or unexpected files, both DNS responses `192.168.1.167`, and healthy Caddy/app/worker state. The live Caddy runtime's canonical adapted JSON exactly matched the LocalCast-enabled host Caddyfile. Pre-migration HTTP/TLS baselines were `pdf.home.arpa` 401 JSON, `weather.home.arpa` 404 JSON, `menu.home.arpa` 404 JSON, `app.home.arpa` 200 text, LocalCast health 200 JSON, and LocalCast settings 200 HTML; every TLS verification result was 0.
+
+The operator-authorized migration created these non-overwriting backups:
+
+- `/opt/stacks/caddy/compose.yml.pre-localcast-dir-mount-80ac0cd4` — SHA-256 `dfe5ad8ec35c0fdd08fa0e4c573b78a125fc758f92608c5063bf55b98560407a`
+- `/opt/stacks/caddy/Caddyfile.pre-localcast-dir-mount-80ac0cd4` — SHA-256 `7df64b949d4438f4d8fb62706214960ff96b4b8142e4decc5d264b49e1c20e5a`
+
+The canonical configuration moved without content, ownership, or mode change to `/opt/stacks/caddy/conf/Caddyfile`; the old `/opt/stacks/caddy/Caddyfile` path is absent. The dedicated directory contains only that configuration input and has no relative imports. Caddy Compose changed only from `./Caddyfile:/etc/caddy/Caddyfile:ro` to `./conf:/etc/caddy:ro`. Its SHA-256 changed from `dfe5ad8ec35c0fdd08fa0e4c573b78a125fc758f92608c5063bf55b98560407a` to `e7da033b2d3ad85ced9e9134171b6dc228249ed477edda9b1532869a61dbe0bd`; an in-memory normalized comparison reported only the authorized mount source and target differences.
+
+The exact host configuration passed stdin validation before recreation. Only Caddy was recreated with `docker compose -f /opt/stacks/caddy/compose.yml up -d --no-deps --force-recreate --no-build --pull never caddy`; dependencies, pulls, builds, and volumes were excluded. Container ID changed as expected from `e4392c3141cdd851d8219645edb220a53a30df067b48ffb1eed7e0181883c4ae` to `0dda63aa037d8967d107b8c671af963ab0542d8ec048a51498c6e53cdc017493`, while image ID `sha256:9068f76202c0a03545036d32bf2d424d3b46c1174f254070f605002a2dbc9657`, ports, `caddy_default`, restart policy, and `/data` plus `/config` mounts remained unchanged. Host `/opt/stacks/caddy/conf/Caddyfile` and container `/etc/caddy/Caddyfile` both have SHA-256 `7df64b949d4438f4d8fb62706214960ff96b4b8142e4decc5d264b49e1c20e5a`.
+
+Normal operating commands are now:
+
+```bash
+docker compose -f /opt/stacks/caddy/compose.yml exec -T caddy \
+  caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+docker compose -f /opt/stacks/caddy/compose.yml exec -T caddy \
+  caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
+```
+
+Both commands passed, including one graceful no-op reload. All HTTP/TLS baselines exactly matched afterward and again after the canary outage exercise. Caddy remained running with restart count 0. The root file checksum remained `9db855017b06949209510724b63fc433c1b2cfd4968b555e342a0da5e7758290`, subject remained `CN=Caddy Local Authority - 2026 ECC Root`, and certificate SHA-256 fingerprint remained `E7:33:C4:0B:63:DE:27:CE:20:F3:30:43:89:58:B1:03:35:16:E6:ED:69:1E:2B:E9:BA:72:E1:E2:4E:E1:A4:66`. The runtime log remained mode `600`; runtime adaptation confirmed the request deletion filter, 10 MiB roll, five-file/seven-day uncompressed retention, site access discard, unconditional `log_skip`, and sole `localcast-app:8787` upstream.
+
+### Post-recreation zero-retention and persistence gate
+
+The first fresh-canary launch failed before any HTTP request because the isolated verifier process could not resolve its read-only mounted script. Its `finally` path restored the original secret byte-for-byte, mode `600`, app-only, and removed every disposable file. One bounded repair launched the same in-memory Node harness directly with only the public CA path in its environment; a newly generated 256-bit canary then passed.
+
+The accepted feed/enclosure GET and HEAD requests, exact 1,024-byte `206`, indistinguishable rejected feed/enclosure GET/HEAD/range requests, and `502` Caddy upstream-outage path all passed. Deterministic transport tests cover full, bounded, open-ended, and suffix ranges; invalid, unsatisfiable, and deliberately unsupported multi-range requests return exact `416` metadata. Every fresh-canary sink reported `matches=0 errors=0`: Caddy runtime files; Docker active/rotated JSON logs; systemd journal; `/var/log`; Caddy data/config; LocalCast data/media; repository/Git diff; relevant `/tmp`; and container metadata/image history. The real secret source was never changed and was reverified byte-for-byte against its opaque protected backup, mode `600`, mounted read-only only into app; worker remained unmounted. Every disposable canary file and protected temporary directory was removed.
+
+The approved sample remained complete and AI-generated with script version 1, validated audio, 5 sections, and 7 citations. Database and file size both remained 1,262,592 bytes, database and file SHA-256 both remained `2a8d83087085974c226691ee285168c9f91a52c60cf74f39406b3240a8fa8071`, stored duration remained 78,912 ms, and an actual `ffprobe` remained `78.912000` seconds. App and worker were healthy with restart count 0; neither published a host port, only app joined `caddy_default`, and worker remained only on the LocalCast default network. No OpenAI call occurred.
+
+### Final closure review
+
+Three final independent reviews covered deployment/rollback equivalence, token/privacy security, and correctness/acceptance/documentation. Deployment and security found no blocker. The deployment reviewer accidentally redirected validation messages to two safe `/tmp` files despite the read-only assignment; the primary removed those exact files immediately and reconfirmed their absence. No repository, Caddy, service, credential, or token state changed. Acceptance review found four closure gaps: a valid token plus known run ID could reach media that the feed's grounding predicates excluded; conditional cache validators needed to precede Range and accept weak `If-None-Match`; copy success/error nested live-region semantics; and the multi-range outcome was not stated durably. One narrow repair aligned enclosure media lookup with the AI-generated/validated/supported-cited publication predicates, added direct excluded-run regression fixtures, implemented weak conditional comparison while retaining strong-only `If-Range`, made conditional GET precede Range, removed the nested live wrapper, and documented deliberate multi-range `416` behavior. The focused command covering five unit/integration files passed 55 tests, and the private-feed Playwright flow passed with keyboard, clipboard cleanup, no persistence, axe, dark/high-contrast, 320px, and 200% text evidence.
+
+All three closure re-reviews then reported no blocker. `git diff --check` passed, and the changed-diff privacy scan reported `changed_standalone_43char_shapes=0` and `changed_complete_tokenized_url_shapes=0`. The exact final command `env BUILDX_CONFIG=/tmp/localcast-slice4-buildx npm run verify` passed after the repairs: lint, 151 unit tests in 9 files, 71 integration tests in 12 files, Vite production build with 2,152 modules, all three server bundles, 8 Playwright/axe browser flows, API smoke, production smoke, and isolated Compose build/topology/persistence/recreation. The disposable Compose project, bind storage, and proxy network were removed by its cleanup path. No OpenAI call occurred.

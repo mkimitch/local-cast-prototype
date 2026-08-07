@@ -324,10 +324,14 @@ These are genuine inputs that cannot be inferred safely. They do not block docum
 
 ### O-001 — Caddy attachment and canonical origin
 
-Status: **OPEN**
+Status: **ACCEPTED — RESOLVED 2026-08-06**
 Needed by: Slice 4, final Slice 6 gate
 
-Provide the canonical HTTPS `PUBLIC_BASE_URL`, whether the existing Caddy instance reaches LocalCast through a host-loopback port or a shared Docker network, and confirmation that tokenized podcast paths are not retained in access logs. No agent may inspect or modify the external Caddy stack beyond granted access.
+The canonical origin is `https://localcast.home.arpa`, privately resolved on the trusted LAN to `192.168.1.167`. The app alone joins the existing external `caddy_default` network with alias `localcast-app`; Caddy proxies only to `localcast-app:8787`. The worker stays off that network and no LocalCast host port is published.
+
+The dedicated origin-root site discards access output and applies unconditional `log_skip`. The sole global runtime logger deletes the complete request object before encoding and writes mode-`0600` `/config/caddy-runtime.json` with 10 MiB rolls, at most five uncompressed retained files, and seven-day retention. A fresh accepted/rejected canary exercised feed, enclosure, range, and Caddy upstream-error paths and produced zero matches in every identified active/rotated sink.
+
+After the operator completed the manual client test, a separate narrow authorization replaced Caddy's fragile single-file bind with the read-only dedicated directory `/opt/stacks/caddy/conf:/etc/caddy` and recreated only Caddy. The canonical host file is `/opt/stacks/caddy/conf/Caddyfile`. Compose changed only at that mount, from SHA-256 `dfe5ad8ec35c0fdd08fa0e4c573b78a125fc758f92608c5063bf55b98560407a` to `e7da033b2d3ad85ced9e9134171b6dc228249ed477edda9b1532869a61dbe0bd`; the Caddyfile stayed `7df64b949d4438f4d8fb62706214960ff96b4b8142e4decc5d264b49e1c20e5a` at both host and container paths. Exact migration backups are `/opt/stacks/caddy/compose.yml.pre-localcast-dir-mount-80ac0cd4` and `/opt/stacks/caddy/Caddyfile.pre-localcast-dir-mount-80ac0cd4`. Existing routes, TLS identity, ports, networks, data/config mounts, and logger behavior remained unchanged. This decision authorizes no public route or unrelated-site modification.
 
 ### O-002 — OpenAI model, voice, budget, and credential
 
@@ -347,7 +351,9 @@ To upgrade Piper from `CONTRACT TESTED ONLY`/`NOT CONFIGURED` to `LIVE VERIFIED`
 
 ### O-004 — Real podcast client certification target
 
-Status: **OPEN**
+Status: **ACCEPTED — RESOLVED 2026-08-06; CLIENT EVIDENCE COMPLETE**
 Needed by: Slice 4
 
-Choose at least one real client that can reach the trusted-LAN HTTPS origin. The operator must be able to add a URL-token feed and exercise refresh, download/stream, and seek. Prefer a client that stores subscriptions locally. If the chosen client synchronizes subscriptions through a vendor cloud, the operator must explicitly accept disclosure of tokenized URLs and use the documented token-rotation procedure. Client/server-cloud products that cannot reach a LAN-only origin are unsuitable functional evidence.
+The certification target is gPodder 3.11.5 Portable on Windows 11, installed outside OneDrive and all other synchronized storage. The feed is added directly with **Subscribe to new podcast**. gPodder.net, vendor accounts, subscription sync, cloud backup, and OPML sharing remain disabled or unconfigured; subscription storage is treated as local-only. Private-feed use requires `GPODDER_WRITE_LOGS=no`, a session-only combined certifi/Caddy CA bundle, and no verbose command-line client.
+
+The operator attests that subscription add, feed refresh, approved-sample download/play, enclosure seek, restart, refresh, and replay all passed. The downloaded SHA-256 `2a8d83087085974c226691ee285168c9f91a52c60cf74f39406b3240a8fa8071` exactly matched LocalCast persistence, and a recursive search of the gPodder configuration for `*.log` files produced no output. These results are recorded as operator-attested manual evidence rather than independently automated observations. No private subscription URL or client token store was inspected or recorded.

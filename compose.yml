@@ -34,6 +34,11 @@ x-localcast-common: &localcast-common
     - ALL
   security_opt:
     - no-new-privileges:true
+  logging:
+    driver: json-file
+    options:
+      max-size: 10m
+      max-file: "5"
   stop_grace_period: 30s
 
 services:
@@ -52,10 +57,15 @@ services:
     environment:
       <<: *localcast-environment
       LOCALCAST_PROCESS_ROLE: app
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:?Set the canonical LocalCast HTTPS origin}
+      LOCALCAST_PODCAST_TOKEN_FILE: /run/secrets/localcast-podcast-token
+    secrets:
+      - source: localcast_podcast_token
+        target: localcast-podcast-token
     expose:
       - "8787"
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8787/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      test: ["CMD", "node", "-e", "const http=require('node:http');const origin=new URL(process.env.PUBLIC_BASE_URL);const req=http.request({host:'127.0.0.1',port:8787,path:'/api/health',headers:{Host:origin.host}},res=>{res.resume();if(res.statusCode!==200)process.exitCode=1});req.on('error',()=>process.exit(1));req.end()"]
       interval: 2s
       timeout: 2s
       retries: 15
@@ -81,3 +91,7 @@ services:
 volumes:
   localcast_data:
   localcast_media:
+
+secrets:
+  localcast_podcast_token:
+    file: ${LOCALCAST_PODCAST_TOKEN_SOURCE:-./.secrets/podcast-token}

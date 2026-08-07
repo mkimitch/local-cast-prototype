@@ -1,14 +1,52 @@
 # LocalCast build state
 
-Last updated: 2026-08-06 13:10 CDT
+Last updated: 2026-08-06 23:36 CDT
 Branch: `codex/localcast-prototype`
 Pre-bootstrap HEAD: `910485b77ead63450660b0b97544889960e45e3f`
 Slice 0 base HEAD: `e720d5818ab15efccfa143c94d6514c0c9a2baad`
-Current base checkpoint: Slice 2 at `199ea0ffa082349b07c7dc3916a5f16affb91f5a`
-Current checkpoint: **Slice 3 — the commit containing this state document**
-Implementation slice: **3 — GREEN**
-Next action: **HARD STOP before Slice 4 pending O-001 and O-004**
-Overall state: **SLICE 3 GREEN; SLICE 4 BLOCKED ON OPERATOR DECISIONS**
+Current base checkpoint: Slice 3 at `80ac0cd4e70e0893f0f9a1b12e99d274f366af80`
+Current checkpoint: **Slice 4 — the green checkpoint is the commit containing this state**
+Implementation slice: **4 — COMPLETE**
+Next action: **STOP for review after the Slice 4 checkpoint; Slice 5 has not started**
+Overall state: **SLICE 4 GREEN; OPERATOR CLIENT AND POST-REMEDIATION EVIDENCE COMPLETE**
+
+## Slice 4 result
+
+O-001 and O-004 are resolved. The canonical origin is `https://localcast.home.arpa`, privately resolved by both approved LAN DNS servers to `192.168.1.167`. Only the app joins external network `caddy_default` as `localcast-app`; the worker remains only on the LocalCast default network. Neither LocalCast service publishes a host port. The existing `localcast-slice1-listening` data/media volumes, stable episode IDs, and approved sample were preserved.
+
+LocalCast now publishes one completed-only RSS 2.0 feed with stable token-independent GUIDs, exact MP3 enclosures, standard podcast metadata, transcript/citation-backed publication filtering, and a clear AI-generated-audio disclosure. Feed and enclosure routes use a server-side 256-bit token, canonical configured URLs, indistinguishable generic no-store `404` failures, `GET`/`HEAD`, validators, and exact single-range behavior; multiple ranges are deliberately rejected with `416`. The explicit settings action copies the masked-by-default subscription URL transiently; the token is not stored in browser state or exposed through routine APIs. The real token is in ignored `.secrets/podcast-token`, directory mode `700`, file mode `600`, mounted read-only only into the app. Its value was never displayed or copied into documentation or artifacts.
+
+The authorized Caddy attachment added one origin-root `localcast.home.arpa` site pointing only to `localcast-app:8787`. LocalCast access output is discarded and skipped unconditionally. The sole global runtime logger deletes the complete request object before JSON encoding, writes `/config/caddy-runtime.json` mode `600`, rolls at 10 MiB, keeps at most five uncompressed rolls, and retains seven days. The canonical host configuration is now `/opt/stacks/caddy/conf/Caddyfile`, mounted read-only as the dedicated directory `/opt/stacks/caddy/conf:/etc/caddy`. This resolves the earlier single-file inode caveat without mounting the Caddy stack directory.
+
+The operator separately authorized the mount-only Compose correction and one Caddy recreation after completing the gPodder test. Caddy Compose changed from SHA-256 `dfe5ad8ec35c0fdd08fa0e4c573b78a125fc758f92608c5063bf55b98560407a` to `e7da033b2d3ad85ced9e9134171b6dc228249ed477edda9b1532869a61dbe0bd`; normalized configuration differed only at the configuration mount source and target. Migration rollback backups are `/opt/stacks/caddy/compose.yml.pre-localcast-dir-mount-80ac0cd4` with the original Compose hash and `/opt/stacks/caddy/Caddyfile.pre-localcast-dir-mount-80ac0cd4` with SHA-256 `7df64b949d4438f4d8fb62706214960ff96b4b8142e4decc5d264b49e1c20e5a`. The older all-Slice-4 rollback file remains `/opt/stacks/caddy/Caddyfile.pre-localcast-80ac0cd4` with SHA-256 `7c9fc9078cc876a18e5a3e1f3091fbe9d40775ef02923acc045f8f92c0d00ec7` and was not used.
+
+### Automated evidence
+
+| Exact command or gate | Result |
+| --- | --- |
+| `env BUILDX_CONFIG=/tmp/localcast-slice4-buildx npm run verify` | PASS after final closure repairs, exit 0 — lint; 151 unit; 71 integration; production build; 8 Playwright/axe tests; API, production, and disposable Compose smoke |
+| `env BUILDX_CONFIG=/tmp/localcast-slice4-buildx LOCALCAST_PODCAST_TOKEN_SOURCE=<protected-canary-file> node scripts/live-compose.mjs build` | PASS — production image rebuilt without displaying the persisted installation ID or a secret |
+| `LOCALCAST_PODCAST_TOKEN_SOURCE=<protected-canary-file> node scripts/live-compose.mjs deploy` | PASS — only LocalCast app/worker recreated against the existing named volumes; both healthy |
+| `docker compose -f /opt/stacks/caddy/compose.yml exec -T caddy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile` | PASS on the mounted original inode; no reload was attempted until the candidate had also passed stdin validation |
+| `docker exec -i caddy caddy validate --config - --adapter caddyfile < /tmp/Caddyfile.localcast.80ac0cd4` | PASS — exact new candidate valid under Caddy 2.11.1 |
+| `docker exec -i caddy caddy reload --config - --adapter caddyfile < /tmp/Caddyfile.localcast.80ac0cd4` | PASS — graceful runtime load, Caddy restart count remained 0 |
+| HTTPS baseline and health checks using Caddy's public root | PASS — `pdf` 401 JSON, `weather` 404 JSON, `menu` 404 JSON, `app` 200 text, LocalCast health 200 JSON; TLS verification result 0 for every origin |
+| `node scripts/verify-podcast-canary.mjs --token-file <protected-canary-file> --origin https://localcast.home.arpa` in a credential-free verifier container | PASS — feed GET/HEAD, enclosure GET/HEAD, exact 1,024-byte 206, and indistinguishable rejected feed/enclosure GET/HEAD/range |
+| The same canary harness with `--mode outage` while only the app was stopped | PASS — Caddy runtime-error path returned 502; app restarted healthy with restart count 0 |
+| `node scripts/scan-podcast-canary.mjs ...` in a read-only, no-network host scan boundary | PASS after one scanner-only repair and a fresh canary — zero matches and zero errors for Caddy runtime, Docker active/rotated JSON logs, journal, `/var/log`, Caddy config/data, LocalCast data/media, repository/Git, relevant `/tmp`, container metadata, and image history |
+| Persistent sample projection through the canary feed | PASS — enclosure 1,262,592 bytes, SHA-256 `2a8d83087085974c226691ee285168c9f91a52c60cf74f39406b3240a8fa8071`; ffprobe MP3 duration `78.912000` seconds; 5 sections and 7 citations remain |
+| `node --check` for the token/canary/deployment scripts and `git diff --check` | PASS |
+| `docker exec -i caddy caddy validate --config - --adapter caddyfile < /opt/stacks/caddy/conf/Caddyfile` | PASS before recreation — exact dedicated-directory candidate valid under Caddy 2.11.1 |
+| `docker compose -f /opt/stacks/caddy/compose.yml up -d --no-deps --force-recreate --no-build --pull never caddy` | PASS — only Caddy recreated; image ID, ports, network, data/config mounts, and restart policy retained |
+| `docker compose -f /opt/stacks/caddy/compose.yml exec -T caddy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile` | PASS after recreation; host and container configuration SHA-256 both `7df64b949d4438f4d8fb62706214960ff96b4b8142e4decc5d264b49e1c20e5a` |
+| `docker compose -f /opt/stacks/caddy/compose.yml exec -T caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile` | PASS — graceful no-op reload from the durable path; Caddy restart count remained 0 |
+| Fresh post-recreation canary harness and all nine sink groups | PASS — accepted/rejected feed and enclosure GET/HEAD/range, exact 1,024-byte `206`, and `502` outage path; every sink `matches=0 errors=0`; original secret restored byte-for-byte, mode `600`, app-only; disposable files removed |
+
+No OpenAI request was made and no additional authorized spend was used. The exported operator certificate is ignored `.operator/localcast-caddy-root.crt`, mode `0644`, file SHA-256 `9db855017b06949209510724b63fc433c1b2cfd4968b555e342a0da5e7758290`, subject `CN=Caddy Local Authority - 2026 ECC Root`, and certificate SHA-256 fingerprint `E7:33:C4:0B:63:DE:27:CE:20:F3:30:43:89:58:B1:03:35:16:E6:ED:69:1E:2B:E9:BA:72:E1:E2:4E:E1:A4:66`.
+
+### Operator-attested client evidence
+
+The operator attests that gPodder 3.11.5 Portable on Windows 11, installed outside synchronized storage with accounts, gPodder.net sync, cloud backup, OPML sharing, and file logging disabled, passed subscription add, feed refresh, approved-sample download/play, enclosure seeking, restart, refresh, and replay. The downloaded SHA-256 was `2a8d83087085974c226691ee285168c9f91a52c60cf74f39406b3240a8fa8071`, exactly matching the persisted LocalCast MP3. The operator's recursive gPodder configuration search for `*.log` files produced no output. These are operator-attested manual results, not independently automated observations. The manual client test preceded the mount-only remediation; post-recreation automated equivalence, TLS/health, sample-persistence, and zero-retention checks all passed afterward.
 
 ## Slice 3 result
 
@@ -42,15 +80,9 @@ Three independent read-only reviewers covered architecture/correctness, runtime/
 
 The first focused Vitest invocation omitted the required test runtime environment and failed during two suite collection steps on configuration validation; rerunning with the repository's explicit test environment passed. The first sandboxed `npm run verify` passed every stage through production smoke and failed only when BuildKit tried to update its read-only user activity file. The authorized exact rerun used the local Docker engine, passed, created only unique disposable `localcast-slice1-*` resources, and removed them. It did not touch the listening deployment, Caddy, or operator data. No live OpenAI call occurred and no additional authorized spend was used in Slice 3.
 
-### Slice 4 entry blocker
+### Slice 4 entry decisions at the Slice 3 checkpoint
 
-Slice 3 itself has no unresolved deterministic failure. Work must stop before Slice 4 because its frozen entry contract requires operator facts that cannot be inferred safely:
-
-- O-001: provide the canonical trusted-LAN HTTPS `PUBLIC_BASE_URL`, choose host-loopback versus shared-Docker-network Caddy attachment, and confirm tokenized feed/enclosure paths are disabled or redacted in Caddy access logs. Any Caddy inspection/change still needs separate authorization.
-- O-004: name an approved real podcast client and version that can reach that LAN origin, and state whether subscriptions remain local or explicitly accept vendor-cloud disclosure of the tokenized feed URL and its rotation procedure.
-- Provide the eventual at-least-256-bit podcast token only through ignored server-side configuration after the Slice 4 variable contract is established; do not send or commit it as documentation.
-
-The checkpoint HEAD is the commit containing this state document (based on `199ea0ffa082349b07c7dc3916a5f16affb91f5a`); the exact resulting hash and clean/dirty state are reported in the checkpoint handoff. The smallest action needed from the operator is to resolve O-001 and O-004 above. No Slice 4 file was started.
+Slice 3 itself had no unresolved deterministic failure. Its checkpoint stopped before Slice 4 for O-001 (canonical trusted-LAN HTTPS origin, Caddy topology, and tokenized-path logging) and O-004 (reachable real client and local/cloud subscription handling), plus a protected server-side token contract. The operator resolved those inputs on 2026-08-06. Their accepted values and the current manual client gate are recorded above and in `DECISIONS.md`; this paragraph remains only as Slice 3 checkpoint history.
 
 ## Slice 2 result
 
@@ -263,7 +295,7 @@ See `DECISIONS.md` for the complete rationale and exceptions to the default stac
 
 ## Current blockers and repair ledger
 
-No Slice 3 implementation blocker remains. The Slice 1 listening gate was approved at checkpoint `1790e91f1b37d518b18f4834b59cb7d9ba160823`. O-001 and O-004 now block Slice 4 entry; O-003 remains optional live verification for Slice 6.
+No Slice 4 deterministic implementation blocker remains. The Slice 1 listening gate was approved at checkpoint `1790e91f1b37d518b18f4834b59cb7d9ba160823`; O-001 and O-004, including the operator-attested gPodder evidence, are resolved. O-003 remains optional live verification for Slice 6.
 
 | Slice | Deterministic failure or entry block | Attempts | State |
 | --- | --- | --- | --- |
@@ -287,8 +319,15 @@ No Slice 3 implementation blocker remains. The Slice 1 listening gate was approv
 | 3 | Historical transcripts were over-versioned and v2 process recovery lacked production-shaped proof | One conditional migration backfill plus restart integration repair | GREEN — migration and process-recovery suites pass |
 | 3 | Long speech assembly needed lease/cancellation, real-tool, partial-write, and cache-status evidence | One fenced transport/cleanup/status repair set | GREEN — unit/integration and real ffmpeg/ffprobe Compose evidence pass |
 | 3 | Mobile player/focus/live announcements had reflow and duplicate semantics findings | One responsive/focus/alert repair set | GREEN — browser bounds, keyboard, axe and visual inspection pass |
+| 4 | First live Compose build lacked an explicit installation ID in the shell | One operator helper read and reconciled the two persisted non-secret markers without displaying them | GREEN — image built and existing volumes mounted under the same identity |
+| 4 | Caddy's single-file bind retained the old inode after the host pathname replacement | Initial stdin validation/reload preserved service; later separately authorized dedicated-directory mount and one Caddy recreation | GREEN — `/opt/stacks/caddy/conf/Caddyfile` and `/etc/caddy/Caddyfile` now have the same expected hash; exact migration backups are ready |
+| 4 | First canary scan had permission errors for raw Docker logs, one external documentation symlink, and Git safe-directory checks | One bounded scanner repair plus a complete fresh-canary rerun | GREEN — all nine sink groups report zero matches and zero errors |
+| 4 | Primary diff review found wrong-Origin podcast errors and vacuous no-factual-claim publication could fail more closed | One generic podcast-404 guard plus explicit AI-run/supported-cited-factual publication predicates | GREEN — focused 5/5, lint, complete 151/71/8/smoke gate, and app-only redeploy pass |
+| 4 | First post-recreation canary launch could not resolve the verifier script inside its isolated bind mount | Finally path restored the real secret byte-for-byte and removed disposable files; one bounded launch repair used the same in-memory harness directly with the trusted CA | GREEN — fresh canary passed all assertions and nine sinks with zero matches/errors; restoration reverified |
+| 4 | Final acceptance review found enclosure projection bypass, validator/Range precedence, nested copy live regions, and an undocumented multi-range result | One aligned publication-query, weak-validator/precedence, live-region, regression-test, and documentation repair | GREEN — focused 5 files/55 tests and private-feed Playwright pass; closure re-review found no blocker; complete 151/71/8/smoke gate passed |
+| 4 | Deployment reviewer accidentally redirected Caddy validation messages to two `/tmp` files despite the read-only assignment | Primary removed the two exact safe files immediately and reconfirmed their absence | CLOSED — no repository, Caddy, service, credential, or token state changed |
 
-No deterministic failure remained after three repair attempts for the same cause. Open operator decisions are listed in `DECISIONS.md`. Slice 4 still requires Caddy origin/topology/log handling and a real podcast client. Piper contract support can complete without a model; only optional `LIVE VERIFIED` Piper evidence requires installation/model authorization.
+No deterministic failure remained after three repair attempts for the same cause. Open operator decisions are listed in `DECISIONS.md`. Slice 4 is complete; Piper contract support can complete without a model, and only optional `LIVE VERIFIED` Piper evidence requires installation/model authorization.
 
 ## Assumptions recorded at bootstrap
 
@@ -301,4 +340,4 @@ No deterministic failure remained after three repair attempts for the same cause
 
 ## Next action
 
-Remain stopped before Slice 4. Resume only after the operator resolves O-001 with the canonical HTTPS origin, Caddy attachment topology, and tokenized-path log policy, and resolves O-004 with a reachable client/version plus local-only storage or explicit vendor-cloud token disclosure acceptance. Then establish the ignored server-side podcast-token variable contract and implement Slice 4 from `POD-01` without modifying Caddy unless separately authorized.
+Create the one green Slice 4 checkpoint after the complete repository gate and diff review, then stop for review. Do not start Slice 5 in this session.
