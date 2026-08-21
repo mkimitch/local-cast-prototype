@@ -5,6 +5,7 @@ import {fileURLToPath} from 'node:url';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import {createSmokeChildEnvironment, resolveSmokeEntry} from './smoke-environment.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'localcast-production-smoke-'));
@@ -41,24 +42,25 @@ const reservePort = async () => {
 	return address.port;
 };
 
-const runEnvironment = (role, port, extra = {}) => ({
-	...process.env,
+const runEnvironment = (role, port, extra = {}) => createSmokeChildEnvironment({
+	HOME: temporaryRoot,
+	TMPDIR: temporaryRoot,
 	NODE_ENV: 'production',
 	LOCALCAST_RUNTIME_MODE: 'production',
 	LOCALCAST_PROCESS_ROLE: role,
-	LOCALCAST_HOST: '127.0.0.1',
-	PORT: String(port),
 	DATABASE_PATH: databasePath,
 	MEDIA_PATH: mediaPath,
-	LOCALCAST_WEB_DIST_PATH: path.join(repoRoot, 'dist'),
 	LOCALCAST_INSTALLATION_ID: installationId,
-	LOCALCAST_TRUSTED_ORIGINS: `http://127.0.0.1:${port}`,
 	TEXT_PROVIDER: 'not_configured',
 	SPEECH_PROVIDER: 'not_configured',
 	LOCALCAST_ALLOW_FAKE_PROVIDERS: 'false',
 	RSS_SYNC_ON_START: '',
 	RSS_SYNC_INTERVAL_MINUTES: '',
 	...(role === 'app' ? {
+		LOCALCAST_HOST: '127.0.0.1',
+		PORT: String(port),
+		LOCALCAST_WEB_DIST_PATH: path.join(repoRoot, 'dist'),
+		LOCALCAST_TRUSTED_ORIGINS: `http://127.0.0.1:${port}`,
 		PUBLIC_BASE_URL: `http://127.0.0.1:${port}`,
 		LOCALCAST_PODCAST_TOKEN_FILE: podcastTokenFile,
 	} : {}),
@@ -66,7 +68,8 @@ const runEnvironment = (role, port, extra = {}) => ({
 });
 
 const runToCompletion = (entryPoint, role, port, extra = {}) => new Promise((resolve, reject) => {
-	const child = spawn(process.execPath, [entryPoint], {cwd: repoRoot, env: runEnvironment(role, port, extra), stdio: ['ignore', 'pipe', 'pipe']});
+	const absoluteEntry = resolveSmokeEntry(repoRoot, entryPoint);
+	const child = spawn(process.execPath, [absoluteEntry], {cwd: temporaryRoot, env: runEnvironment(role, port, extra), stdio: ['ignore', 'pipe', 'pipe']});
 	let childOutput = '';
 	child.stdout.on('data', chunk => { childOutput += chunk.toString(); });
 	child.stderr.on('data', chunk => { childOutput += chunk.toString(); });
@@ -75,7 +78,8 @@ const runToCompletion = (entryPoint, role, port, extra = {}) => new Promise((res
 });
 
 const runExpectingFailure = (entryPoint, role, port, extra) => new Promise((resolve, reject) => {
-	const child = spawn(process.execPath, [entryPoint], {cwd: repoRoot, env: runEnvironment(role, port, extra), stdio: ['ignore', 'pipe', 'pipe']});
+	const absoluteEntry = resolveSmokeEntry(repoRoot, entryPoint);
+	const child = spawn(process.execPath, [absoluteEntry], {cwd: temporaryRoot, env: runEnvironment(role, port, extra), stdio: ['ignore', 'pipe', 'pipe']});
 	let childOutput = '';
 	child.stdout.on('data', chunk => { childOutput += chunk.toString(); });
 	child.stderr.on('data', chunk => { childOutput += chunk.toString(); });
@@ -84,8 +88,8 @@ const runExpectingFailure = (entryPoint, role, port, extra) => new Promise((reso
 });
 
 const startApplication = (port) => {
-	const child = spawn(process.execPath, ['dist-server/index.js'], {
-		cwd: repoRoot,
+	const child = spawn(process.execPath, [resolveSmokeEntry(repoRoot, 'dist-server/index.js')], {
+		cwd: temporaryRoot,
 		env: runEnvironment('app', port),
 		stdio: ['ignore', 'pipe', 'pipe'],
 	});
@@ -172,6 +176,12 @@ try {
 		body: JSON.stringify({sourceIds: ['missing']}),
 	});
 	assert(generation.status === 503 && (await generation.json()).code === 'PROVIDER_NOT_CONFIGURED', 'unconfigured production must fail without fake output');
+	const missingChat = await fetch(`${origin}/api/briefing-runs/missing/chat-turns`, {
+		method: 'POST',
+		headers: {'Content-Type': 'application/json', Origin: origin, 'Idempotency-Key': 'production-chat-missing'},
+		body: JSON.stringify({question: 'Synthetic production-boundary question?'}),
+	});
+	assert(missingChat.status === 404 && (await missingChat.json()).code === 'EPISODE_NOT_FOUND', 'production chat must require an existing episode before provider use');
 
 	const blocked = await fetch(`${origin}/api/settings`, {headers: {Origin: 'http://unexpected.test'}});
 	assert(blocked.status === 403, 'unexpected browser Origin must be rejected in production');
@@ -183,7 +193,7 @@ try {
 	const serverFiles = fs.readdirSync(path.join(repoRoot, 'dist-server'));
 	assert(!serverFiles.some(name => name.endsWith('.map')), 'production server artifact must not ship source maps');
 	const serverBundle = serverFiles.filter(name => name.endsWith('.js')).map(name => fs.readFileSync(path.join(repoRoot, 'dist-server', name), 'utf8')).join('\n');
-	assert(!/DeterministicFakeGenerationProcessor|MockAiProvider|deterministicFakeMp3Bytes|secret-canary/.test(serverBundle), 'production server artifact must exclude deterministic fake implementations');
+	assert(!/DeterministicFakeGenerationProcessor|DeterministicFakeChatProcessor|MockAiProvider|deterministicFakeMp3Bytes|secret-canary/.test(serverBundle), 'production server artifact must exclude deterministic fake implementations');
 
 	await stopApplication(application);
 	application = startApplication(port);

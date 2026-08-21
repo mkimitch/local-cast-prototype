@@ -1,4 +1,4 @@
-import type {BriefingRun, EpisodeMode} from '../../types';
+import type {BriefingRun, ChatTurn, EpisodeMode} from '../../types';
 import type {BriefingService} from './index';
 import {apiRequest, HttpClientError} from './httpClient';
 
@@ -28,6 +28,27 @@ export class ApiBriefingService implements BriefingService {
     return apiRequest<BriefingRun>(`/briefing-runs/${encodeURIComponent(id)}/retry`, {
       method: 'POST',
       headers: {'Idempotency-Key': crypto.randomUUID()},
+    });
+  }
+
+  async getChatTurns(runId: string, signal?: AbortSignal): Promise<ChatTurn[]> {
+    return apiRequest<ChatTurn[]>(`/briefing-runs/${encodeURIComponent(runId)}/chat-turns`, {signal});
+  }
+
+  async askEpisodeQuestion(runId: string, question: string, idempotencyKey: string, signal?: AbortSignal): Promise<ChatTurn> {
+    return apiRequest<ChatTurn>(`/briefing-runs/${encodeURIComponent(runId)}/chat-turns`, {
+      method: 'POST',
+      headers: {'Idempotency-Key': idempotencyKey},
+      body: JSON.stringify({question}),
+      signal,
+    });
+  }
+
+  async retryEpisodeQuestion(runId: string, turnId: string, idempotencyKey: string, signal?: AbortSignal): Promise<ChatTurn> {
+    return apiRequest<ChatTurn>(`/briefing-runs/${encodeURIComponent(runId)}/chat-turns/${encodeURIComponent(turnId)}/retry`, {
+      method: 'POST',
+      headers: {'Idempotency-Key': idempotencyKey},
+      signal,
     });
   }
 }

@@ -321,3 +321,688 @@ The approved sample remained complete and AI-generated with script version 1, va
 Three final independent reviews covered deployment/rollback equivalence, token/privacy security, and correctness/acceptance/documentation. Deployment and security found no blocker. The deployment reviewer accidentally redirected validation messages to two safe `/tmp` files despite the read-only assignment; the primary removed those exact files immediately and reconfirmed their absence. No repository, Caddy, service, credential, or token state changed. Acceptance review found four closure gaps: a valid token plus known run ID could reach media that the feed's grounding predicates excluded; conditional cache validators needed to precede Range and accept weak `If-None-Match`; copy success/error nested live-region semantics; and the multi-range outcome was not stated durably. One narrow repair aligned enclosure media lookup with the AI-generated/validated/supported-cited publication predicates, added direct excluded-run regression fixtures, implemented weak conditional comparison while retaining strong-only `If-Range`, made conditional GET precede Range, removed the nested live wrapper, and documented deliberate multi-range `416` behavior. The focused command covering five unit/integration files passed 55 tests, and the private-feed Playwright flow passed with keyboard, clipboard cleanup, no persistence, axe, dark/high-contrast, 320px, and 200% text evidence.
 
 All three closure re-reviews then reported no blocker. `git diff --check` passed, and the changed-diff privacy scan reported `changed_standalone_43char_shapes=0` and `changed_complete_tokenized_url_shapes=0`. The exact final command `env BUILDX_CONFIG=/tmp/localcast-slice4-buildx npm run verify` passed after the repairs: lint, 151 unit tests in 9 files, 71 integration tests in 12 files, Vite production build with 2,152 modules, all three server bundles, 8 Playwright/axe browser flows, API smoke, production smoke, and isolated Compose build/topology/persistence/recreation. The disposable Compose project, bind storage, and proxy network were removed by its cleanup path. No OpenAI call occurred.
+
+## 2026-08-07 — Slice 5 repository-only pre-live/pre-deployment review
+
+Starting checkpoint was exactly `6e1242e3e16c87c294d6f4ba0ca8bc2d0f187a1c` (`feat(prototype): deliver private podcast feed`) on `codex/localcast-prototype` with a clean worktree and index. Governing instructions and every durable record were reconciled before editing. Slice 4 and the standalone Windows launcher follow-up remained closed; no launcher, podcast, Caddy, certificate, token, deployed container, network, volume, database, or media state was inspected or changed.
+
+### Implementation
+
+Additive migration `008_episode_grounded_chat` introduces ordered chat turns, supported claims, immutable snapshot citations, attempt outcomes, and durable submission/retry-request identities. The route is episode-scoped and strictly accepts only a bounded question plus an idempotency header. The store requires a completed version-1 episode with valid supported cited grounding, loads immutable transcript/evidence itself, and transactionally protects enqueue/retry spend. A stale attempt is retryable only when no provider stage was reserved; every reserved or otherwise unresolved stage is non-retryable and is never automatically replayed.
+
+The existing worker process now serializes generation and chat work. Only the worker can construct the OpenAI chat adapter; the existing role contract rejects `OPENAI_API_KEY` in app/storage-init. Chat uses strict fixed answer/refusal and support schemas, exact citation membership/excerpts, a second all-supported semantic check, `store: false`, a compact bounded provider input, and no tools/search/browse/URL/page/general-knowledge path. Private or unknown feed evidence is rejected before the provider boundary. The obsolete optional-`runId`/caller-context route was removed.
+
+Completed episode pages add the pre-action external-provider disclosure, suggestions, question/count controls, durable pending/history, grounded answers and resolved citations, evidence-insufficient refusal, safe error/retry/attempt detail, and timestamps. Query failure blocks submission; ambiguous submit/retry responses retain their exact action identity until an authoritative history fetch proves that same identity was accepted. Focus, live announcements, keyboard operation, safe provenance links, axe, warning contrast, 320px reflow, and simultaneous 200% text are covered.
+
+### Independent review and repairs
+
+Three independent read-only reviewers covered correctness/persistence/migration/idempotency/test gaps; provider boundary/prompt injection/privacy/logging/citation/failure behavior; and accessibility/UI/keyboard/focus/reflow/test coverage. They edited nothing, used no credentials, made no live request, and touched no runtime.
+
+The primary repaired supported findings: accepted replay now precedes provider-config gating; history and enqueue share completed-grounding checks; post-source-deletion evidence reaches the actual provider payload test; the then-current compact context was admitted under a 384,000-character combined bound; durable enqueue order removes timestamp/UUID ambiguity; browser submit and retry keys survive ambiguous responses without duplicate spend; retry baselines reconcile accepted attempts; unavailable history blocks action; each later active turn is announced once; safe action errors receive focus; fresh-context restart evidence compares exact questions, order, timestamps, attempts, and citations; keyboard refusal/retry/details and combined reflow checks were added; and warning contrast was scoped correctly. Primary final diff review restored the explicit proactive generation-job recovery hook beside chat recovery in the combined worker; claim-time recovery already protected work, and the focused process gate re-proved the earlier crash contract. A later pre-live audit found that the character bound did not cover the complete serialized request and that two other repairs were required; the bounded-repair entry below supersedes those affected conclusions.
+
+### Verification and repair ledger
+
+| Exact command or event | Result |
+| --- | --- |
+| `env NODE_ENV=test LOCALCAST_RUNTIME_MODE=test DATABASE_PATH=:memory: MEDIA_PATH=/tmp/localcast-vitest-media ./node_modules/.bin/vitest run tests/unit/migrations.test.ts tests/unit/chat-validation.test.ts tests/unit/openai-provider.test.ts tests/integration/chat-workflow.test.ts --reporter=dot` | PASS — 4 files, 74 tests |
+| `npm run test` | PASS — 10 files, 174 tests |
+| `npm run test:integration -- --reporter=dot` | PASS — 13 files, 78 tests |
+| `env NODE_ENV=test LOCALCAST_RUNTIME_MODE=test DATABASE_PATH=:memory: MEDIA_PATH=/tmp/localcast-vitest-media ./node_modules/.bin/vitest run tests/integration/worker-process-recovery.test.ts --reporter=dot` | PASS — 1 file, 9 combined-worker crash/restart tests |
+| `npm run lint` | PASS — no diagnostics |
+| `npm run build` | PASS — Vite transformed 2,153 modules and all three server bundles emitted; existing non-blocking chunk warning only |
+| `./node_modules/.bin/playwright test tests/e2e/episode-chat.spec.ts --trace=off --reporter=line` | PASS — 1 focused chat/axe flow |
+| First `./node_modules/.bin/playwright test --trace=off --reporter=line` | 8 PASS, 1 FAIL — the new chat fixture had populated the established generation E2E database before its empty-list assertion |
+| One harness-only repair | Added a distinct loopback-only chat fixture server on ports 43185/43186; no production port, network, data, or assertion changed |
+| Second `./node_modules/.bin/playwright test --trace=off --reporter=line` | PASS — 9/9 in 2.3 minutes |
+| `npm run smoke:api` | PASS — cited answer/refusal, request replay, order, and API restart persistence |
+| `npm run smoke:production` | PASS functionally — a later audit found this run was not secret-isolated because its negative worker probe could load the repository `.env`; the corrected evidence is recorded below |
+| Scoped `rg --count-matches` source/test/script scans for OpenAI-key, literal bearer, standalone 43-character base64url, and complete tokenized-URL shapes | PASS — zero matches; each command exited 1 with no output, without reading `.env` or runtime secret paths |
+| Built-frontend `rg --count-matches` scan for `OPENAI_API_KEY`, OpenAI-key shapes, and literal bearer values | PASS — zero matches, exit 1 with no output |
+| `git diff --check` and `git diff --cached --quiet` | PASS — no whitespace errors; index clean |
+
+`npm run verify` was not run because its Compose tail can invoke image-build package/index network access. `npm run smoke:compose` and deployment-shaped migration/restart checks were likewise deferred; the safe repository evidence did not require them. No dependency was added or downloaded. Every test used synthetic data, temporary SQLite/media paths, and loopback fixtures; Playwright traces were disabled and generated failure artifacts were removed.
+
+### Deferred gates
+
+This is not a green Slice 5 checkpoint. O-005 requires new explicit consent for sending a follow-up question, immutable transcript, and supporting evidence to an external provider plus a bounded allocation within the shared $5 authorization; O-002 alone is not consent. O-006 requires an approved protected production-backup destination/window, app/worker quiescence, migration 008, LocalCast-only deployment/recreation, integrity and restart proof, and restore-based rollback. Minimal redacted live supported/refusal evidence, the deferred safe full/Compose gate, final diff review, and explicit checkpoint authorization remain. No live provider call, production migration, deployment, staging, commit, push, or Slice 6 work occurred. The later audit determined that the pre-repair production smoke could read the repository `.env`; no provider call or secret disclosure was observed, but the prior blanket no-real-secret-access claim is withdrawn and superseded by the credential-free evidence below.
+
+## 2026-08-07 — Slice 5 bounded pre-live audit repairs
+
+The primary retained the same branch and Slice 4 checkpoint with a clean index and only the recognized Slice 5 worktree. No Slice 4 behavior was reopened. The bounded repair addressed exactly three audit blockers and their related evidence: durable mutation-error reconciliation; smoke child-environment and dotenv isolation; and defensible model, context, call, retry, usage, cost, disclosure, and documentation bounds.
+
+### Repair outcome
+
+- The browser now associates an initial error with the submitted idempotency key exposed by that durable turn and associates a retry error with the exact turn, retry key, and pre-retry attempt count. A lost response clears only when history proves that action was accepted or progressed; direct supported/refusal completion and accepted retry progress no longer leave the stale action alert. An actually rejected submission remains visible and focused. Reloaded history remains durable.
+- Both smokes construct exact allowlisted child environments rather than spreading their parent. API smoke uses absolute source entry paths with fake processors that do not load dotenv. Production storage/app/negative-worker bundles all run from a fresh temporary working directory using absolute paths, so the dotenv-capable worker cannot discover the repository `.env`. Data/media and the sole synthetic app podcast-token file live under that temporary root; all listeners are ephemeral loopback sockets. Neither smoke invokes Docker, deployed ports, existing networks/volumes/containers, existing data/media, or non-loopback services.
+- Follow-up chat is independently pinned to `gpt-5.4-mini-2026-03-17`. Before each fetch the complete JSON body is serialized once and rejected above 131,072 UTF-8 bytes, including settings, instructions, roles, question, transcript/evidence, delimiters, strict schema, escaping, and outer structure. The conservative proxy adds 8,192 tokens to the one-byte/one-token request bound for 139,264 input tokens per call; this is not an exact token count. Draft/support output ceilings are 2,500/750 tokens.
+- A refusal ordinarily uses one call; a supported answer uses no more than draft plus support in an attempt. No provider retry is automatic. SQLite and store logic permit only the initial attempt plus one explicit retry, making two calls/attempt and four calls/turn the hard supported-path maxima. Any reserved or otherwise unconfirmed result is explicit and non-retryable. Retry eligibility requires durable proof of no unresolved/in-flight provider work: a pre-dispatch/no-reservation failure, a safely finalized retryable result, or stale recovery after all existing stages finalized and before any next stage/publication.
+- Migration 008 persists each stage before dispatch as a unique bounded provider lifecycle row. A definitive envelope can add only exact pinned model, valid returned input/cached-input/output/reasoning counts, an optional bounded safe provider identifier, and bounded lifecycle/outcome metadata before finalization. Timeout, interruption, lease expiry, transport ambiguity, or a crash before finalization leaves the stage unresolved and blocks retry. No raw request/response, prompt, diagnostic question, transcript/evidence body, authorization material, rejected output, or immutable dollar value is stored.
+- Chat success/failure deliberately does not mutate the existing text-generation provider-status row because that row is fingerprinted to the independently configured generation model. Synthetic integration evidence preserves the generation-model row byte-for-byte across a successful two-call chat. Dedicated chat live status remains a later explicit design seam rather than falsely labeling an uncalled model.
+- The disclosure now states that every frozen supporting evidence snapshot used for grounding is sent externally, not merely cited evidence; it also names the possible second semantic-support request, ordinary one-call refusal, `store: false`, and the absent tools/search/browsing/URL/file/general-knowledge capabilities. Settings copy records the pin, bounds, retry cap, bounded usage metadata, and operator budget responsibility.
+
+The operator-supplied official model facts checked 2026-08-07 record a 400,000-token context and standard rates of $0.75/million input and $4.50/million output. The conservative supported-answer estimate is `$0.208896` input plus `$0.014625` output, or `$0.223521` per attempt and `$0.447042` with the sole retry. A one-call refusal is conservatively `$0.115698`, so one supported answer plus an ordinary refusal is expected to be bounded by `$0.339219` with no retry. Because an intended refusal can return an answer-shaped draft and reach the support call, the hard conservative two-question live-gate ceiling is `$0.447042` for up to two initial calls per question. Actual usage may be lower. LocalCast does not enforce account/project spending across turns; these figures are planning evidence, not a billing guarantee. No part of the shared $5 authorization was activated or spent.
+
+### Safe verification evidence
+
+All executable test, build, browser, and smoke verification ran from an environment scrubbed of inherited credentials and pointed Vite at a pre-created empty mode-`700` directory. Tests used fakes, synthetic fixtures, temporary databases/media, and loopback-only listeners. Scoped privacy and Git checks were separate read-only repository commands. The superseding latest-repair evidence appears below; these earlier commands are retained as historical evidence.
+
+```bash
+env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin HOME=/tmp TMPDIR=/tmp LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC NODE_ENV=test LOCALCAST_RUNTIME_MODE=test DATABASE_PATH=:memory: MEDIA_PATH=/tmp/localcast-slice5-final-targeted-media LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-empty-vite-env-20260807 ./node_modules/.bin/vitest run tests/unit/migrations.test.ts tests/unit/openai-provider.test.ts tests/unit/smoke-environment.test.ts tests/integration/chat-workflow.test.ts --reporter=dot
+```
+
+Result: PASS, exit `0` — 4 files and 77 tests.
+
+```bash
+env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin HOME=/tmp TMPDIR=/tmp LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC NODE_ENV=test LOCALCAST_RUNTIME_MODE=test DATABASE_PATH=:memory: MEDIA_PATH=/tmp/localcast-slice5-final-unit-media LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-empty-vite-env-20260807 ./node_modules/.bin/vitest run tests/unit --reporter=dot
+```
+
+Result: PASS, exit `0` — 11 files and 183 tests.
+
+```bash
+env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin HOME=/tmp TMPDIR=/tmp LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC NODE_ENV=test LOCALCAST_RUNTIME_MODE=test DATABASE_PATH=:memory: MEDIA_PATH=/tmp/localcast-slice5-final-integration-media LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-empty-vite-env-20260807 ./node_modules/.bin/vitest run tests/integration --reporter=dot
+```
+
+Result: PASS, exit `0` — 13 files and 79 tests.
+
+```bash
+env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin HOME=/tmp TMPDIR=/tmp LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-empty-vite-env-20260807 npm run lint
+```
+
+Result: PASS, exit `0` — TypeScript `--noEmit`.
+
+```bash
+env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin HOME=/tmp TMPDIR=/tmp LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-empty-vite-env-20260807 npm run build
+```
+
+Result: PASS, exit `0` — Vite transformed 2,153 modules and all three server bundles were emitted; only the existing non-blocking chunk-size warning remained.
+
+```bash
+env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin HOME=/tmp TMPDIR=/tmp LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC NODE_ENV=test LOCALCAST_RUNTIME_MODE=test DATABASE_PATH=:memory: MEDIA_PATH=/tmp/localcast-slice5-final-e2e-media LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-empty-vite-env-20260807 PLAYWRIGHT_BROWSERS_PATH=/home/mkimitch/.cache/ms-playwright ./node_modules/.bin/playwright test --trace=off --reporter=line
+```
+
+Result: PASS, exit `0` — all 9 Playwright/axe flows in 2.3 minutes.
+
+```bash
+env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin HOME=/tmp TMPDIR=/tmp LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC OPENAI_API_KEY=synthetic-parent-provider-sentinel LOCALCAST_PODCAST_TOKEN_FILE=/tmp/localcast-synthetic-must-not-read.token DOTENV_CONFIG_PATH=/tmp/localcast-synthetic-must-not-read.env SSL_CERT_FILE=/tmp/localcast-synthetic-must-not-read.pem LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-empty-vite-env-20260807 node scripts/smoke-api.mjs
+```
+
+Result: PASS, exit `0` — API and worker smoke checks passed; sentinel values were not emitted by the smoke.
+
+```bash
+env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin HOME=/tmp TMPDIR=/tmp LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC OPENAI_API_KEY=synthetic-parent-provider-sentinel LOCALCAST_PODCAST_TOKEN_FILE=/tmp/localcast-synthetic-must-not-read.token DOTENV_CONFIG_PATH=/tmp/localcast-synthetic-must-not-read.env SSL_CERT_FILE=/tmp/localcast-synthetic-must-not-read.pem LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-empty-vite-env-20260807 node scripts/smoke-production.mjs
+```
+
+Result: PASS, exit `0` — production same-origin checks passed; sentinel values were not emitted by the smoke.
+
+The exact scoped privacy commands were:
+
+```bash
+rg --count-matches --no-messages -g '!node_modules/**' -g '!dist/**' -g '!dist-server/**' -g '!docs/codex/**' 'sk-[A-Za-z0-9_-]{20,}' server src tests scripts package.json playwright.config.ts vite.config.ts
+rg --count-matches --no-messages -g '!node_modules/**' -g '!dist/**' -g '!dist-server/**' -g '!docs/codex/**' 'Bearer [A-Za-z0-9_-]{20,}' server src tests scripts package.json playwright.config.ts vite.config.ts
+rg --count-matches --no-messages -g '!node_modules/**' -g '!dist/**' -g '!dist-server/**' -g '!docs/codex/**' '(^|[^A-Za-z0-9_-])[A-Za-z0-9_-]{43}([^A-Za-z0-9_-]|$)' server src tests scripts package.json playwright.config.ts vite.config.ts
+rg --count-matches --no-messages -g '!node_modules/**' -g '!dist/**' -g '!dist-server/**' -g '!docs/codex/**' "https?://[^[:space:]\"'<>]*/[A-Za-z0-9_-]{43}([/?#\"'[:space:]<>]|$)" server src tests scripts package.json playwright.config.ts vite.config.ts
+rg --count-matches --no-messages 'OPENAI_API_KEY|sk-[A-Za-z0-9_-]{20,}|Bearer [A-Za-z0-9_-]{20,}' dist
+```
+
+Each returned exit `1` with zero output, meaning no matches. `git diff --check` returned exit `0`.
+
+The repaired smoke evidence supersedes the earlier non-isolated production-smoke claim. The repository `.env` was not read during these repairs or checks. No real secret, provider endpoint, external request, deployed service, production port, existing database/media, Docker container, network, volume, Caddy configuration, podcast token, certificate, gPodder state, or launcher was accessed or changed. Compose/live/deployment gates remain deferred, and the work remains unstaged and uncommitted pending a new read-only pre-live audit.
+
+### Post-repair independent review
+
+Three bounded read-only reviewers inspected the final diff without edits, tests, credentials, network access, or runtime access. The UI reviewer found the initial cross-action mutation window; the primary added one shared action-in-flight block, and the re-review confirmed matching submission/retry reconciliation, intentional retention of a genuinely rejected action, keyboard/focus/live-region behavior, axe coverage, and narrow/200%-text reflow with no blocker. Its remaining test-depth notes are nonblocking: no separate rejected-retry persistence case, the pending-lock browser assertion is not isolated from active-turn blocking, and reflow assertions are container/document-level.
+
+The provider reviewer found that chat could update status for the separately configured generation model, a successful HTTP `null` envelope was misclassified as a network ambiguity, audit-observer failure lacked direct evidence, and the expected-versus-hard two-question live cost gate needed clearer wording. Chat no longer mutates generation status; malformed envelopes and audit persistence fail closed without another call; direct tests cover both paths and the 131,072 + 8,192 = 139,264 bound; O-005 now requires one exact episode/fixture, two exact questions, one initial attempt each, no retries, and no post-ambiguity call. Re-review found no blocker.
+
+The smoke/migration/documentation reviewer found that exact scrubbed commands were not durably reproducible, a successful supported answer did not directly assert both audit rows, migration constraint tests were sparse, and retained FIFO order was described too broadly. The exact environment/commands/results above, successful draft+support persistence assertion, direct migration constraint cases, and retained-turn wording close those findings. Re-review confirmed fixed child allowlists, temporary data/media/home/cwd, loopback-only services, no Slice 4 regression, and no remaining blocker.
+
+## 2026-08-07 — Slice 5 latest-audit bounded repair
+
+Preflight reconfirmed branch `codex/localcast-prototype`, base HEAD `6e1242e3e16c87c294d6f4ba0ca8bc2d0f187a1c`, subject `feat(prototype): deliver private podcast feed`, clean index, and the exact authorized starting inventory: 28 tracked paths with 1,424 insertions/122 deletions plus 15 untracked paths totaling exactly 2,470 lines. No dependency or lockfile changed. The repository `.env`, secrets, provider, deployed runtime, existing database/media, Docker, Caddy, podcast, certificate, gPodder, and launcher state were not accessed.
+
+The repair remained within the same 43 paths. It added the accepted retry key and attempt to durable history; authoritative post-error history reconciliation keyed by the complete initial/retry action identity; response-order fencing against older callbacks; a unique provider-stage reservation before each fetch; bounded `reserved`, `response_received`, `ambiguous`, and `finalized` lifecycle metadata; fail-closed retry eligibility for every unresolved reservation; and a fresh worker/lease check immediately before both draft and support reservation. A stale worker cannot reserve support, update lifecycle, fail another owner's turn, or publish. The design does not claim exactly-once external execution: a crash can leave a reservation even before bytes are sent, or after a response but before receipt/finalization is persisted. Either reservation prevents LocalCast from retrying that unresolved turn/stage; it does not claim control over upstream execution after interruption.
+
+The first focused browser result after these edits was invalid because the E2E server serves `dist` and that bundle predated the current `EpisodeChat.tsx`. Rebuilding current source removed the apparent competing-retry failure. A subsequent current-bundle run revealed one genuine rejected-action focus timing race; focus was moved to a render-coupled effect. The rebuilt focused flow then passed in 52.5 seconds, and the complete current-bundle browser gate passed 9/9 in 2.4 minutes. Stale-bundle reruns were not current-source repair failures and did not reach the three-repair stop condition.
+
+### Evidence at that repair point (superseded by the later 2026-08-08 record)
+
+All executable test, typecheck, build, browser, and smoke commands used a credential-free `env -i` parent, synthetic fixtures, temporary storage under `/tmp/localcast-slice5-verify.mM0nvm`, an empty temporary Vite environment directory, and loopback-only services. No command used Docker or a non-loopback service.
+
+| Command | Result |
+| --- | --- |
+| `env -i … ./node_modules/.bin/vitest run tests/unit/migrations.test.ts tests/unit/openai-provider.test.ts tests/unit/smoke-environment.test.ts tests/integration/chat-workflow.test.ts --reporter=dot` | PASS, exit 0 — 4 files, 82 tests |
+| `env -i … ./node_modules/.bin/vitest run tests/unit --reporter=dot` | PASS, exit 0 — 11 files, 183 tests |
+| `env -i … ./node_modules/.bin/vitest run tests/integration --reporter=dot` | PASS, exit 0 — 13 files, 84 tests |
+| `env -i … npm run lint` | PASS, exit 0 — TypeScript `--noEmit` |
+| `env -i … npm run build` | PASS, exit 0 — 2,153 Vite modules and three server bundles; existing chunk warning only |
+| `env -i … ./node_modules/.bin/playwright test tests/e2e/episode-chat.spec.ts --trace=off --reporter=line` after the current build | PASS, exit 0 — 1 flow in 52.5 seconds |
+| `env -i … ./node_modules/.bin/playwright test --trace=off --reporter=line` after the current build | PASS, exit 0 — 9/9 flows in 2.4 minutes |
+| `env -i … node scripts/smoke-api.mjs` with synthetic parent credential/path sentinels | PASS, exit 0 — `API and worker smoke checks passed` |
+| `env -i … node scripts/smoke-production.mjs` with the same synthetic sentinels | PASS, exit 0 — `Production same-origin smoke checks passed` |
+| Five scoped credential/token-pattern scans using an absolute `rg` executable | PASS — every scan exited 1 with zero matches |
+
+Recorded execution window: 2026-08-07 19:05–19:35 CDT. The exact latest executable commands were:
+
+```bash
+env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin HOME=/tmp/localcast-slice5-verify.mM0nvm/home TMPDIR=/tmp/localcast-slice5-verify.mM0nvm/tmp LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC NODE_ENV=test LOCALCAST_RUNTIME_MODE=test DATABASE_PATH=:memory: MEDIA_PATH=/tmp/localcast-slice5-verify.mM0nvm/media LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-verify.mM0nvm/vite ./node_modules/.bin/vitest run tests/unit/migrations.test.ts tests/unit/openai-provider.test.ts tests/unit/smoke-environment.test.ts tests/integration/chat-workflow.test.ts --reporter=dot
+env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin HOME=/tmp/localcast-slice5-verify.mM0nvm/home TMPDIR=/tmp/localcast-slice5-verify.mM0nvm/tmp LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC NODE_ENV=test LOCALCAST_RUNTIME_MODE=test DATABASE_PATH=:memory: MEDIA_PATH=/tmp/localcast-slice5-verify.mM0nvm/media LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-verify.mM0nvm/vite ./node_modules/.bin/vitest run tests/unit --reporter=dot
+env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin HOME=/tmp/localcast-slice5-verify.mM0nvm/home TMPDIR=/tmp/localcast-slice5-verify.mM0nvm/tmp LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC NODE_ENV=test LOCALCAST_RUNTIME_MODE=test DATABASE_PATH=:memory: MEDIA_PATH=/tmp/localcast-slice5-verify.mM0nvm/media LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-verify.mM0nvm/vite ./node_modules/.bin/vitest run tests/integration --reporter=dot
+env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin HOME=/tmp/localcast-slice5-verify.mM0nvm/home TMPDIR=/tmp/localcast-slice5-verify.mM0nvm/tmp LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-verify.mM0nvm/vite npm run lint
+env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin HOME=/tmp/localcast-slice5-verify.mM0nvm/home TMPDIR=/tmp/localcast-slice5-verify.mM0nvm/tmp LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-verify.mM0nvm/vite npm run build
+env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin HOME=/tmp/localcast-slice5-verify.mM0nvm/home TMPDIR=/tmp/localcast-slice5-verify.mM0nvm/tmp LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC NODE_ENV=test LOCALCAST_RUNTIME_MODE=test DATABASE_PATH=:memory: MEDIA_PATH=/tmp/localcast-slice5-verify.mM0nvm/media LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-verify.mM0nvm/vite PLAYWRIGHT_BROWSERS_PATH=/home/mkimitch/.cache/ms-playwright ./node_modules/.bin/playwright test tests/e2e/episode-chat.spec.ts --trace=off --reporter=line
+env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin HOME=/tmp/localcast-slice5-verify.mM0nvm/home TMPDIR=/tmp/localcast-slice5-verify.mM0nvm/tmp LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC NODE_ENV=test LOCALCAST_RUNTIME_MODE=test DATABASE_PATH=:memory: MEDIA_PATH=/tmp/localcast-slice5-verify.mM0nvm/media LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-verify.mM0nvm/vite PLAYWRIGHT_BROWSERS_PATH=/home/mkimitch/.cache/ms-playwright ./node_modules/.bin/playwright test --trace=off --reporter=line
+env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin HOME=/tmp/localcast-slice5-verify.mM0nvm/home TMPDIR=/tmp/localcast-slice5-verify.mM0nvm/tmp LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC OPENAI_API_KEY=synthetic-parent-provider-sentinel LOCALCAST_PODCAST_TOKEN_FILE=/tmp/localcast-synthetic-must-not-read.token DOTENV_CONFIG_PATH=/tmp/localcast-synthetic-must-not-read.env SSL_CERT_FILE=/tmp/localcast-synthetic-must-not-read.pem LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-verify.mM0nvm/vite node scripts/smoke-api.mjs
+env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin HOME=/tmp/localcast-slice5-verify.mM0nvm/home TMPDIR=/tmp/localcast-slice5-verify.mM0nvm/tmp LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC OPENAI_API_KEY=synthetic-parent-provider-sentinel LOCALCAST_PODCAST_TOKEN_FILE=/tmp/localcast-synthetic-must-not-read.token DOTENV_CONFIG_PATH=/tmp/localcast-synthetic-must-not-read.env SSL_CERT_FILE=/tmp/localcast-synthetic-must-not-read.pem LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-verify.mM0nvm/vite node scripts/smoke-production.mjs
+```
+
+The first scrubbed privacy-scan attempt could not resolve `rg` and exited 127 without scanning. These exact absolute-executable reruns supersede it:
+
+```bash
+/home/mkimitch/.codex/packages/standalone/releases/0.146.1-x86_64-unknown-linux-musl/codex-path/rg --count-matches --no-messages -g '!node_modules/**' -g '!dist/**' -g '!dist-server/**' -g '!docs/codex/**' 'sk-[A-Za-z0-9_-]{20,}' server src tests scripts package.json playwright.config.ts vite.config.ts
+/home/mkimitch/.codex/packages/standalone/releases/0.146.1-x86_64-unknown-linux-musl/codex-path/rg --count-matches --no-messages -g '!node_modules/**' -g '!dist/**' -g '!dist-server/**' -g '!docs/codex/**' 'Bearer [A-Za-z0-9_-]{20,}' server src tests scripts package.json playwright.config.ts vite.config.ts
+/home/mkimitch/.codex/packages/standalone/releases/0.146.1-x86_64-unknown-linux-musl/codex-path/rg --count-matches --no-messages -g '!node_modules/**' -g '!dist/**' -g '!dist-server/**' -g '!docs/codex/**' '(^|[^A-Za-z0-9_-])[A-Za-z0-9_-]{43}([^A-Za-z0-9_-]|$)' server src tests scripts package.json playwright.config.ts vite.config.ts
+/home/mkimitch/.codex/packages/standalone/releases/0.146.1-x86_64-unknown-linux-musl/codex-path/rg --count-matches --no-messages -g '!node_modules/**' -g '!dist/**' -g '!dist-server/**' -g '!docs/codex/**' "https?://[^[:space:]\"'<>]*/[A-Za-z0-9_-]{43}([/?#\"'[:space:]<>]|$)" server src tests scripts package.json playwright.config.ts vite.config.ts
+/home/mkimitch/.codex/packages/standalone/releases/0.146.1-x86_64-unknown-linux-musl/codex-path/rg --count-matches --no-messages 'OPENAI_API_KEY|sk-[A-Za-z0-9_-]{20,}|Bearer [A-Za-z0-9_-]{20,}' dist
+```
+
+Each rerun exited 1 with no output, meaning zero matches.
+
+The smoke scripts construct fixed child environments. API children use the repository working directory only for source entrypoints that do not load dotenv; production storage/app/negative-worker children use absolute bundle paths and fresh temporary working directories so `dotenv.config()` cannot discover the repository-root `.env`. The synthetic podcast-token input is a configured temporary file path supplied only to the temporary app child, not a mount. Executable test/build/browser/smoke evidence is scrubbed; the scoped privacy scans and Git inspections are separate read-only repository commands.
+
+The support request is measured and documented as the proposed claims, cited snapshot IDs, and exact excerpts; it does not resend the complete transcript and evidence. The immutable-evidence deletion test removes the original note, not the station. Migration 008 is still unapplied outside synthetic temporary databases. The migration and tests retain the exact model, 131,072-byte body limit, 139,264-token conservative input proxy/reserve, 2,500/750 output ceilings, two-call attempt ceiling, two-attempt/four-call turn ceiling, `$0.223521` conservative supported-attempt estimate, `$0.447042` sole-retry estimate, bounded numeric usage metadata, `store: false`, and no tools/search/browsing/retrieval/general-knowledge path. Pricing remains a recorded planning estimate; LocalCast does not enforce an account-global budget.
+
+### Final changed-path inventory
+
+The ending inventory remains exactly these 43 recognized Slice 5 paths; no dependency or lockfile path is present:
+
+```text
+docs/codex/BUILD_LOG.md
+docs/codex/DECISIONS.md
+docs/codex/PLAN.md
+docs/codex/SPEC.md
+docs/codex/STATE.md
+docs/codex/TEST_MATRIX.md
+package.json
+playwright.config.ts
+scripts/smoke-api.mjs
+scripts/smoke-environment.mjs
+scripts/smoke-production.mjs
+server/app.ts
+server/chat/types.ts
+server/chat/validation.ts
+server/database/migrations.ts
+server/jobs/applicationWorker.ts
+server/jobs/chatProcessor.ts
+server/jobs/chatWorker.ts
+server/providers/openai.ts
+server/routes/chat.ts
+server/routes/followUp.ts (deleted)
+server/services/chatStore.ts
+server/testing/fakeChatProcessor.ts
+server/testing/worker.ts
+server/validation.ts
+server/worker.ts
+server/workerProcess.ts
+src/features/briefings/BriefingDetail.tsx
+src/features/briefings/EpisodeChat.tsx
+src/features/settings/Settings.tsx
+src/services/api/ApiBriefingService.ts
+src/services/api/index.ts
+src/styles/components.css
+src/types.ts
+tests/e2e/episode-chat.spec.ts
+tests/e2e/foundation.spec.ts
+tests/helpers/chat.ts
+tests/integration/chat-workflow.test.ts
+tests/unit/chat-validation.test.ts
+tests/unit/migrations.test.ts
+tests/unit/openai-provider.test.ts
+tests/unit/smoke-environment.test.ts
+vite.config.ts
+```
+
+### Final independent re-reviews
+
+Three final bounded read-only re-reviews made no edits, ran no tests, read no secrets, and used no network, Docker, or deployed runtime:
+
+- UI/identity/accessibility found no blocker. It confirmed end-to-end initial/retry identity, full-identity-only clearing, stale-callback fencing, retained competing-client errors, focus/live/keyboard behavior, and valid browser coverage. Remaining depth is nonblocking: no focus reassertion after the competing winner completes, no separate non-competing rejected-retry browser case, direct citation activation and every queued/running announcement are not exhaustive, and Playwright must be preceded by a fresh build because the E2E server serves `dist` without a freshness check.
+- Provider lifecycle/lease/retry/privacy initially reported no source blocker and retained two gaps as nonblocking. The later independent audit correctly elevated the zero-lifecycle publication path and provider-stage-entry timing to blockers and required a permanent stale-`response_received` recovery case. That earlier disposition is withdrawn and superseded by the 2026-08-08 repair below. The provider response `id` remains stored under the bounded legacy-compatible name `provider_request_id`; a real process-SIGKILL during a chat provider stage remains nonblocking test depth and no exactly-once claim is made.
+- Migration/smoke/docs/regression found no implementation blocker. The primary corrected the latest integration count, retained full current command lines/results/window, and qualified older review evidence; re-review confirmed additive/repeat-safe migration behavior, concurrent retry winner evidence, app/worker/browser restart evidence, fixed smoke allowlists/cwds, unchanged lockfile/dependencies, exact 43-path scope, clean diff, and clean index.
+
+After these dispositions, the tracked diff is 28 paths with 1,721 insertions and 125 deletions; the same 15 untracked paths total 3,148 lines. No file was staged or committed. Slice 5 is repaired only to the repository pre-live/pre-deployment review point; Slice 4 remains green, and every live-consent/budget, protected backup, production migration/deployment/restart, new read-only audit, checkpoint, and Slice 6 gate remains open.
+
+## 2026-08-08 — Slice 5 first-empty/lifecycle blocker repair
+
+Preflight reconfirmed branch `codex/localcast-prototype`, base HEAD `6e1242e3e16c87c294d6f4ba0ca8bc2d0f187a1c`, subject `feat(prototype): deliver private podcast feed`, clean index, and exactly the prior 43-path worktree: 28 tracked paths with 1,721 insertions/125 deletions and 15 untracked paths totaling exactly 3,148 lines. The BUILD_LOG inventory, `git status`, and HEAD-to-worktree inventory agreed. No dependency or lockfile path changed. The repository `.env`, any real secret/provider, deployed runtime, existing database/media, Docker/network/volume, Caddy/certificate/podcast token, gPodder, and Windows launchers were not accessed.
+
+The bounded repair closes only the five independent-audit blockers:
+
+- Ambiguous initial/retry HTTP outcomes retain an exact action identity through the first empty or nonmatching authoritative history fetch. The final implementation persists only action kind, bounded key, bounded reconciliation deadline, generation/owner identity, and retry turn/attempt baseline in same-origin local storage; it never stores question or grounding content. Polling uses fresh API reads until ten seconds after dispatch, exact later acceptance clears the stale transport error, and unresolved identity remains blocked for manual history checking after the window and across reload/tabs. Unrelated history, another client's winning retry key, and provable rejection cannot establish acceptance. The shared lock prevents a replacement UUID or competing retry while the exact action remains uncertain, while SQLite remains authoritative if browser coordination races.
+- The worker transactionally reserves draft and support separately before entering either provider-adapter stage. A process-private opaque capability binds the exact turn, attempt, stage, model, worker, durable row, current-lease assertion, lifecycle writer, and one-use state. Missing, structurally forged, mismatched, stale, expired, wrong-stage, wrong-attempt, wrong-worker, or reused capability fails before request construction/fetch. Lifecycle persistence can no longer be replaced with a caller-supplied no-op observer.
+- Production answer publication requires exactly finalized `draft_answer_validated` plus `support_validated` rows for the current attempt/worker and current lease. Refusal requires exactly one finalized `draft_refusal` and no support row. Zero-row, partial, `reserved`, `response_received`, `ambiguous`, wrong-stage/attempt/outcome, stale-worker, or expired-lease publication fails transactionally. The deterministic test processor creates matching synthetic lifecycle rows and is excluded from production bundles; there is no production bypass flag or zero-row shortcut.
+- A permanent file-backed regression advances a real lifecycle row to `response_received`, closes/reopens SQLite, uses production stale recovery, and proves the row remains consumed, the turn becomes `CHAT_PROVIDER_OUTCOME_UNCONFIRMED` and non-retryable, retry/reservation/publication are rejected, no processor stage runs, and the state survives another reopen. The existing reserved-stage recovery case remains green. These tests model durable crash state; they do not claim exactly-once external execution or replace the acknowledged missing provider-stage process-SIGKILL depth case.
+- Still-unapplied migration 008 now enforces the same 8–200-character bound for initial submission identities that the API/store enforce. A synthetic migration-007 file upgrades, accepts exact 8/200 bounds, rejects 7/201, reapplies as a no-op, and preserves rows after reopen. Existing accepted-retry and provider lifecycle bounds remain aligned. No production database was read or migrated.
+
+Request, provider, and cost boundaries are unchanged: chat remains pinned to `gpt-5.4-mini-2026-03-17`, `store: false`, low reasoning, strict structured output, no tools/search/browsing/retrieval/general-knowledge fallback, and worker-only provider access. Each exact serialized body is capped at 131,072 UTF-8 bytes before fetch; the conservative planning proxy plus reserve is 139,264 input tokens/call; draft/support output ceilings are 2,500/750; calls are capped at two slots/attempt, two attempts/four slots/turn; recorded supported-answer estimates remain `$0.223521` per attempt and `$0.447042` with the sole retry. These are recorded planning estimates, not immutable pricing or an enforced global budget. No live authorization was activated or spent.
+
+### Safe verification record
+
+All executable commands below used the same credential-free parent, the pre-created private root `/tmp/localcast-slice5-repair.UYq471`, synthetic configuration, temporary SQLite/media/cache/Vite paths, existing dependencies, and loopback-only listeners. No command used Docker or a non-loopback service. The first typecheck exposed one test-only literal-widening error and was repaired once. The first full chat-browser rerun encountered only a still-closing loopback fixture listener and was not counted; the final current-source browser run started after the listeners exited and passed 10/10. A partial-output focused browser handoff was likewise not used as final evidence; the complete run includes both chat flows.
+
+| Command | Result |
+| --- | --- |
+| `env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/localcast-slice5-repair.UYq471/home TMPDIR=/tmp/localcast-slice5-repair.UYq471/tmp XDG_CACHE_HOME=/tmp/localcast-slice5-repair.UYq471/cache LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC NODE_ENV=test LOCALCAST_RUNTIME_MODE=test LOCALCAST_PROCESS_ROLE=worker DATABASE_PATH=:memory: MEDIA_PATH=/tmp/localcast-slice5-repair.UYq471/media LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-repair.UYq471/vite npm_config_offline=true npm run lint` (first repair pass) | FAIL, exit 2 — one test-only literal-widening type error; fixed without weakening a test |
+| Same `npm run lint` command after that correction | PASS, exit 0 |
+| `env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/localcast-slice5-repair.UYq471/home TMPDIR=/tmp/localcast-slice5-repair.UYq471/tmp XDG_CACHE_HOME=/tmp/localcast-slice5-repair.UYq471/cache LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC NODE_ENV=test LOCALCAST_RUNTIME_MODE=test LOCALCAST_PROCESS_ROLE=worker DATABASE_PATH=:memory: MEDIA_PATH=/tmp/localcast-slice5-repair.UYq471/media LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-repair.UYq471/vite npm_config_offline=true ./node_modules/.bin/vitest run tests/unit/openai-provider.test.ts tests/unit/migrations.test.ts tests/integration/chat-workflow.test.ts` (before capability binding) | PASS, exit 0 — 3 files, 85 tests |
+| `env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/localcast-slice5-repair.UYq471/home TMPDIR=/tmp/localcast-slice5-repair.UYq471/tmp XDG_CACHE_HOME=/tmp/localcast-slice5-repair.UYq471/cache LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC NODE_ENV=production LOCALCAST_RUNTIME_MODE=test LOCALCAST_PROCESS_ROLE=worker DATABASE_PATH=:memory: MEDIA_PATH=/tmp/localcast-slice5-repair.UYq471/media LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-repair.UYq471/vite npm_config_offline=true npm run build` (before capability binding) | PASS, exit 0 — 2,153 Vite modules and three server bundles; existing chunk-size warning only |
+| `env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/localcast-slice5-repair.UYq471/home TMPDIR=/tmp/localcast-slice5-repair.UYq471/tmp XDG_CACHE_HOME=/tmp/localcast-slice5-repair.UYq471/cache LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC NODE_ENV=test LOCALCAST_RUNTIME_MODE=test LOCALCAST_PROCESS_ROLE=worker DATABASE_PATH=:memory: MEDIA_PATH=/tmp/localcast-slice5-repair.UYq471/media LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-repair.UYq471/vite PLAYWRIGHT_BROWSERS_PATH=/home/mkimitch/.cache/ms-playwright npm_config_offline=true ./node_modules/.bin/playwright test tests/e2e/episode-chat.spec.ts --grep "ambiguous chat mutations" --trace=off --reporter=line` | PASS, exit 0 — 1/1 focused late-visibility flow in 27.5 seconds |
+| `env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/localcast-slice5-repair.UYq471/home TMPDIR=/tmp/localcast-slice5-repair.UYq471/tmp XDG_CACHE_HOME=/tmp/localcast-slice5-repair.UYq471/cache LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC NODE_ENV=test LOCALCAST_RUNTIME_MODE=test LOCALCAST_PROCESS_ROLE=worker DATABASE_PATH=:memory: MEDIA_PATH=/tmp/localcast-slice5-repair.UYq471/media LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-repair.UYq471/vite PLAYWRIGHT_BROWSERS_PATH=/home/mkimitch/.cache/ms-playwright npm_config_offline=true ./node_modules/.bin/playwright test tests/e2e/episode-chat.spec.ts --trace=off --reporter=line` immediately after that focused run | NOT COUNTED, exit 1 — the prior fixture listener was still closing and Playwright refused to start at port 43179; no test executed |
+| `env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/localcast-slice5-repair.UYq471/home TMPDIR=/tmp/localcast-slice5-repair.UYq471/tmp XDG_CACHE_HOME=/tmp/localcast-slice5-repair.UYq471/cache LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC NODE_ENV=test LOCALCAST_RUNTIME_MODE=test LOCALCAST_PROCESS_ROLE=worker DATABASE_PATH=:memory: MEDIA_PATH=/tmp/localcast-slice5-repair.UYq471/media LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-repair.UYq471/vite npm_config_offline=true ./node_modules/.bin/vitest run tests/unit/openai-provider.test.ts tests/unit/migrations.test.ts tests/integration/chat-workflow.test.ts` (final capability implementation) | PASS, exit 0 — 3 files, 86 tests |
+| `env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/localcast-slice5-repair.UYq471/home TMPDIR=/tmp/localcast-slice5-repair.UYq471/tmp XDG_CACHE_HOME=/tmp/localcast-slice5-repair.UYq471/cache LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC NODE_ENV=test LOCALCAST_RUNTIME_MODE=test LOCALCAST_PROCESS_ROLE=worker DATABASE_PATH=:memory: MEDIA_PATH=/tmp/localcast-slice5-repair.UYq471/media LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-repair.UYq471/vite npm_config_offline=true ./node_modules/.bin/vitest run tests/unit --reporter=dot` | PASS, exit 0 — 11 files, 186 tests |
+| `env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/localcast-slice5-repair.UYq471/home TMPDIR=/tmp/localcast-slice5-repair.UYq471/tmp XDG_CACHE_HOME=/tmp/localcast-slice5-repair.UYq471/cache LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC NODE_ENV=test LOCALCAST_RUNTIME_MODE=test LOCALCAST_PROCESS_ROLE=worker DATABASE_PATH=:memory: MEDIA_PATH=/tmp/localcast-slice5-repair.UYq471/media LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-repair.UYq471/vite npm_config_offline=true ./node_modules/.bin/vitest run tests/integration --reporter=dot` | PASS, exit 0 — 13 files, 84 tests |
+| Final `npm run lint` under the same scrubbed test environment | PASS, exit 0 — TypeScript `--noEmit` |
+| `env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/localcast-slice5-repair.UYq471/home TMPDIR=/tmp/localcast-slice5-repair.UYq471/tmp XDG_CACHE_HOME=/tmp/localcast-slice5-repair.UYq471/cache LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC NODE_ENV=production LOCALCAST_RUNTIME_MODE=test LOCALCAST_PROCESS_ROLE=worker DATABASE_PATH=:memory: MEDIA_PATH=/tmp/localcast-slice5-repair.UYq471/media LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-repair.UYq471/vite npm_config_offline=true npm run build` | PASS, exit 0 — 2,153 Vite modules and three server bundles; existing chunk-size warning only |
+| `env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/localcast-slice5-repair.UYq471/home TMPDIR=/tmp/localcast-slice5-repair.UYq471/tmp XDG_CACHE_HOME=/tmp/localcast-slice5-repair.UYq471/cache LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC NODE_ENV=test LOCALCAST_RUNTIME_MODE=test LOCALCAST_PROCESS_ROLE=worker DATABASE_PATH=:memory: MEDIA_PATH=/tmp/localcast-slice5-repair.UYq471/media LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-repair.UYq471/vite PLAYWRIGHT_BROWSERS_PATH=/home/mkimitch/.cache/ms-playwright npm_config_offline=true ./node_modules/.bin/playwright test --trace=off --reporter=line` immediately after the fresh build | PASS, exit 0 — 10/10 flows in 2.9 minutes |
+| `env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/localcast-slice5-repair.UYq471/home TMPDIR=/tmp/localcast-slice5-repair.UYq471/tmp XDG_CACHE_HOME=/tmp/localcast-slice5-repair.UYq471/cache LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC OPENAI_API_KEY=synthetic-parent-provider-sentinel LOCALCAST_PODCAST_TOKEN_FILE=/tmp/localcast-slice5-repair.UYq471/synthetic-must-not-read.token DOTENV_CONFIG_PATH=/tmp/localcast-slice5-repair.UYq471/synthetic-must-not-read.env SSL_CERT_FILE=/tmp/localcast-slice5-repair.UYq471/synthetic-must-not-read.pem LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-repair.UYq471/vite npm_config_offline=true node scripts/smoke-api.mjs` | PASS, exit 0 — `API and worker smoke checks passed` |
+| `env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/localcast-slice5-repair.UYq471/home TMPDIR=/tmp/localcast-slice5-repair.UYq471/tmp XDG_CACHE_HOME=/tmp/localcast-slice5-repair.UYq471/cache LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC OPENAI_API_KEY=synthetic-parent-provider-sentinel LOCALCAST_PODCAST_TOKEN_FILE=/tmp/localcast-slice5-repair.UYq471/synthetic-must-not-read.token DOTENV_CONFIG_PATH=/tmp/localcast-slice5-repair.UYq471/synthetic-must-not-read.env SSL_CERT_FILE=/tmp/localcast-slice5-repair.UYq471/synthetic-must-not-read.pem LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-repair.UYq471/vite npm_config_offline=true node scripts/smoke-production.mjs` | PASS, exit 0 — `Production same-origin smoke checks passed` |
+
+The smoke child allowlists and working-directory isolation are unchanged and were reinspected before execution. API source children use the repository cwd only through entrypoints that do not load dotenv. Production bundle children use a new temporary cwd, including the dotenv-capable negative worker. Parent provider/podcast/dotenv/certificate sentinel names do not enter child environments; the app alone receives a newly generated temporary podcast-token file path. Both smokes use ephemeral loopback ports and newly created temporary data/media; neither invokes Docker, deployed services, production ports, networks, volumes, or existing data.
+
+### Final changed-path inventory for this repair
+
+The ending inventory remains exactly the following 43 paths; no dependency or lockfile path is present:
+
+```text
+docs/codex/BUILD_LOG.md
+docs/codex/DECISIONS.md
+docs/codex/PLAN.md
+docs/codex/SPEC.md
+docs/codex/STATE.md
+docs/codex/TEST_MATRIX.md
+package.json
+playwright.config.ts
+scripts/smoke-api.mjs
+scripts/smoke-environment.mjs
+scripts/smoke-production.mjs
+server/app.ts
+server/chat/types.ts
+server/chat/validation.ts
+server/database/migrations.ts
+server/jobs/applicationWorker.ts
+server/jobs/chatProcessor.ts
+server/jobs/chatWorker.ts
+server/providers/openai.ts
+server/routes/chat.ts
+server/routes/followUp.ts (deleted)
+server/services/chatStore.ts
+server/testing/fakeChatProcessor.ts
+server/testing/worker.ts
+server/validation.ts
+server/worker.ts
+server/workerProcess.ts
+src/features/briefings/BriefingDetail.tsx
+src/features/briefings/EpisodeChat.tsx
+src/features/settings/Settings.tsx
+src/services/api/ApiBriefingService.ts
+src/services/api/index.ts
+src/styles/components.css
+src/types.ts
+tests/e2e/episode-chat.spec.ts
+tests/e2e/foundation.spec.ts
+tests/helpers/chat.ts
+tests/integration/chat-workflow.test.ts
+tests/unit/chat-validation.test.ts
+tests/unit/migrations.test.ts
+tests/unit/openai-provider.test.ts
+tests/unit/smoke-environment.test.ts
+vite.config.ts
+```
+
+Slice 5 remains incomplete and uncommitted. A new independent read-only pre-live audit, separately authorized exact-fixture/question cloud consent and budget, protected backup, production migration/deployment/restart/rollback evidence, final diff review, explicit checkpoint authorization, and Slice 6 all remain open.
+
+### Post-review response-order correction and current evidence
+
+The UI reviewer found one additional bounded race: a manual authoritative history request could capture stale history, then resolve or reject after polling had already accepted the exact action. The manual fetch previously wrote query data before checking which action was still current and could therefore hide the accepted turn or reinstall a stale uncertainty alert over a newer action. The repair makes history fetching side-effect-free, snapshots the complete submission/retry identity plus local action generation, and fences cache/error/focus/reconciliation writes on both that exact still-current identity and the latest manual-check generation. Mutation mismatch fetches are similarly fenced before publishing history. The permanent browser regression captures and holds an empty manual response, lets polling render exact acceptance, installs and focuses a newer terminal rejection, releases the stale response, explicitly waits for its completion, and proves the accepted article, newer alert/focus, and cleared browser identity remain unchanged. Independent UI re-review found no remaining blocker.
+
+The provider reviewer found no lifecycle, ambiguity, lease, publication, privacy, request, usage, or call-ceiling blocker. The migration/smoke reviewer found no implementation blocker and identified stale ledger counts plus imprecise migration-fixture wording; the current scrubbed reruns and durable-record corrections below supersede those discrepancies. These scoped reviews made no edits and used no secret, provider, network, Docker, runtime, database, or media.
+
+The following additional commands ran from the same private temporary root with a scrubbed parent, a temporary Vitest config whose `envDir` was `/tmp/localcast-slice5-repair.UYq471/vite`, synthetic settings, existing dependencies, and only temporary storage/loopback listeners:
+
+| Exact command | Result |
+| --- | --- |
+| `env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/localcast-slice5-repair.UYq471/home TMPDIR=/tmp/localcast-slice5-repair.UYq471/tmp XDG_CACHE_HOME=/tmp/localcast-slice5-repair.UYq471/cache LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC NODE_ENV=test LOCALCAST_RUNTIME_MODE=test LOCALCAST_PROCESS_ROLE=worker DATABASE_PATH=:memory: MEDIA_PATH=/tmp/localcast-slice5-repair.UYq471/media LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-repair.UYq471/vite npm_config_offline=true npm run lint` | PASS, exit 0 — TypeScript emitted no diagnostics |
+| `env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/localcast-slice5-repair.UYq471/home TMPDIR=/tmp/localcast-slice5-repair.UYq471/tmp XDG_CACHE_HOME=/tmp/localcast-slice5-repair.UYq471/cache LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC NODE_ENV=test LOCALCAST_RUNTIME_MODE=test LOCALCAST_PROCESS_ROLE=worker DATABASE_PATH=:memory: MEDIA_PATH=/tmp/localcast-slice5-repair.UYq471/media LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-repair.UYq471/vite npm_config_offline=true ./node_modules/.bin/vitest run --config /tmp/localcast-slice5-repair.UYq471/vitest.config.mjs tests/unit/chat-validation.test.ts tests/unit/migrations.test.ts tests/unit/openai-provider.test.ts tests/integration/chat-workflow.test.ts` | PASS, exit 0 — 4 files, 99 tests |
+| `env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/localcast-slice5-repair.UYq471/home TMPDIR=/tmp/localcast-slice5-repair.UYq471/tmp XDG_CACHE_HOME=/tmp/localcast-slice5-repair.UYq471/cache LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC NODE_ENV=test LOCALCAST_RUNTIME_MODE=test LOCALCAST_PROCESS_ROLE=worker DATABASE_PATH=:memory: MEDIA_PATH=/tmp/localcast-slice5-repair.UYq471/media LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-repair.UYq471/vite npm_config_offline=true ./node_modules/.bin/vitest run --config /tmp/localcast-slice5-repair.UYq471/vitest.config.mjs tests/unit` | PASS, exit 0 — 11 files, 192 tests |
+| `env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/localcast-slice5-repair.UYq471/home TMPDIR=/tmp/localcast-slice5-repair.UYq471/tmp XDG_CACHE_HOME=/tmp/localcast-slice5-repair.UYq471/cache LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC NODE_ENV=test LOCALCAST_RUNTIME_MODE=test LOCALCAST_PROCESS_ROLE=worker DATABASE_PATH=:memory: MEDIA_PATH=/tmp/localcast-slice5-repair.UYq471/media LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-repair.UYq471/vite npm_config_offline=true ./node_modules/.bin/vitest run --config /tmp/localcast-slice5-repair.UYq471/vitest.config.mjs tests/integration` | PASS, exit 0 — 13 files, 87 tests; expected synthetic `GENERATION_FAILED` lines exercised recovery fixtures only |
+| `env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/localcast-slice5-repair.UYq471/home TMPDIR=/tmp/localcast-slice5-repair.UYq471/tmp XDG_CACHE_HOME=/tmp/localcast-slice5-repair.UYq471/cache LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC NODE_ENV=production LOCALCAST_RUNTIME_MODE=test LOCALCAST_PROCESS_ROLE=app LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-repair.UYq471/vite npm_config_offline=true npm run build` | PASS twice, exit 0 — each run transformed 2,153 Vite modules and emitted all three server bundles; only the existing chunk-size warning remained |
+| `env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/localcast-slice5-repair.UYq471/home TMPDIR=/tmp/localcast-slice5-repair.UYq471/tmp XDG_CACHE_HOME=/tmp/localcast-slice5-repair.UYq471/cache LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC NODE_ENV=test LOCALCAST_RUNTIME_MODE=test LOCALCAST_PROCESS_ROLE=app LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-repair.UYq471/vite PLAYWRIGHT_BROWSERS_PATH=/home/mkimitch/.cache/ms-playwright npm_config_offline=true ./node_modules/.bin/playwright test tests/e2e/episode-chat.spec.ts --grep "ambiguous chat mutations survive" --workers=1` | PASS, exit 0 — 1/1 focused first-empty/late-visibility flow in 45.0 seconds |
+| `env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/localcast-slice5-repair.UYq471/home TMPDIR=/tmp/localcast-slice5-repair.UYq471/tmp XDG_CACHE_HOME=/tmp/localcast-slice5-repair.UYq471/cache LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC NODE_ENV=test LOCALCAST_RUNTIME_MODE=test LOCALCAST_PROCESS_ROLE=app LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-repair.UYq471/vite PLAYWRIGHT_BROWSERS_PATH=/home/mkimitch/.cache/ms-playwright npm_config_offline=true ./node_modules/.bin/playwright test --workers=1` immediately after the final fresh build | PASS, exit 0 — 10/10 flows in 3.1 minutes |
+| `env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/localcast-slice5-repair.UYq471/home TMPDIR=/tmp/localcast-slice5-repair.UYq471/tmp XDG_CACHE_HOME=/tmp/localcast-slice5-repair.UYq471/cache LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC NODE_ENV=test LOCALCAST_RUNTIME_MODE=test LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-repair.UYq471/vite npm_config_offline=true OPENAI_API_KEY=synthetic-parent-sentinel-not-a-credential OPENAI_CHAT_MODEL=synthetic-unapproved-parent-model LOCALCAST_PODCAST_TOKEN_FILE=/tmp/localcast-slice5-repair.UYq471/synthetic-parent-path-must-not-be-read npm run smoke:api` | PASS, exit 0 — `API and worker smoke checks passed` |
+| `env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/localcast-slice5-repair.UYq471/home TMPDIR=/tmp/localcast-slice5-repair.UYq471/tmp XDG_CACHE_HOME=/tmp/localcast-slice5-repair.UYq471/cache LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC NODE_ENV=production LOCALCAST_RUNTIME_MODE=production LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-repair.UYq471/vite npm_config_offline=true OPENAI_API_KEY=synthetic-parent-sentinel-not-a-credential OPENAI_CHAT_MODEL=synthetic-unapproved-parent-model LOCALCAST_PODCAST_TOKEN_FILE=/tmp/localcast-slice5-repair.UYq471/synthetic-parent-path-must-not-be-read npm run smoke:production` | PASS, exit 0 — `Production same-origin smoke checks passed` |
+| The four exact scoped source/test/script privacy `rg --count-matches` commands and one built-frontend command already printed above | PASS — all five exited 1 with no output, meaning zero matches; ignored `.env` and runtime/secret stores were outside every search target |
+| `git diff --check` | PASS, exit 0 — no whitespace errors |
+| `git diff --cached --quiet` | PASS, exit 0 — index clean |
+
+The ending worktree still contains exactly the 43 paths in the inventory above: 28 tracked paths with 2,135 insertions and 127 deletions, plus 15 untracked paths totaling 4,106 lines. No dependency or lockfile changed; the index remains clean and no commit or checkpoint was created. The private verification root and Playwright `test-results` directory were removed after the final checks. Slice 5 remains incomplete pending a new independent read-only audit and every previously recorded live/backup/migration/deployment/restart/rollback/checkpoint gate.
+
+## 2026-08-08 — Slice 5 authority, remount-fencing, and cross-tab repair
+
+Preflight reconfirmed branch `codex/localcast-prototype`, base HEAD `6e1242e3e16c87c294d6f4ba0ca8bc2d0f187a1c`, subject `feat(prototype): deliver private podcast feed`, clean index, and exactly the authorized 43-path Slice 5 worktree: 28 tracked paths with 2,135 insertions/127 deletions and 15 untracked paths totaling 4,106 lines. `git status`, the HEAD-to-worktree inventory, the preceding final inventory, and the user-supplied inventory agreed. No dependency or lockfile path changed. Slice 4 remained green and Slice 5 remained incomplete/uncommitted. The repository `.env`, real keys/tokens/certificates/feeds/databases/media, gPodder state, deployed runtime, Docker, networks, volumes, and non-loopback services were not read or touched.
+
+This bounded repair closes the three latest independent-audit blockers:
+
+- The exported/subclassable reservation issuer and public lifecycle-mutation seam are gone. Only `ChatStore.reserveProviderCall()` can insert a durable stage and register its frozen one-use grant in a module-private `WeakMap`. The provider's runtime-private draft/support methods enter only through the exact grant, identity, stage, model, worker, current lease, and durable row. Lifecycle updates close over that row and use ECMAScript-private store methods. Plain, copied, serialized, subclass-created, mismatched, expired, and reused values fail before request construction/fetch; deterministic fakes use the same production reservation/lifecycle invariant and remain absent from production bundles.
+- `EpisodeChat` now fences every mutation, direct history read, automatic/manual reconciliation, timer, cache write, local-storage change, alert/status/focus update, and lock change by a mounted instance epoch plus the exact action generation. Unmount invalidates both generations and aborts tracked requests. Persisted state is never removed except by an exact complete-record comparison. Held mutation and history responses released after unmount/remount cannot overwrite the remounted instance's newer cache, shared identity, error, focus, or controls, while genuine late acceptance remains reconcilable.
+- Pending identity moved from tab-scoped storage to a version-2 same-origin local-storage record containing only version, episode ID, action kind, bounded submission/retry identity, retry turn/attempt baseline where applicable, generation/owner IDs, and bounded timestamps. No question or grounding/provider content is stored. Storage events coordinate ordinary tabs, but this coordination is explicitly advisory. Migration 008's partial unique index plus immediate enqueue/retry transactions authoritatively permit only one queued/running turn per episode. Two distinct initial keys have one winner and no loser turn/attempt/call slot; same-key replay returns the original; retrying an older failure while a different question is active loses with a bounded conflict; and a new sequential question is permitted after terminal state.
+
+The UI/provider/settings/privacy/request/usage/cost contracts otherwise remain unchanged. Settings now says OpenAI provider-side response storage is disabled through `store: false` while LocalCast retains ordered chat history in SQLite. Chat stays pinned to `gpt-5.4-mini-2026-03-17`, low reasoning, strict schemas, 131,072 UTF-8 serialized bytes/call, 2,500/750 output ceilings, no tools/search/browsing/retrieval/general-knowledge fallback, worker-only credentials, two stages/attempt, two attempts/four slots/turn, bounded audit metadata, and conservative planning estimates of `$0.223521` per supported attempt and `$0.447042` with the sole explicit retry. No exactly-once external-execution claim is made.
+
+The implementation review found one adjacent contention edge: retrying an older failed turn while a newly submitted question was active could surface the SQLite unique violation as a generic error and retain the losing retry identity. The same immediate retry transaction now detects the different active turn, rejects without writing a retry row, and the browser adopts the authoritative active submission while retaining a bounded losing-retry error. Store and browser regressions cover that exact ordering.
+
+### Verification ledger for this repair
+
+The private verification root was `/tmp/localcast-slice5-repair.qyDhNZ` with private `home`, `tmp`, `cache`, `vite-env`, `media`, and `browser-output` children. Its exact initial `mktemp`/directory-creation command was not retained in the durable tool transcript and is not reconstructed. Every executable verification command below is reproduced exactly. Each used a scrubbed `env -i` parent, existing dependencies, synthetic settings, temporary storage, and loopback-only listeners. None invoked Docker or a non-loopback service.
+
+| Exact command | Chronological result |
+| --- | --- |
+| `env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/localcast-slice5-repair.qyDhNZ/home TMPDIR=/tmp/localcast-slice5-repair.qyDhNZ/tmp XDG_CACHE_HOME=/tmp/localcast-slice5-repair.qyDhNZ/cache LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC NODE_ENV=test LOCALCAST_RUNTIME_MODE=test LOCALCAST_PROCESS_ROLE=worker DATABASE_PATH=:memory: MEDIA_PATH=/tmp/localcast-slice5-repair.qyDhNZ/media LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-repair.qyDhNZ/vite-env npm_config_offline=true npm run lint` | Initial runs exposed test-only API/signature and then literal-inference diagnostics; both were repaired without weakening coverage. Every subsequent invocation passed, including the final post-contention typecheck, exit 0 |
+| `env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/localcast-slice5-repair.qyDhNZ/home TMPDIR=/tmp/localcast-slice5-repair.qyDhNZ/tmp XDG_CACHE_HOME=/tmp/localcast-slice5-repair.qyDhNZ/cache LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC NODE_ENV=test LOCALCAST_RUNTIME_MODE=test LOCALCAST_PROCESS_ROLE=worker DATABASE_PATH=:memory: MEDIA_PATH=/tmp/localcast-slice5-repair.qyDhNZ/media LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-repair.qyDhNZ/vite-env npm_config_offline=true ./node_modules/.bin/vitest run tests/unit/openai-provider.test.ts tests/unit/migrations.test.ts tests/unit/chat-validation.test.ts tests/integration/chat-workflow.test.ts --reporter=dot` | PASS, exit 0 — 4 files, 100 tests at the pre-contention repair point |
+| `env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/localcast-slice5-repair.qyDhNZ/home TMPDIR=/tmp/localcast-slice5-repair.qyDhNZ/tmp XDG_CACHE_HOME=/tmp/localcast-slice5-repair.qyDhNZ/cache LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC NODE_ENV=test LOCALCAST_RUNTIME_MODE=test LOCALCAST_PROCESS_ROLE=worker DATABASE_PATH=:memory: MEDIA_PATH=/tmp/localcast-slice5-repair.qyDhNZ/media LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-repair.qyDhNZ/vite-env npm_config_offline=true ./node_modules/.bin/vitest run tests/integration/chat-workflow.test.ts --reporter=dot` | PASS, exit 0 — 18 tests after adding retry-versus-question contention |
+| `env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/localcast-slice5-repair.qyDhNZ/home TMPDIR=/tmp/localcast-slice5-repair.qyDhNZ/tmp XDG_CACHE_HOME=/tmp/localcast-slice5-repair.qyDhNZ/cache LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC NODE_ENV=test LOCALCAST_RUNTIME_MODE=test LOCALCAST_PROCESS_ROLE=worker DATABASE_PATH=:memory: MEDIA_PATH=/tmp/localcast-slice5-repair.qyDhNZ/media LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-repair.qyDhNZ/vite-env npm_config_offline=true ./node_modules/.bin/vitest run tests/unit --reporter=dot` | PASS, exit 0 — 11 files, 192 tests |
+| `env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/localcast-slice5-repair.qyDhNZ/home TMPDIR=/tmp/localcast-slice5-repair.qyDhNZ/tmp XDG_CACHE_HOME=/tmp/localcast-slice5-repair.qyDhNZ/cache LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC NO_COLOR=1 FORCE_COLOR=0 NODE_ENV=test LOCALCAST_RUNTIME_MODE=test LOCALCAST_PROCESS_ROLE=worker DATABASE_PATH=:memory: MEDIA_PATH=/tmp/localcast-slice5-repair.qyDhNZ/media LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-repair.qyDhNZ/vite-env npm_config_offline=true ./node_modules/.bin/vitest run tests/integration --reporter=dot` | PASS, exit 0 — 13 files, 89 tests; expected synthetic `GENERATION_FAILED` stderr only |
+| `env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/localcast-slice5-repair.qyDhNZ/home TMPDIR=/tmp/localcast-slice5-repair.qyDhNZ/tmp XDG_CACHE_HOME=/tmp/localcast-slice5-repair.qyDhNZ/cache LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC NODE_ENV=production LOCALCAST_RUNTIME_MODE=production LOCALCAST_PROCESS_ROLE=app LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-repair.qyDhNZ/vite-env npm_config_offline=true npm run build` | PASS on every current-source invocation, exit 0 — 2,153 Vite modules and three server bundles; existing chunk warning only. The final invocation immediately preceded targeted and full Playwright evidence |
+| `env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/localcast-slice5-repair.qyDhNZ/home TMPDIR=/tmp/localcast-slice5-repair.qyDhNZ/tmp XDG_CACHE_HOME=/tmp/localcast-slice5-repair.qyDhNZ/cache LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC NODE_ENV=test LOCALCAST_RUNTIME_MODE=test LOCALCAST_PROCESS_ROLE=app LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-repair.qyDhNZ/vite-env PLAYWRIGHT_BROWSERS_PATH=/home/mkimitch/.cache/ms-playwright npm_config_offline=true ./node_modules/.bin/playwright test tests/e2e/episode-chat.spec.ts --grep "losing retry identity" --workers=1 --trace=off --reporter=line --output=/tmp/localcast-slice5-repair.qyDhNZ/browser-output` | PASS, exit 0 — 1/1 in 28.3 seconds |
+| `env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/localcast-slice5-repair.qyDhNZ/home TMPDIR=/tmp/localcast-slice5-repair.qyDhNZ/tmp XDG_CACHE_HOME=/tmp/localcast-slice5-repair.qyDhNZ/cache LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC NO_COLOR=1 FORCE_COLOR=0 NODE_ENV=test LOCALCAST_RUNTIME_MODE=test LOCALCAST_PROCESS_ROLE=app LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-repair.qyDhNZ/vite-env PLAYWRIGHT_BROWSERS_PATH=/home/mkimitch/.cache/ms-playwright npm_config_offline=true ./node_modules/.bin/playwright test tests/e2e/episode-chat.spec.ts --grep "independent browser contexts" --workers=1 --trace=off --reporter=dot --output=/tmp/localcast-slice5-repair.qyDhNZ/browser-output` | PASS, exit 0 — 1/1 in 25.6 seconds |
+| `env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/localcast-slice5-repair.qyDhNZ/home TMPDIR=/tmp/localcast-slice5-repair.qyDhNZ/tmp XDG_CACHE_HOME=/tmp/localcast-slice5-repair.qyDhNZ/cache LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC NO_COLOR=1 FORCE_COLOR=0 NODE_ENV=test LOCALCAST_RUNTIME_MODE=test LOCALCAST_PROCESS_ROLE=app LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-repair.qyDhNZ/vite-env PLAYWRIGHT_BROWSERS_PATH=/home/mkimitch/.cache/ms-playwright npm_config_offline=true ./node_modules/.bin/playwright test --workers=1 --trace=off --reporter=dot --output=/tmp/localcast-slice5-repair.qyDhNZ/browser-output` | First 14-flow run: NOT COUNTED, exit 1 — 13 passed and the same-origin test incorrectly required exactly one browser POST although the database invariant permits two. No product assertion failed. After narrowing that assertion to one committed authoritative turn, the final rerun passed 14/14 in 4.1 minutes |
+| `env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/localcast-slice5-repair.qyDhNZ/home TMPDIR=/tmp/localcast-slice5-repair.qyDhNZ/tmp XDG_CACHE_HOME=/tmp/localcast-slice5-repair.qyDhNZ/cache LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC NO_COLOR=1 FORCE_COLOR=0 NODE_ENV=test LOCALCAST_RUNTIME_MODE=test LOCALCAST_PROCESS_ROLE=app LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-repair.qyDhNZ/vite-env PLAYWRIGHT_BROWSERS_PATH=/home/mkimitch/.cache/ms-playwright npm_config_offline=true ./node_modules/.bin/playwright test tests/e2e/episode-chat.spec.ts --grep "same-origin tabs\|independent browser contexts" --workers=1 --trace=off --reporter=dot --output=/tmp/localcast-slice5-repair.qyDhNZ/browser-output` | PASS, exit 0 — 2/2 in 41.5 seconds before the final 14-flow rerun |
+| `env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/localcast-slice5-repair.qyDhNZ/home TMPDIR=/tmp/localcast-slice5-repair.qyDhNZ/tmp XDG_CACHE_HOME=/tmp/localcast-slice5-repair.qyDhNZ/cache LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-repair.qyDhNZ/vite-env npm_config_offline=true OPENAI_API_KEY=synthetic-parent-sentinel-not-a-credential OPENAI_CHAT_MODEL=synthetic-unapproved-parent-model LOCALCAST_PODCAST_TOKEN_FILE=/tmp/localcast-slice5-repair.qyDhNZ/synthetic-parent-path-must-not-be-read DOTENV_CONFIG_PATH=/tmp/localcast-slice5-repair.qyDhNZ/synthetic-dotenv-path-must-not-be-read SSL_CERT_FILE=/tmp/localcast-slice5-repair.qyDhNZ/synthetic-cert-path-must-not-be-read NODE_ENV=test LOCALCAST_RUNTIME_MODE=test npm run smoke:api` | PASS, exit 0 — `API and worker smoke checks passed` |
+| `env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/localcast-slice5-repair.qyDhNZ/home TMPDIR=/tmp/localcast-slice5-repair.qyDhNZ/tmp XDG_CACHE_HOME=/tmp/localcast-slice5-repair.qyDhNZ/cache LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-repair.qyDhNZ/vite-env npm_config_offline=true OPENAI_API_KEY=synthetic-parent-sentinel-not-a-credential OPENAI_CHAT_MODEL=synthetic-unapproved-parent-model LOCALCAST_PODCAST_TOKEN_FILE=/tmp/localcast-slice5-repair.qyDhNZ/synthetic-parent-path-must-not-be-read DOTENV_CONFIG_PATH=/tmp/localcast-slice5-repair.qyDhNZ/synthetic-dotenv-path-must-not-be-read SSL_CERT_FILE=/tmp/localcast-slice5-repair.qyDhNZ/synthetic-cert-path-must-not-be-read NODE_ENV=production LOCALCAST_RUNTIME_MODE=production npm run smoke:production` | PASS, exit 0 — `Production same-origin smoke checks passed` |
+
+An earlier full Playwright invocation remained active after its tool wrapper returned only partial output; the immediate retry correctly failed before tests with port 43179 already in use. That abandoned result is not counted. Its loopback-only synthetic server exited naturally before the final build/test sequence. Earlier focused browser iterations also exposed three test-only ordering assertions, then one locator ambiguity, and later a blank-question disabled-button expectation; all were corrected without weakening a production invariant. Missing historical wrapper text is not fabricated; the exact final commands above supersede those incomplete iterations.
+
+Three independent read-only reviewers covered the requested axes. Provider/lifecycle review found no remaining authority, lifecycle, publication, lease, ambiguity, privacy, or call-ceiling blocker. UI review found the retry-versus-new-question contention edge described above; its post-fix re-review found no remaining blocker. Migration/smoke/docs review found no implementation blocker and identified stale counts plus imprecise schema-evidence wording, both superseded here. Reviewers made no edits and used no secret, provider, network, Docker, runtime, database, or media.
+
+Remaining nonblocking depth is unchanged: no real provider-stage SIGKILL test; no post-competing-winner focus reassertion; citation activation, every pending announcement, and per-control reflow are not exhaustive; Playwright has no automatic `dist` freshness guard; generation and chat share one serial worker; local-storage compare/write is advisory rather than transactional; and SQLite's fractional-usage CHECK remains defense in depth behind integer normalization. None is represented as complete evidence.
+
+The final worktree remains the same 43-path inventory printed above: 28 tracked paths with 2,264 insertions/127 deletions and 15 untracked paths totaling 4,764 lines. `git diff --check` and `git diff --cached --quiet` passed; no dependency/lockfile path changed. Three scoped source privacy scans, the built-frontend secret scan, and the production fake/issuer scan each returned zero matches. The app bundle contains no chat provider entrypoint or OpenAI endpoint; its four `OPENAI_API_KEY` name references are the existing non-worker-role rejection/configuration guard, never a value. Slice 5 remains incomplete and uncommitted; consent, exact fixture/questions, budget, protected backup, production migration/deployment/restart/rollback, a new independent audit, final diff review, checkpoint authorization, and Slice 6 remain open.
+
+## 2026-08-08 — Slice 5 four-blocker repository repair (superseded in part)
+
+Preflight matched the authorized base exactly: branch `codex/localcast-prototype`, HEAD `6e1242e3e16c87c294d6f4ba0ca8bc2d0f187a1c`, subject `feat(prototype): deliver private podcast feed`, clean index, the same 43 recognized paths, 28 tracked paths at 2,264 insertions/127 deletions, and 15 untracked paths totaling 4,764 lines. No dependency or lockfile changed. Slice 4 remained green; Slice 5 remained incomplete, unstaged, and uncommitted. The repository `.env`, real secrets/provider, existing data/media, deployed runtime, Docker, networks, volumes, Caddy, feeds, certificates, gPodder, and non-loopback services were not read or touched.
+
+The four audit blockers were reproduced against production source and repaired:
+
+- At this repair point, `episode_lock` plus a partial unique index protected queued/running turns and failed turns containing `reserved`, `response_received`, or `ambiguous` provider rows. A later focused audit found that finalized-but-unpublished provider outcomes could still release that lock; the 2026-08-09 repair below supersedes this incomplete claim.
+- `ChatStore` accepts only a runtime-authenticated native `better-sqlite3` database. The exact stage row commits before a frozen one-use row-bound grant is registered and before the stage-specific adapter method is entered. Draft and support reserve separately; support repeats current attempt/worker/lease/order/uniqueness/ceiling validation. Structural database lookalikes and the invalid-grant matrix fail before adapter entry/fake fetch. Narrow row-bound lifecycle transitions and strict finalized-outcome publication remain mandatory.
+- `EpisodeChat` now gives every effect lifetime a fresh epoch, rebinds restored actions, and invalidates instance/action/history/manual-check generations on cleanup. One monotonic history generation orders hydration, polling, mutation-error, automatic/manual, timer, and storage-event results. Raw history is published only after all applicable fences pass. Exact local-storage comparison prevents stale replacement/removal. Real development StrictMode, unmount/remount held responses, stale mutation/automatic/manual history, malformed-record recovery, and cross-tab convergence are permanent browser tests.
+- Shared well-formed-text validation rejects NUL, U+FFFD, and lone UTF-16 surrogates before persistence, provider construction, or publication, then applies Unicode-code-point bounds. Valid pairs/non-BMP text round-trip. Migration 008 independently enforces the SQLite-representable identity constraints. Invalid questions receive bounded API validation; invalid claims/excerpts finalize fail closed.
+
+### Retained verification ledger for that repair
+
+All executable checks retained below used installed dependencies, synthetic settings, temporary storage, loopback only, and a scrubbed `env -i` parent where environment mattered. No command invoked Docker, dependency installation, a live provider, a non-loopback service, deployed LocalCast, or existing data/media. This is retained evidence, not a complete historical command transcript: wrappers or outputs that were not retained are not reconstructed. The exact retained private-directory preparation command was:
+
+`mkdir -p /tmp/localcast-slice5-repair/home /tmp/localcast-slice5-repair/tmp /tmp/localcast-slice5-repair/media /tmp/localcast-slice5-repair/cache /tmp/localcast-slice5-repair/vite-env /tmp/localcast-slice5-repair/playwright`
+
+It passed with exit 0. Repeated identical commands are printed once below with their chronological results; incomplete wrapper output is explicitly not counted.
+
+| Exact command | Chronological result |
+| --- | --- |
+| `env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/localcast-slice5-repair-home TMPDIR=/tmp NODE_ENV=test LOCALCAST_RUNTIME_MODE=test DATABASE_PATH=:memory: MEDIA_PATH=/tmp/localcast-slice5-repair-media npm_config_offline=true npm run lint` | Early runs exposed missing `runId`/provider-interface/Zod typing, then a readonly test literal, then a missing `PendingStorageRead.raw`; each was repaired. Every later invocation, including the final source run, passed with exit 0 |
+| `env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/localcast-slice5-repair-home TMPDIR=/tmp LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC NODE_ENV=test LOCALCAST_RUNTIME_MODE=test LOCALCAST_PROCESS_ROLE=app DATABASE_PATH=:memory: MEDIA_PATH=/tmp/localcast-slice5-repair-media TEXT_PROVIDER=not_configured SPEECH_PROVIDER=not_configured npm_config_offline=true ./node_modules/.bin/vitest run tests/unit/chat-validation.test.ts tests/unit/migrations.test.ts tests/unit/openai-provider.test.ts tests/integration/chat-workflow.test.ts` | Initial repair point: 101 passed. Expanded run: 115 passed/4 failed, exposing two malformed-output expectations and two SQLite-surrogate expectations. After repairs, 117/117 passed, exit 0; the final post-trigger rerun also passed 117/117 |
+| `env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/localcast-slice5-repair-home TMPDIR=/tmp LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC NODE_ENV=test LOCALCAST_RUNTIME_MODE=test LOCALCAST_PROCESS_ROLE=app DATABASE_PATH=:memory: MEDIA_PATH=/tmp/localcast-slice5-repair-media TEXT_PROVIDER=not_configured SPEECH_PROVIDER=not_configured npm_config_offline=true ./node_modules/.bin/vitest run tests/unit/migrations.test.ts tests/unit/openai-provider.test.ts` | PASS, exit 0 — 76/76 after the malformed-text and SQLite constraint repair |
+| `env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/localcast-slice5-repair-home TMPDIR=/tmp LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC NODE_ENV=test LOCALCAST_RUNTIME_MODE=test LOCALCAST_PROCESS_ROLE=app DATABASE_PATH=:memory: MEDIA_PATH=/tmp/localcast-slice5-repair-media TEXT_PROVIDER=not_configured SPEECH_PROVIDER=not_configured npm_config_offline=true ./node_modules/.bin/vitest run tests/unit/migrations.test.ts` | PASS, exit 0 — 12/12 after adding the provider-row update trigger |
+| `env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/localcast-slice5-repair/home TMPDIR=/tmp/localcast-slice5-repair/tmp LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC NODE_ENV=test LOCALCAST_RUNTIME_MODE=test LOCALCAST_PROCESS_ROLE=app DATABASE_PATH=:memory: MEDIA_PATH=/tmp/localcast-slice5-repair/media TEXT_PROVIDER=not_configured SPEECH_PROVIDER=not_configured npm_config_offline=true ./node_modules/.bin/vitest run tests/unit` | PASS, exit 0 — 11 files, 207 tests |
+| `env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/localcast-slice5-repair/home TMPDIR=/tmp/localcast-slice5-repair/tmp LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC NODE_ENV=test LOCALCAST_RUNTIME_MODE=test LOCALCAST_PROCESS_ROLE=app DATABASE_PATH=:memory: MEDIA_PATH=/tmp/localcast-slice5-repair/media TEXT_PROVIDER=not_configured SPEECH_PROVIDER=not_configured npm_config_offline=true ./node_modules/.bin/vitest run tests/integration` | PASS, exit 0 — 13 files, 90 tests; expected synthetic `GENERATION_FAILED` stderr only. An earlier parallel wrapper hid its output; this explicit rerun is the counted evidence |
+| `env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/localcast-slice5-repair/home TMPDIR=/tmp/localcast-slice5-repair/tmp LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC NODE_ENV=test LOCALCAST_RUNTIME_MODE=test LOCALCAST_PROCESS_ROLE=app DATABASE_PATH=:memory: MEDIA_PATH=/tmp/localcast-slice5-repair/media TEXT_PROVIDER=not_configured SPEECH_PROVIDER=not_configured npm_config_offline=true node scripts/smoke-api.mjs` | PASS, exit 0 — `API and worker smoke checks passed` |
+| `env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/localcast-slice5-repair/home TMPDIR=/tmp/localcast-slice5-repair/tmp LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC NODE_ENV=production LOCALCAST_RUNTIME_MODE=production LOCALCAST_PROCESS_ROLE=app DATABASE_PATH=:memory: MEDIA_PATH=/tmp/localcast-slice5-repair/media TEXT_PROVIDER=not_configured SPEECH_PROVIDER=not_configured npm_config_offline=true node scripts/smoke-production.mjs` | PASS, exit 0 — `Production same-origin smoke checks passed` |
+| `env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/localcast-slice5-repair/home TMPDIR=/tmp/localcast-slice5-repair/tmp XDG_CACHE_HOME=/tmp/localcast-slice5-repair/cache NODE_ENV=production LOCALCAST_RUNTIME_MODE=production LOCALCAST_PROCESS_ROLE=app DATABASE_PATH=:memory: MEDIA_PATH=/tmp/localcast-slice5-repair/media TEXT_PROVIDER=not_configured SPEECH_PROVIDER=not_configured LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-repair/vite-env LOCALCAST_VITE_API_TARGET=http://127.0.0.1:43185 npm_config_offline=true npm run build` | PASS on the final fresh run, exit 0 — 2,154 Vite modules, browser asset `index-Dim6l2bm.js`, and three production server bundles; existing chunk warning only |
+| `env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/localcast-slice5-repair/home TMPDIR=/tmp/localcast-slice5-repair/tmp XDG_CACHE_HOME=/tmp/localcast-slice5-repair/cache LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC NODE_ENV=test LOCALCAST_RUNTIME_MODE=test LOCALCAST_PROCESS_ROLE=app DATABASE_PATH=:memory: MEDIA_PATH=/tmp/localcast-slice5-repair/media TEXT_PROVIDER=not_configured SPEECH_PROVIDER=not_configured LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-repair/vite-env PLAYWRIGHT_BROWSERS_PATH=/home/mkimitch/.cache/ms-playwright npm_config_offline=true ./node_modules/.bin/playwright test tests/e2e/episode-chat.spec.ts --grep "ambiguous chat mutations|malformed-record|development StrictMode" --workers=1 --trace=off --reporter=line --output=/tmp/localcast-slice5-repair/playwright` | Initial iterations exposed test-only ordering/locator expectations (2 failed/2 passed, then 1 timeout/3 passed); after correcting the tests without weakening product assertions, the focused late-visibility flow passed 1/1 and the malformed-record/StrictMode subset passed 3/3 |
+| `env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/localcast-slice5-repair/home TMPDIR=/tmp/localcast-slice5-repair/tmp XDG_CACHE_HOME=/tmp/localcast-slice5-repair/cache LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC NODE_ENV=test LOCALCAST_RUNTIME_MODE=test LOCALCAST_PROCESS_ROLE=app DATABASE_PATH=:memory: MEDIA_PATH=/tmp/localcast-slice5-repair/media TEXT_PROVIDER=not_configured SPEECH_PROVIDER=not_configured LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-repair/vite-env PLAYWRIGHT_BROWSERS_PATH=/home/mkimitch/.cache/ms-playwright npm_config_offline=true ./node_modules/.bin/playwright test tests/e2e/episode-chat.spec.ts --grep "same-origin tabs" --workers=1 --trace=off --reporter=line --output=/tmp/localcast-slice5-repair/playwright` | PASS, exit 0 — 1/1 in 27.9 seconds |
+| `env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/localcast-slice5-repair/home TMPDIR=/tmp/localcast-slice5-repair/tmp XDG_CACHE_HOME=/tmp/localcast-slice5-repair/cache LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC NODE_ENV=test LOCALCAST_RUNTIME_MODE=test LOCALCAST_PROCESS_ROLE=app DATABASE_PATH=:memory: MEDIA_PATH=/tmp/localcast-slice5-repair/media TEXT_PROVIDER=not_configured SPEECH_PROVIDER=not_configured LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-repair/vite-env PLAYWRIGHT_BROWSERS_PATH=/home/mkimitch/.cache/ms-playwright npm_config_offline=true ./node_modules/.bin/playwright test --workers=1 --trace=off --reporter=line --output=/tmp/localcast-slice5-repair/playwright` | PASS, exit 0 — 17/17 in 4.9 minutes. The first browser attempt without `PLAYWRIGHT_BROWSERS_PATH` failed to launch Chromium and created ignored `test-results`; it is not counted |
+| `env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/localcast-slice5-repair/home TMPDIR=/tmp/localcast-slice5-repair/tmp XDG_CACHE_HOME=/tmp/localcast-slice5-repair/cache LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC NODE_ENV=test LOCALCAST_RUNTIME_MODE=test LOCALCAST_PROCESS_ROLE=app DATABASE_PATH=:memory: MEDIA_PATH=/tmp/localcast-slice5-repair/media TEXT_PROVIDER=not_configured SPEECH_PROVIDER=not_configured LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-repair/vite-env PLAYWRIGHT_BROWSERS_PATH=/home/mkimitch/.cache/ms-playwright npm_config_offline=true ./node_modules/.bin/playwright test tests/e2e/episode-chat.spec.ts --grep "episode-grounded chat is disclosed" --workers=1 --trace=off --reporter=line --output=/tmp/localcast-slice5-repair/playwright` | PASS, exit 0 — 1/1 in 56.6 seconds after strengthening the synthetic answer/refusal/retry render assertions |
+| `find /opt/stacks/local-cast-prototype/test-results -depth -delete` | PASS, exit 0 — removed only the ignored Playwright launch-failure artifacts whose exact identity was inspected first |
+
+Three independent read-only reviews covered transaction/migration/Unicode, provider authority/lifecycle/bundles, and UI StrictMode/history/cross-tab/accessibility. They found no remaining blocker after the provider-row update trigger, malformed-shared-record recovery, stale automatic-poll error suppression, and manual-check generation fixes were applied and rerun. Reviewers made no edits and accessed no secret, provider, network, Docker, runtime, database, or media.
+
+Verification counts at that repair point were 117 focused tests, 207 unit tests, 90 integration tests, 17 browser/axe flows, one targeted disclosure/render flow, both isolated smokes, typecheck, and then-current production bundles. Historical non-scrubbed smoke evidence remains superseded, not rewritten. Earlier command wrappers whose exact text/output was not retained are not reconstructed; only the explicit retained reruns above count as proof.
+
+Remaining nonblocking depth: no real provider-stage SIGKILL test; no post-competing-winner focus reassertion; citation activation, every pending announcement, and per-control reflow are not exhaustive; Playwright has no automatic `dist` freshness guard; generation and chat share one serial worker; local-storage compare/write is advisory; U+FFFD is conservatively excluded; and SQLite's fractional-usage CHECK remains defense in depth behind integer normalization. Slice 5 remains incomplete; consent, exact fixture/questions, budget allocation, protected backup, production migration/deployment/restart/rollback, a new independent read-only audit, final diff review, checkpoint authorization, and Slice 6 remain open.
+
+### Changed-path inventory at that repair point
+
+- `docs/codex/BUILD_LOG.md`
+- `docs/codex/DECISIONS.md`
+- `docs/codex/PLAN.md`
+- `docs/codex/SPEC.md`
+- `docs/codex/STATE.md`
+- `docs/codex/TEST_MATRIX.md`
+- `package.json`
+- `playwright.config.ts`
+- `scripts/smoke-api.mjs`
+- `scripts/smoke-environment.mjs`
+- `scripts/smoke-production.mjs`
+- `server/app.ts`
+- `server/chat/types.ts`
+- `server/chat/validation.ts`
+- `server/database/migrations.ts`
+- `server/jobs/applicationWorker.ts`
+- `server/jobs/chatProcessor.ts`
+- `server/jobs/chatWorker.ts`
+- `server/providers/openai.ts`
+- `server/routes/chat.ts`
+- `server/routes/followUp.ts` (deleted)
+- `server/services/chatStore.ts`
+- `server/testing/fakeChatProcessor.ts`
+- `server/testing/worker.ts`
+- `server/validation.ts`
+- `server/worker.ts`
+- `server/workerProcess.ts`
+- `src/features/briefings/BriefingDetail.tsx`
+- `src/features/briefings/EpisodeChat.tsx`
+- `src/features/settings/Settings.tsx`
+- `src/services/api/ApiBriefingService.ts`
+- `src/services/api/index.ts`
+- `src/styles/components.css`
+- `src/types.ts`
+- `tests/e2e/episode-chat.spec.ts`
+- `tests/e2e/foundation.spec.ts`
+- `tests/helpers/chat.ts`
+- `tests/integration/chat-workflow.test.ts`
+- `tests/unit/chat-validation.test.ts`
+- `tests/unit/migrations.test.ts`
+- `tests/unit/openai-provider.test.ts`
+- `tests/unit/smoke-environment.test.ts`
+- `vite.config.ts`
+
+Repository accounting at that repair point was 28 tracked paths with 2,660 insertions and 130 deletions; 15 untracked paths totaling 5,274 lines; the same 43-path inventory; clean index; no dependency/lockfile change; no commit or checkpoint. The then-current `git diff --check` and `git diff --cached --quiet` each exited 0. The corrected scoped source credential-pattern scan and production fake/obsolete-issuer scan each exited 1 with no matches. The OpenAI endpoint scan exited 1 for browser/app/storage-init bundles and found the expected single worker endpoint. An initial credential scan had an unmatched shell quote and exited 2; an initial bundle scan named obsolete `.cjs` output paths and exited 2; neither result is counted. One read-only documentation grep contained shell-active Markdown backticks, emitted `better-sqlite3: command not found`, and was not used as evidence. All three diagnostics changed no file or runtime state and were superseded by the corrected commands and the independent frozen-record reread.
+
+## 2026-08-09 — Slice 5 finalized-outcome episode-lock repair
+
+Supersession note: the focused read-only audit that followed this entry confirmed the production `ChatStore` lock rule but found that migration 008 still treated every direct `answered`/`refused` update as a publication exception and did not structurally prevent lifecycle rewrite, reparenting, or deletion. The trigger claims below therefore describe the evidence available at that repair point, not the final migration integrity result. The later migration-only repair entry records the corrected schema and verification without rewriting this historical command record.
+
+Preflight matched the authorized base: branch `codex/localcast-prototype`, HEAD `6e1242e3e16c87c294d6f4ba0ca8bc2d0f187a1c`, subject `feat(prototype): deliver private podcast feed`, clean index, the same 43 recognized paths, 28 tracked paths at 2,660 insertions/130 deletions, and 15 untracked paths totaling 5,274 lines. No dependency or lockfile path changed. Slice 4 remained green; Slice 5 remained incomplete, unstaged, and uncommitted.
+
+The focused audit found one remaining defect: store failure, interruption, and stale-recovery paths based `episode_lock` on whether the current attempt had a non-finalized provider row. A provider row finalized as rejection, invalid output/citations, or support failure therefore allowed an unpublished turn to unlock; lease loss after a finalized draft had the same outcome. The bounded repair now uses turn-wide existence of any provider lifecycle row for every unpublished failure/recovery transition. Any provider-using unpublished turn keeps `episode_lock = 1`, including `reserved`, `response_received`, `ambiguous`, and `finalized` rows across any attempt. A safely published answer/refusal sets the lock to zero, as does a provable terminal failure whose turn has no provider row. The existing explicit retry remains attached to the locked turn; same-key initial replay returns that turn; and a distinct key loses before creating a turn, attempt, lifecycle row, retry request, or provider work. Safe publication or a proven zero-provider terminal failure permits a later sequential question, so the guard is not lifetime-scoped.
+
+Migration 008 remains unapplied outside synthetic temporary databases. Its partial unique index still permits only one `episode_lock = 1` row per episode. The turn `state`/`episode_lock` release trigger now rejects any unpublished unlock whenever any provider row exists, regardless of lifecycle status. Provider-row insertion and every provider-row update require the `NEW.turn_id` parent to hold the lock. Direct synthetic trigger tests cover rejected insertion into an unlocked parent, rejected update after a safely published parent released its lock, and rejected turn unlock for all four lifecycle statuses. Migration-007 upgrade, repeat no-op, file-backed close/reopen, exact retained outcomes, and safe published release remain covered. Migration 007 has no chat tables, so there is no conflicting active-chat fixture to add; the test matrix states that limitation rather than claiming one.
+
+Permanent production-path integration tests cover finalized provider rejection, invalid response, invalid citations, support rejection, interruption, unavailable/exhausted queued recovery, and lease loss after a finalized draft. Each asserts the retained lock and bounded distinct-key conflict without losing side effects. The same tests retain same-key replay, same-turn eligible retry, exactly-one retry contention, answer/refusal release, zero-provider stale recovery release, and later sequential submission. No provider request, EpisodeChat, model, dependency, lockfile, privacy boundary, or deployment path changed.
+
+Three scoped read-only reviews followed the implementation. Store review found no blocking production path and confirmed turn-wide lifecycle detection in failure, interrupt, unavailable/exhausted, and stale-recovery writers; its suggested attempt-depth cases remain nonblocking because the helper is turn-wide and the exercised attempt-1/attempt-2 paths share it. Migration review found no invariant defect but requested direct provider-row insert/update trigger negatives and reopened outcome assertions; those were added and the focused gate rerun green. Documentation/scope review found stale historical-finality wording, `channel` terminology despite actual `localStorage`/`storage`-event coordination, imprecise update-trigger scope, and the missing current ledger; all were corrected. Reviewers made no edits and used no secret, provider, network, Docker, deployed runtime, database, or media.
+
+### Exact retained command ledger for this focused repair
+
+Every command in this repair that executed application, test, typecheck, or build code used installed dependencies, obvious synthetic settings, temporary storage, loopback-only configuration where applicable, and a scrubbed `env -i` parent. Read-only Git/`rg` accounting and explicitly scoped temporary-directory lifecycle commands did not need or claim that parent. The real repository `.env`, secrets, provider, existing data/media, Docker, deployed services, and non-loopback network were not accessed. Source edits were made only with the structured patch tool; no shell write command was used. The initial read-only preflight result is retained above, but its earlier orchestration wrapper is not reconstructed and this section is not represented as a complete historical shell transcript.
+
+| Exact command | Result |
+| --- | --- |
+| `mktemp -d /tmp/localcast-slice5-episode-lock.XXXXXXXX` | PASS, exit 0 — created `/tmp/localcast-slice5-episode-lock.TRlGrSw6` |
+| `mkdir -p /tmp/localcast-slice5-episode-lock.TRlGrSw6/home /tmp/localcast-slice5-episode-lock.TRlGrSw6/tmp /tmp/localcast-slice5-episode-lock.TRlGrSw6/media /tmp/localcast-slice5-episode-lock.TRlGrSw6/cache /tmp/localcast-slice5-episode-lock.TRlGrSw6/vite-env /tmp/localcast-slice5-episode-lock.TRlGrSw6/build` | PASS, exit 0 |
+| `env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/localcast-slice5-episode-lock.TRlGrSw6/home TMPDIR=/tmp/localcast-slice5-episode-lock.TRlGrSw6/tmp XDG_CACHE_HOME=/tmp/localcast-slice5-episode-lock.TRlGrSw6/cache LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC NODE_ENV=test LOCALCAST_RUNTIME_MODE=test LOCALCAST_PROCESS_ROLE=app DATABASE_PATH=:memory: MEDIA_PATH=/tmp/localcast-slice5-episode-lock.TRlGrSw6/media TEXT_PROVIDER=not_configured SPEECH_PROVIDER=not_configured LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-episode-lock.TRlGrSw6/vite-env npm_config_offline=true ./node_modules/.bin/vitest run tests/integration/chat-workflow.test.ts --reporter=dot` | Expected regression-first FAIL, exit 1 — 16 passed/3 failed; finalized provider rejection, finalized-draft lease loss, and support rejection each produced lock `0` instead of required `1` |
+| `env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/localcast-slice5-episode-lock.TRlGrSw6/home TMPDIR=/tmp/localcast-slice5-episode-lock.TRlGrSw6/tmp XDG_CACHE_HOME=/tmp/localcast-slice5-episode-lock.TRlGrSw6/cache LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC NODE_ENV=test LOCALCAST_RUNTIME_MODE=test LOCALCAST_PROCESS_ROLE=app DATABASE_PATH=:memory: MEDIA_PATH=/tmp/localcast-slice5-episode-lock.TRlGrSw6/media TEXT_PROVIDER=not_configured SPEECH_PROVIDER=not_configured LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-episode-lock.TRlGrSw6/vite-env npm_config_offline=true ./node_modules/.bin/vitest run tests/unit/migrations.test.ts tests/integration/chat-workflow.test.ts --reporter=dot` | PASS twice, exit 0 — 2 files/33 tests after implementation and again after direct trigger/reopen review assertions |
+| `env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/localcast-slice5-episode-lock.TRlGrSw6/home TMPDIR=/tmp/localcast-slice5-episode-lock.TRlGrSw6/tmp XDG_CACHE_HOME=/tmp/localcast-slice5-episode-lock.TRlGrSw6/cache LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC NODE_ENV=test LOCALCAST_RUNTIME_MODE=test LOCALCAST_PROCESS_ROLE=app DATABASE_PATH=:memory: MEDIA_PATH=/tmp/localcast-slice5-episode-lock.TRlGrSw6/media TEXT_PROVIDER=not_configured SPEECH_PROVIDER=not_configured LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-episode-lock.TRlGrSw6/vite-env npm_config_offline=true npm run lint` | PASS twice, exit 0 — TypeScript emitted no diagnostics before or after the review assertions |
+| `env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/localcast-slice5-episode-lock.TRlGrSw6/home TMPDIR=/tmp/localcast-slice5-episode-lock.TRlGrSw6/tmp XDG_CACHE_HOME=/tmp/localcast-slice5-episode-lock.TRlGrSw6/cache LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC NODE_ENV=production LOCALCAST_RUNTIME_MODE=production LOCALCAST_PROCESS_ROLE=app DATABASE_PATH=:memory: MEDIA_PATH=/tmp/localcast-slice5-episode-lock.TRlGrSw6/media TEXT_PROVIDER=not_configured SPEECH_PROVIDER=not_configured LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-episode-lock.TRlGrSw6/vite-env LOCALCAST_VITE_API_TARGET=http://127.0.0.1:43185 npm_config_offline=true npm run build` | PASS twice, exit 0 — 2,154 Vite modules plus `index.js`, `worker.js`, and `storageInit.js`; existing chunk-size warning only |
+| `rg -n "BroadcastChannel\|reserved.*,.*response_received.*,.*ambiguous\|unresolved provider\|one \`episode_lock\`\|one episode\|later question\|sequential question\|lifecycle trigger\|complete final repair\|Complete final repair\|command history\|historical.*complete\|conflicting pre-migration" docs/codex/{SPEC,PLAN,STATE,DECISIONS,TEST_MATRIX,BUILD_LOG}.md` | Read-only diagnostic, exit 0 after the shell first emitted `episode_lock: command not found`; shell-active Markdown backticks made this output unsuitable as evidence and it changed nothing |
+| `rg -n 'BroadcastChannel\|Complete final repair\|conflicting pre-migration\|failed turns containing.*reserved\|failed turns with.*reserved\|failed turns.*unresolved provider\|no unresolved provider lifecycle\|unresolved provider row' docs/codex/SPEC.md docs/codex/PLAN.md docs/codex/STATE.md docs/codex/DECISIONS.md docs/codex/TEST_MATRIX.md docs/codex/BUILD_LOG.md` | PASS as corrected read-only inspection; only the explicitly superseded historical BUILD_LOG statement remained |
+| `git diff --check` | PASS before the current ledger, exit 0 |
+| `git diff --cached --quiet` | PASS before the current ledger, exit 0 — index clean |
+| `git status --short` | PASS, exit 0 — same recognized path set |
+| `git diff --stat` | PASS, exit 0 — interim accounting before this ledger was 28 tracked paths, 2,812 insertions/130 deletions |
+| `git ls-files --others --exclude-standard -z \| xargs -0 wc -l` | PASS, exit 0 — 15 untracked files, 5,430 total lines |
+| `git diff --name-only -- package-lock.json yarn.lock pnpm-lock.yaml` | PASS, exit 0 with no output — no dependency lockfile changed |
+
+The earlier broader Slice 5 evidence remains retained above and was intentionally not rerun. This repair did not change `EpisodeChat`, so the already-passing browser suite was not rerun. Neither smoke was rerun because this scoped store/migration repair did not change smoke or child-environment behavior. `npm run verify`, Compose/image checks, Docker, live-provider checks, production migration, deployment, and non-loopback tests remained prohibited or deferred.
+
+### Current changed-path inventory
+
+The worktree remains exactly these 43 recognized Slice 5 paths; no new path, dependency, or lockfile is present:
+
+```text
+docs/codex/BUILD_LOG.md
+docs/codex/DECISIONS.md
+docs/codex/PLAN.md
+docs/codex/SPEC.md
+docs/codex/STATE.md
+docs/codex/TEST_MATRIX.md
+package.json
+playwright.config.ts
+scripts/smoke-api.mjs
+scripts/smoke-environment.mjs
+scripts/smoke-production.mjs
+server/app.ts
+server/chat/types.ts
+server/chat/validation.ts
+server/database/migrations.ts
+server/jobs/applicationWorker.ts
+server/jobs/chatProcessor.ts
+server/jobs/chatWorker.ts
+server/providers/openai.ts
+server/routes/chat.ts
+server/routes/followUp.ts (deleted)
+server/services/chatStore.ts
+server/testing/fakeChatProcessor.ts
+server/testing/worker.ts
+server/validation.ts
+server/worker.ts
+server/workerProcess.ts
+src/features/briefings/BriefingDetail.tsx
+src/features/briefings/EpisodeChat.tsx
+src/features/settings/Settings.tsx
+src/services/api/ApiBriefingService.ts
+src/services/api/index.ts
+src/styles/components.css
+src/types.ts
+tests/e2e/episode-chat.spec.ts
+tests/e2e/foundation.spec.ts
+tests/helpers/chat.ts
+tests/integration/chat-workflow.test.ts
+tests/unit/chat-validation.test.ts
+tests/unit/migrations.test.ts
+tests/unit/openai-provider.test.ts
+tests/unit/smoke-environment.test.ts
+vite.config.ts
+```
+
+Final accounting and final Git checks for this repair are recorded below after the ledger itself is included. Slice 5 remains incomplete and uncommitted. The final focused read-only audit; consent, exact fixture/question, live-provider and budget allocation; protected backup; production migration/deployment/restart/rollback; final diff review; checkpoint authorization; and Slice 6 all remain open.
+
+### Final cleanup and repository accounting
+
+| Exact command | Result |
+| --- | --- |
+| `rg -n 'BroadcastChannel\|channel responses\|channel results\|final four-blocker\|The four final blockers\|Final changed-path inventory\|Final repository accounting' docs/codex/STATE.md docs/codex/BUILD_LOG.md` | Read-only review, exit 0 — matches were limited to historical headings and the literal diagnostic-command records; no current behavioral claim references a broadcast channel |
+| `git diff --check` | PASS on both the pre-ledger and final documentation states, exit 0 |
+| `git diff --cached --quiet` | PASS on both states, exit 0 — index remained clean |
+| `git status --porcelain=v1 -uall` | PASS, exit 0 — the exact 43-path inventory above remained unchanged |
+| `git diff --stat` | PASS, exit 0 — final accounting is stated below |
+| `git ls-files --others --exclude-standard -z \| xargs -0 wc -l` | PASS, exit 0 — 15 untracked files totaling 5,430 lines |
+| `find /tmp/localcast-slice5-episode-lock.TRlGrSw6 -depth -delete` | PASS, exit 0 — removed only this repair's isolated synthetic temporary tree |
+| `test ! -e /tmp/localcast-slice5-episode-lock.TRlGrSw6` | PASS, exit 0 — cleanup confirmed |
+
+Final repository accounting: 28 tracked paths with 2,914 insertions and 130 deletions; 15 untracked paths totaling 5,430 lines; exact same 43-path inventory; clean index; no dependency/lockfile change; no staged file, commit, or checkpoint. The current production build was produced after the final source/test changes; later edits were documentation only. No real `.env`, secret, provider, budget, existing database/media, deployed runtime, Docker/container/network/volume, Caddy, certificate, feed, gPodder/launcher, or non-loopback service was accessed or changed.
+
+## 2026-08-09 — Slice 5 migration-008 ordinary-DML integrity repair
+
+This final bounded repository repair started from branch `codex/localcast-prototype` at unchanged HEAD `6e1242e3e16c87c294d6f4ba0ca8bc2d0f187a1c`, subject `feat(prototype): deliver private podcast feed`, with a clean index, the same 43 recognized Slice 5 paths, 28 tracked paths at 2,914 insertions/130 deletions, and 15 untracked paths totaling 5,430 lines. No dependency or lockfile changed. Slice 4 remained green; Slice 5 remained incomplete, unstaged, and uncommitted.
+
+The focused audit identified two schema-level causes inside still-unapplied migration 008. First, the publication trigger verified only the current attempt, so ordinary DML could construct an otherwise valid attempt-two refusal while an earlier provider row remained `reserved`, `response_received`, or `ambiguous`. Second, evidence-retention DELETE triggers were insufficient against SQLite conflict replacement: with the production connection's default non-recursive trigger setting, `INSERT OR REPLACE` or a partial-index `UPDATE OR REPLACE` could implicitly displace a parent, turn, attempt, provider row, or published claim without invoking the intended explicit-delete guard.
+
+Migration 008 now rejects conflicting insert replacement before SQLite can displace a retained briefing, turn, claim, citation, attempt, retry, or provider identity. Turn updates also reject running-slot and per-episode-lock partial-index displacement. Direct identity updates are immutable for turn, claim, citation, attempt, retry, and provider rows; provider reservation identity remains frozen. Provider rows still begin only as `reserved`, move only `reserved -> response_received -> finalized` or `reserved -> ambiguous`, and cannot be deleted while their turn remains. Explicit whole-episode deletion remains the tested retention boundary.
+
+The exact publication exception is now narrower. A zero-provider terminal failure may unlock. A provider-backed answer/refusal must still be written from the current leased running attempt with exact compatible finalized current-attempt outcomes and exact claims/citations. In addition, the number of attempt rows must equal `attempt_count`; the current attempt must have no error metadata; attempt two requires the accepted retry row plus a finished error-bearing attempt one in `failed`, `interrupted`, or `recovered`; and every earlier provider row must be `finalized`. The later attempt outcome can be finalized only after the parent turn has already published the same answer/refusal kind. This preserves the existing `ChatStore` order: validate lifecycle, write answer artifacts, publish the turn, then finalize the attempt.
+
+Permanent migration regressions use only synthetic databases and ordinary SQL. They separately cover missing support, missing claims, missing citations, outcome mismatch, missing publication fields, all three unresolved earlier lifecycle states, attempt two without a retry record, all four failed-turn lifecycle statuses, row and composite identity mutation, cross-target transfer, parent replacement, global-running and episode-lock partial-index displacement, published-claim/citation replacement, retry replacement, lifecycle regression/outcome rewrite, provider deletion, exact state preservation after rejection, exact answer/refusal publication, zero-provider release, sequential questions, whole-episode deletion, migration-007 upgrade, repeat no-op, and file-backed reopen. The production-path chat workflow retains answer/refusal publication, definitive retry, stale recovery, contention, same-key replay, and sequential-question compatibility.
+
+Three final read-only reviews covered SQL/ChatStore compatibility, direct-DML test validity/evidence-erasure equivalents, and documentation/accounting. The first review identified the `REPLACE` bypass and earlier-attempt publication gap; both were reproduced in permanent tests before the schema repair. Final re-reviews found no remaining blocker. Their nonblocking requests for separately isolated missing-support/claim/citation and missing-retry cases were added and rerun. Documentation now describes ordinary-DML structural integrity rather than schema-authority protection, and does not claim broader state preservation than the tested briefing/chat/provider snapshot.
+
+### Retained command ledger for this repair
+
+Every application, test, typecheck, and build command below used installed dependencies, explicit synthetic configuration, temporary storage, and a scrubbed `env -i` parent. The one API integration listener was an authorized synthetic loopback listener. Read-only Git/source inspection and exact temporary-directory lifecycle commands did not use or claim a scrubbed application environment. Some preflight and source-read orchestration wrappers occurred before context compaction and their exact text was not retained; they are not reconstructed here. The retained commands and outcomes below are exact, while repeated identical commands are grouped with their observed chronological outcomes.
+
+| Exact command | Result |
+| --- | --- |
+| `mktemp -d /tmp/localcast-slice5-migration-integrity.XXXXXXXX` | PASS, exit 0 — created `/tmp/localcast-slice5-migration-integrity.O1Q9ynKW` |
+| `mkdir -p /tmp/localcast-slice5-migration-integrity.O1Q9ynKW/home /tmp/localcast-slice5-migration-integrity.O1Q9ynKW/tmp /tmp/localcast-slice5-migration-integrity.O1Q9ynKW/media /tmp/localcast-slice5-migration-integrity.O1Q9ynKW/cache /tmp/localcast-slice5-migration-integrity.O1Q9ynKW/vite-env /tmp/localcast-slice5-migration-integrity.O1Q9ynKW/build` | PASS, exit 0 |
+| `env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/localcast-slice5-migration-integrity.O1Q9ynKW/home TMPDIR=/tmp/localcast-slice5-migration-integrity.O1Q9ynKW/tmp XDG_CACHE_HOME=/tmp/localcast-slice5-migration-integrity.O1Q9ynKW/cache LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC NODE_ENV=test LOCALCAST_RUNTIME_MODE=test LOCALCAST_PROCESS_ROLE=app DATABASE_PATH=:memory: MEDIA_PATH=/tmp/localcast-slice5-migration-integrity.O1Q9ynKW/media TEXT_PROVIDER=not_configured SPEECH_PROVIDER=not_configured LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-migration-integrity.O1Q9ynKW/vite-env npm_config_offline=true ./node_modules/.bin/vitest run tests/unit/migrations.test.ts -t "rejects an incompatible direct publication" --reporter=dot` | Expected regression-first FAIL, exit 1 — incompatible answer publication did not throw. The same exact command failed again after the first trigger patch because the older fixture manufactured a finalized row instead of following the new reserved-first graph; that fixture was corrected rather than weakening the trigger |
+| `env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/localcast-slice5-migration-integrity.O1Q9ynKW/home TMPDIR=/tmp/localcast-slice5-migration-integrity.O1Q9ynKW/tmp XDG_CACHE_HOME=/tmp/localcast-slice5-migration-integrity.O1Q9ynKW/cache LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC NODE_ENV=test LOCALCAST_RUNTIME_MODE=test LOCALCAST_PROCESS_ROLE=app DATABASE_PATH=:memory: MEDIA_PATH=/tmp/localcast-slice5-migration-integrity.O1Q9ynKW/media TEXT_PROVIDER=not_configured SPEECH_PROVIDER=not_configured LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-migration-integrity.O1Q9ynKW/vite-env npm_config_offline=true ./node_modules/.bin/vitest run tests/unit/migrations.test.ts --reporter=dot` | Intermediate chronology: exit 1 with two fixture/message failures; then PASS 14/14; then exit 1 with a null-refusal bypass plus an error-message assertion; then exit 1 with the remaining message assertion; then PASS 17/17 after the original integrity repair. Later final-repair runs passed 21/21 twice and the final strengthened suite passed 22/22, all exit 0 |
+| `env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/localcast-slice5-migration-integrity.O1Q9ynKW/home TMPDIR=/tmp/localcast-slice5-migration-integrity.O1Q9ynKW/tmp XDG_CACHE_HOME=/tmp/localcast-slice5-migration-integrity.O1Q9ynKW/cache LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC NODE_ENV=test LOCALCAST_RUNTIME_MODE=test LOCALCAST_PROCESS_ROLE=app DATABASE_PATH=:memory: MEDIA_PATH=/tmp/localcast-slice5-migration-integrity.O1Q9ynKW/media TEXT_PROVIDER=not_configured SPEECH_PROVIDER=not_configured LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-migration-integrity.O1Q9ynKW/vite-env npm_config_offline=true ./node_modules/.bin/vitest run tests/integration/chat-workflow.test.ts --reporter=dot` | First sandboxed run: exit 1 with 19 production-path tests passing and only the API case blocked by `listen EPERM 127.0.0.1`. Authorized isolated-loopback reruns passed 20/20, exit 0, including the final post-trigger compatibility run |
+| `env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/localcast-slice5-migration-integrity.O1Q9ynKW/home TMPDIR=/tmp/localcast-slice5-migration-integrity.O1Q9ynKW/tmp XDG_CACHE_HOME=/tmp/localcast-slice5-migration-integrity.O1Q9ynKW/cache LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC NODE_ENV=production LOCALCAST_RUNTIME_MODE=production LOCALCAST_PROCESS_ROLE=app DATABASE_PATH=/tmp/localcast-slice5-migration-integrity.O1Q9ynKW/tmp/typecheck.sqlite MEDIA_PATH=/tmp/localcast-slice5-migration-integrity.O1Q9ynKW/media TEXT_PROVIDER=not_configured SPEECH_PROVIDER=not_configured LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-migration-integrity.O1Q9ynKW/vite-env npm_config_offline=true npm run lint` | PASS, exit 0 — TypeScript emitted no diagnostics before the final focused findings |
+| `env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/localcast-slice5-migration-integrity.O1Q9ynKW/home TMPDIR=/tmp/localcast-slice5-migration-integrity.O1Q9ynKW/tmp XDG_CACHE_HOME=/tmp/localcast-slice5-migration-integrity.O1Q9ynKW/cache LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC NODE_ENV=production LOCALCAST_RUNTIME_MODE=production LOCALCAST_PROCESS_ROLE=app DATABASE_PATH=/tmp/localcast-slice5-migration-integrity.O1Q9ynKW/tmp/build.sqlite MEDIA_PATH=/tmp/localcast-slice5-migration-integrity.O1Q9ynKW/media TEXT_PROVIDER=not_configured SPEECH_PROVIDER=not_configured LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-migration-integrity.O1Q9ynKW/vite-env LOCALCAST_VITE_API_TARGET=http://127.0.0.1:43185 npm_config_offline=true npm run build` | PASS, exit 0 — 2,154 Vite modules and all three server bundles; existing chunk warning only, before the final focused findings |
+| `git diff --check && git diff --cached --quiet` | PASS, exit 0 — no whitespace errors and clean index at that intermediate point |
+| `env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/localcast-slice5-migration-integrity.O1Q9ynKW/home TMPDIR=/tmp/localcast-slice5-migration-integrity.O1Q9ynKW/tmp XDG_CACHE_HOME=/tmp/localcast-slice5-migration-integrity.O1Q9ynKW/cache LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC NODE_ENV=test LOCALCAST_RUNTIME_MODE=test LOCALCAST_PROCESS_ROLE=app DATABASE_PATH=:memory: MEDIA_PATH=/tmp/localcast-slice5-migration-integrity.O1Q9ynKW/media TEXT_PROVIDER=not_configured SPEECH_PROVIDER=not_configured LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-migration-integrity.O1Q9ynKW/vite-env npm_config_offline=true ./node_modules/.bin/vitest run tests/unit/migrations.test.ts -t "rejects replacement statements" --reporter=dot` | Expected FAIL, exit 1 — same-ID provider draft-to-support `INSERT OR REPLACE` succeeded and proved the implicit-delete bypass |
+| `env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/localcast-slice5-migration-integrity.O1Q9ynKW/home TMPDIR=/tmp/localcast-slice5-migration-integrity.O1Q9ynKW/tmp XDG_CACHE_HOME=/tmp/localcast-slice5-migration-integrity.O1Q9ynKW/cache LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC NODE_ENV=test LOCALCAST_RUNTIME_MODE=test LOCALCAST_PROCESS_ROLE=app DATABASE_PATH=:memory: MEDIA_PATH=/tmp/localcast-slice5-migration-integrity.O1Q9ynKW/media TEXT_PROVIDER=not_configured SPEECH_PROVIDER=not_configured LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-migration-integrity.O1Q9ynKW/vite-env npm_config_offline=true ./node_modules/.bin/vitest run tests/unit/migrations.test.ts -t "rejects attempt-two publication|rejects replacement statements" --reporter=dot` | Expected FAIL before the final SQL patch, exit 1 — four failures: attempt-two publication succeeded over each of `reserved`, `response_received`, and `ambiguous` attempt-one state, and provider `REPLACE` succeeded. Exact rerun after the patch passed 4/4, exit 0 |
+| `env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/localcast-slice5-migration-integrity.O1Q9ynKW/home TMPDIR=/tmp/localcast-slice5-migration-integrity.O1Q9ynKW/tmp XDG_CACHE_HOME=/tmp/localcast-slice5-migration-integrity.O1Q9ynKW/cache LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC NODE_ENV=production LOCALCAST_RUNTIME_MODE=production LOCALCAST_PROCESS_ROLE=app DATABASE_PATH=/tmp/localcast-slice5-migration-integrity.O1Q9ynKW/tmp/typecheck-final.sqlite MEDIA_PATH=/tmp/localcast-slice5-migration-integrity.O1Q9ynKW/media TEXT_PROVIDER=not_configured SPEECH_PROVIDER=not_configured LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-migration-integrity.O1Q9ynKW/vite-env npm_config_offline=true npm run lint` | PASS, exit 0 — final TypeScript `--noEmit` check |
+| `env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/localcast-slice5-migration-integrity.O1Q9ynKW/home TMPDIR=/tmp/localcast-slice5-migration-integrity.O1Q9ynKW/tmp XDG_CACHE_HOME=/tmp/localcast-slice5-migration-integrity.O1Q9ynKW/cache LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC NODE_ENV=production LOCALCAST_RUNTIME_MODE=production LOCALCAST_PROCESS_ROLE=app DATABASE_PATH=/tmp/localcast-slice5-migration-integrity.O1Q9ynKW/tmp/build-final.sqlite MEDIA_PATH=/tmp/localcast-slice5-migration-integrity.O1Q9ynKW/media TEXT_PROVIDER=not_configured SPEECH_PROVIDER=not_configured LOCALCAST_VITE_ENV_DIR=/tmp/localcast-slice5-migration-integrity.O1Q9ynKW/vite-env LOCALCAST_VITE_API_TARGET=http://127.0.0.1:43185 npm_config_offline=true npm run build` | PASS, exit 0 — Vite 6.4.3 transformed 2,154 modules; `dist-server/index.js`, `worker.js`, and `storageInit.js` emitted; existing chunk-size warning only |
+| `git diff --shortstat` | PASS, exit 0 — interim pre-ledger accounting: 28 tracked paths, 4,469 insertions/130 deletions |
+| `git status --porcelain=v1 --untracked-files=all` | PASS, exit 0 — clean index and the same recognized 43-path worktree |
+| `git diff --cached --quiet` | PASS, exit 0 — index clean |
+| `git diff --name-only -- package-lock.json yarn.lock pnpm-lock.yaml` | PASS, exit 0 with no output — no lockfile changed |
+| `git ls-files --others --exclude-standard -z \| xargs -0 wc -l` | PASS, exit 0 — 15 untracked files totaling 5,430 lines |
+
+### Repair scope and deferred gates
+
+This repair changed exactly eight already-recognized paths: `server/database/migrations.ts`, `tests/unit/migrations.test.ts`, and `docs/codex/{SPEC,DECISIONS,PLAN,STATE,TEST_MATRIX,BUILD_LOG}.md`. It added no path or dependency and changed no ChatStore, EpisodeChat, provider, model, request, privacy, feed, audio, Caddy, Docker, deployment, or launcher behavior. Browser and smoke tests were intentionally not rerun because neither their source nor a dependency changed; `npm run verify`, Compose/image checks, Docker, provider calls, production migration, deployment, and non-loopback verification remained prohibited. Consent, exact fixture/question, budget allocation, backup, production migration/deployment/restart/rollback, final diff review, checkpoint authorization, and Slice 6 remain open. Slice 5 is not complete or green.
+
+Final cleanup and repository accounting follow after the last documentation and Git checks. No real `.env`, secret, provider, budget, existing database/media, deployed runtime, container/network/volume, Caddy, certificate, feed, gPodder/launcher, or external non-loopback service was accessed or changed.
+
+### Final cleanup and accounting
+
+| Exact command | Result |
+| --- | --- |
+| `rg -n "21 migration\|41 migration\|final focused read-only audit\|complete durable state unchanged\|complete historical shell transcript" docs/codex/STATE.md docs/codex/TEST_MATRIX.md docs/codex/BUILD_LOG.md` | Read-only precision check, exit 0 — matches were limited to explicitly historical prior-repair wording and the literal command record; current records use the migration-only gate and narrowed state-preservation claim |
+| `git diff --check` | PASS before final accounting, exit 0 — no whitespace errors |
+| `git diff --cached --quiet` | PASS before final accounting, exit 0 — index clean |
+| `git diff --shortstat` | PASS, exit 0 — pre-final-accounting ledger state was 28 tracked paths at 4,513 insertions/130 deletions |
+| `git status --porcelain=v1 --untracked-files=all` | PASS, exit 0 — same recognized 43 paths, no staged path |
+| `git diff --numstat -- server/database/migrations.ts tests/unit/migrations.test.ts docs/codex/BUILD_LOG.md docs/codex/DECISIONS.md docs/codex/PLAN.md docs/codex/SPEC.md docs/codex/STATE.md docs/codex/TEST_MATRIX.md` | PASS, exit 0 — confirmed the eight-path repair subset within the retained Slice 5 diff |
+| `git ls-files --others --exclude-standard -z \| xargs -0 wc -l` | PASS, exit 0 — 15 untracked files totaling 5,430 lines |
+| `find /tmp/localcast-slice5-migration-integrity.O1Q9ynKW -depth -delete` | PASS, exit 0 — removed only this repair's isolated synthetic temporary tree |
+| `test ! -e /tmp/localcast-slice5-migration-integrity.O1Q9ynKW` | PASS, exit 0 — cleanup confirmed |
+| `git diff --check` | PASS, exit 0 — no whitespace errors after the final ledger |
+| `git diff --cached --quiet` | PASS, exit 0 — index clean after the final ledger |
+| `git status --porcelain=v1 --untracked-files=all` | PASS, exit 0 — exact same recognized 43-path worktree; no staged path |
+| `git diff --shortstat` | PASS, exit 0 — 28 tracked paths at 4,535 insertions/130 deletions |
+| `git ls-files --others --exclude-standard -z \| xargs -0 wc -l` | PASS, exit 0 — 15 untracked files totaling 5,430 lines |
+| `git diff --name-only -- package-lock.json yarn.lock pnpm-lock.yaml` | PASS, exit 0 with no output — no dependency lockfile changed |
+
+Final repository accounting: 28 tracked paths with 4,535 insertions and 130 deletions; 15 untracked paths totaling 5,430 lines; exact same 43-path inventory; clean index; no dependency/lockfile change; no staged path, commit, or checkpoint. The repair changed exactly the eight paths named above. Slice 5 remains incomplete and not checkpoint-green, and no prohibited resource or service was accessed or changed.
+
+## 2026-08-21 — Slice 5 O-006 completion and local checkpoint validation
+
+The frozen Slice 5 worktree was reconciled before documentation edits: branch `codex/localcast-prototype`, HEAD `6e1242e3e16c87c294d6f4ba0ca8bc2d0f187a1c` (`feat(prototype): deliver private podcast feed`), clean index, 43 recognized Slice 5 paths, 28 tracked paths with 4,535 insertions and 130 deletions, and 15 untracked paths totaling 5,430 lines. No dependency or lockfile changed. The scope comprises migration/database, app/API/chat, worker/provider lifecycle, episode UI, local smoke tooling, deterministic fixtures/tests, and the planning ledger; no credential, `.env`, backup/evidence database, runtime artifact, or generated file is part of the checkpoint.
+
+O-006 started at `2026-08-21T15:29:58Z` and completed at `2026-08-21T15:30:23Z`. Its validated pre-migration backup is `/opt/stacks/localcast-backups/schema007-pre-migration-20260821T132838Z/localcast.sqlite.007`, SHA-256 `0ee6e8e0c40b401d0dfe61ab88ab7f42c35655a51f92ae5107df46db41454afa`, with its checksum chain verified. Migration 008 completed; schema, integrity, foreign-key, undisclosed installation-identity, and quiescence checks passed. App and worker are healthy on `sha256:af9a5635deccac039955317be7652f8d757001022e3a265df3af6a4a6a8e1fd8`; loopback health and controlled restart passed. No provider dispatch occurred. Rollback was not invoked, distinct rollback tags remain retained, temporary operational files were removed, and no storage-init container remains.
+
+### Local checkpoint verification
+
+| Command | Result |
+| --- | --- |
+| `npm run lint` | PASS — TypeScript no-emit check |
+| `npm run test` | PASS — 217 unit tests in 11 files |
+| `vitest run tests/unit/migrations.test.ts` | PASS — 22 migration tests |
+| `npm run test:integration` | PASS when run in three loopback-safe groups — 91 integration tests in 13 files |
+| `npm run build` | PASS — production web and all three server bundles; existing chunk-size warning only |
+| `npm run test:e2e` | PASS — 17 Playwright/axe flows in 5.1 minutes, using only temporary loopback servers |
+| `npm run smoke:api` | PASS — API and worker smoke checks |
+| `npm run smoke:production` | PASS — production same-origin smoke checks |
+
+The Compose smoke was not rerun because this authorization prohibits Docker changes. O-005 remains open: no live follow-up provider request was made, no protected value was recorded, and this checkpoint does not claim live supported/refusal acceptance or begin Slice 6.

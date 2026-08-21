@@ -4,6 +4,7 @@ import {ArrowLeft, CheckCircle2, Clock, Download, FileText, Loader2, PlayCircle,
 import {Link} from 'react-router-dom';
 import {briefingService} from '../../services';
 import type {BriefingRun} from '../../types';
+import EpisodeChat from './EpisodeChat';
 
 interface BriefingDetailProps {
   runId: string;
@@ -218,6 +219,8 @@ export default function BriefingDetailView({runId, onBack, onPlay}: BriefingDeta
               </article>
             ))}
           </section>
+
+          <EpisodeChat runId={run.id} />
         </>
       )}
     </div>

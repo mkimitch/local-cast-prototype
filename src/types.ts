@@ -3,6 +3,29 @@ export type SourceStatus = 'healthy' | 'error' | 'syncing';
 export type SourceSyncStatus = 'success' | 'error';
 export type FeedNetworkScope = 'public' | 'private' | 'unknown';
 
+export const unicodeCodePointLength = (value: string): number => Array.from(value).length;
+
+export const isWellFormedLocalCastText = (value: string): boolean => {
+  if (value.includes('\0') || value.includes('\ufffd')) return false;
+  for (let index = 0; index < value.length; index += 1) {
+    const codeUnit = value.charCodeAt(index);
+    if (codeUnit >= 0xd800 && codeUnit <= 0xdbff) {
+      const next = value.charCodeAt(index + 1);
+      if (!(next >= 0xdc00 && next <= 0xdfff)) return false;
+      index += 1;
+    } else if (codeUnit >= 0xdc00 && codeUnit <= 0xdfff) {
+      return false;
+    }
+  }
+  return true;
+};
+
+export const isBoundedLocalCastText = (value: string, minimum: number, maximum: number): boolean => (
+  isWellFormedLocalCastText(value)
+  && unicodeCodePointLength(value) >= minimum
+  && unicodeCodePointLength(value) <= maximum
+);
+
 export interface Source {
   id: string;
   type: SourceType;
@@ -113,6 +136,47 @@ export interface TranscriptSegment {
   speakerLabel?: string;
   voiceProfile?: string;
   citations: TranscriptCitation[];
+}
+
+export type ChatCitation = TranscriptCitation;
+
+export interface ChatClaim {
+  id: string;
+  text: string;
+  supportStatus: 'supported';
+  citations: ChatCitation[];
+}
+
+export interface ChatAttempt {
+  attemptNumber: number;
+  startedAt: string;
+  finishedAt?: string;
+  outcome: 'running' | 'answered' | 'refused' | 'failed' | 'interrupted' | 'recovered';
+  errorCode?: string;
+}
+
+export interface ChatTurn {
+  id: string;
+  submissionId: string;
+  acceptedRetry?: {
+    idempotencyKey: string;
+    attemptNumber: 2;
+    acceptedAt: string;
+  };
+  runId: string;
+  question: string;
+  state: 'queued' | 'running' | 'answered' | 'refused' | 'failed';
+  answerKind?: 'answer' | 'refusal';
+  refusalCode?: 'EVIDENCE_INSUFFICIENT';
+  claims: ChatClaim[];
+  attemptCount: number;
+  errorCode?: string;
+  errorMessage?: string;
+  retryable: boolean;
+  createdAt: string;
+  updatedAt: string;
+  completedAt?: string;
+  attempts: ChatAttempt[];
 }
 
 export interface EpisodeWarning {

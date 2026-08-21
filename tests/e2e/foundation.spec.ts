@@ -19,6 +19,11 @@ test('production UI is same-origin, honest, and manually driven', async ({page})
 	await expect(page.getByText('NOT CONFIGURED', {exact: true})).toHaveCount(2);
 	await expect(page.locator('input[type="password"]')).toHaveCount(0);
 	await expect(page.getByText(/credentials and endpoints are configured only on the LocalCast server/i)).toBeVisible();
+	await expect(page.getByText(/complete frozen transcript, and all frozen supporting evidence snapshots/i)).toBeVisible();
+	await expect(page.getByText(/supported answer can use two external requests/i)).toBeVisible();
+	await expect(page.getByText(/provider-side response storage is disabled through store: false/i)).toBeVisible();
+	await expect(page.getByText(/LocalCast still keeps the ordered chat history in SQLite/i)).toBeVisible();
+	await expect(page.getByText(/pinned to.*gpt-5\.4-mini-2026-03-17/i)).toBeVisible();
 
 	await page.getByRole('link', {name: 'Sources'}).click();
 	await page.getByRole('button', {name: 'Add RSS or Atom feed'}).click();

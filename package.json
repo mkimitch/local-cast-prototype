@@ -29,6 +29,8 @@
     "test:e2e": "playwright test",
     "e2e:server": "node scripts/start-e2e-server.mjs",
     "e2e:generation-server": "node scripts/start-e2e-generation-server.mjs",
+    "e2e:chat-server": "E2E_GENERATION_PORT=43185 E2E_FEED_PORT=43186 node scripts/start-e2e-generation-server.mjs",
+    "e2e:strict-web": "LOCALCAST_VITE_API_TARGET=http://127.0.0.1:43185 vite --port=43189 --host=127.0.0.1",
     "e2e:retry-server": "E2E_GENERATION_PORT=43183 E2E_FEED_PORT=43184 LOCALCAST_FAKE_PHASE_DELAY_MS=150 LOCALCAST_FAKE_FAILURE_PHASE=drafting LOCALCAST_FAKE_FAILURE_ATTEMPT=1 node scripts/start-e2e-generation-server.mjs",
     "smoke:api": "node scripts/smoke-api.mjs",
     "smoke:production": "node scripts/smoke-production.mjs",

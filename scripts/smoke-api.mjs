@@ -5,6 +5,7 @@ import Database from 'better-sqlite3';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import {createSmokeChildEnvironment, resolveSmokeEntry} from './smoke-environment.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'localcast-api-smoke-'));
@@ -62,28 +63,31 @@ const startFeed = async () => {
 	return `http://127.0.0.1:${address.port}/feed.xml`;
 };
 
-const childEnvironment = (role, extra = {}) => ({
-	...process.env,
+const childEnvironment = (role, extra = {}) => createSmokeChildEnvironment({
+	HOME: temporaryRoot,
+	TMPDIR: temporaryRoot,
 	NODE_ENV: 'test',
 	LOCALCAST_RUNTIME_MODE: 'test',
 	LOCALCAST_PROCESS_ROLE: role,
-	LOCALCAST_HOST: '127.0.0.1',
-	PORT: String(apiPort),
 	DATABASE_PATH: databasePath,
 	MEDIA_PATH: mediaPath,
-	LOCALCAST_WEB_DIST_PATH: path.join(repoRoot, 'dist'),
-	LOCALCAST_TRUSTED_ORIGINS: allowedOrigin,
 	TEXT_PROVIDER: 'fake',
 	SPEECH_PROVIDER: 'fake',
 	LOCALCAST_ALLOW_FAKE_PROVIDERS: 'true',
 	LOCALCAST_RSS_PRIVATE_HOSTS: '127.0.0.1',
 	RSS_SYNC_ON_START: '',
 	RSS_SYNC_INTERVAL_MINUTES: '',
+	...(role === 'app' ? {
+		LOCALCAST_HOST: '127.0.0.1',
+		PORT: String(apiPort),
+		LOCALCAST_WEB_DIST_PATH: path.join(repoRoot, 'dist'),
+		LOCALCAST_TRUSTED_ORIGINS: allowedOrigin,
+	} : {}),
 	...extra,
 });
 
 const startProcess = (entryPoint, role, extra = {}) => {
-	const child = spawn(process.execPath, ['--import', 'tsx', entryPoint], {
+	const child = spawn(process.execPath, ['--import', 'tsx', resolveSmokeEntry(repoRoot, entryPoint)], {
 		cwd: repoRoot,
 		env: childEnvironment(role, extra),
 		stdio: ['ignore', 'pipe', 'pipe'],
@@ -149,6 +153,21 @@ const waitForRun = async (runId, terminal) => {
 		await new Promise(resolve => setTimeout(resolve, 100));
 	}
 	throw new Error(`Run did not reach ${terminal} before timeout`);
+};
+
+const waitForChat = async (runId, turnId, terminal) => {
+	const deadline = Date.now() + 10_000;
+	while (Date.now() < deadline) {
+		const result = await request(`/briefing-runs/${encodeURIComponent(runId)}/chat-turns`);
+		assert(result.response.ok, 'chat history should succeed while polling');
+		const turn = result.body.find(item => item.id === turnId);
+		if (turn?.state === terminal) return turn;
+		if (turn && ['answered', 'refused', 'failed'].includes(turn.state)) {
+			throw new Error(`Chat turn reached unexpected terminal state ${turn.state}`);
+		}
+		await new Promise(resolve => setTimeout(resolve, 100));
+	}
+	throw new Error(`Chat turn did not reach ${terminal} before timeout`);
 };
 
 let app;
@@ -245,6 +264,27 @@ try {
 	assert(audioResponse.ok, 'completed deterministic media should be available from the same origin');
 	const audioBytes = Buffer.from(await audioResponse.arrayBuffer());
 	assert(audioBytes.byteLength > 1_000 && audioBytes.subarray(0, 3).toString('ascii') === 'ID3', 'test speech adapter should publish a decodable deterministic MP3 fixture');
+	const chat = await request(`/briefing-runs/${encodeURIComponent(enqueue.body.id)}/chat-turns`, {
+		method: 'POST',
+		headers: {'Content-Type': 'application/json', 'Idempotency-Key': 'smoke-chat-idempotency-0001'},
+		body: JSON.stringify({question: 'What does the synthetic completed episode establish?'}),
+	});
+	assert(chat.response.status === 202 && chat.body.state === 'queued', 'completed episode should durably enqueue grounded chat');
+	const chatReplay = await request(`/briefing-runs/${encodeURIComponent(enqueue.body.id)}/chat-turns`, {
+		method: 'POST',
+		headers: {'Content-Type': 'application/json', 'Idempotency-Key': 'smoke-chat-idempotency-0001'},
+		body: JSON.stringify({question: 'What does the synthetic completed episode establish?'}),
+	});
+	assert(chatReplay.response.status === 200 && chatReplay.body.id === chat.body.id, 'chat enqueue replay must not create duplicate work');
+	const answeredChat = await waitForChat(enqueue.body.id, chat.body.id, 'answered');
+	assert(answeredChat.claims.length === 1 && answeredChat.claims[0].citations.length === 1, 'grounded chat should persist one resolved cited answer');
+	const refusal = await request(`/briefing-runs/${encodeURIComponent(enqueue.body.id)}/chat-turns`, {
+		method: 'POST',
+		headers: {'Content-Type': 'application/json', 'Idempotency-Key': 'smoke-chat-refusal-0001'},
+		body: JSON.stringify({question: 'What happened outside this episode?'}),
+	});
+	const refusedChat = await waitForChat(enqueue.body.id, refusal.body.id, 'refused');
+	assert(refusedChat.refusalCode === 'EVIDENCE_INSUFFICIENT' && refusedChat.claims.length === 0, 'unsupported chat should persist a bounded refusal without claims');
 	await stopProcess(worker);
 	worker = undefined;
 
@@ -283,6 +323,8 @@ try {
 	await waitForApi(app);
 	const persisted = await request(`/briefing-runs/${encodeURIComponent(enqueue.body.id)}`);
 	assert(persisted.body.status === 'complete' && persisted.body.sections.length > 0, 'completed work must survive API restart');
+	const persistedChat = await request(`/briefing-runs/${encodeURIComponent(enqueue.body.id)}/chat-turns`);
+	assert(JSON.stringify(persistedChat.body.map(turn => turn.state)) === JSON.stringify(['answered', 'refused']), 'ordered chat answer and refusal must survive API restart');
 
 	const sqlite = new Database(databasePath, {readonly: true});
 	try {

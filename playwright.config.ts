@@ -31,5 +31,17 @@ export default defineConfig({
 			reuseExistingServer: false,
 			timeout: 30_000,
 		},
+		{
+			command: 'npm run e2e:chat-server',
+			url: 'http://127.0.0.1:43185/api/health',
+			reuseExistingServer: false,
+			timeout: 30_000,
+		},
+		{
+			command: 'npm run e2e:strict-web',
+			url: 'http://127.0.0.1:43189',
+			reuseExistingServer: false,
+			timeout: 30_000,
+		},
 	],
 });

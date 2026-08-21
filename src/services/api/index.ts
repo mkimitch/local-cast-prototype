@@ -1,4 +1,4 @@
-import type {AppSettings, BriefingRun, EpisodeMode, MaterialSearchResult, Note, PodcastStatus, Source, SourceItem, Station} from '../../types';
+import type {AppSettings, BriefingRun, ChatTurn, EpisodeMode, MaterialSearchResult, Note, PodcastStatus, Source, SourceItem, Station} from '../../types';
 
 export interface SourceService {
   getSources(): Promise<Source[]>;
@@ -16,6 +16,9 @@ export interface BriefingService {
   getRun(id: string): Promise<BriefingRun | undefined>;
   startStationRun(stationId: string, mode?: EpisodeMode): Promise<BriefingRun>;
   retryRun(id: string): Promise<BriefingRun>;
+  getChatTurns(runId: string, signal?: AbortSignal): Promise<ChatTurn[]>;
+  askEpisodeQuestion(runId: string, question: string, idempotencyKey: string, signal?: AbortSignal): Promise<ChatTurn>;
+  retryEpisodeQuestion(runId: string, turnId: string, idempotencyKey: string, signal?: AbortSignal): Promise<ChatTurn>;
 }
 
 export interface StationService {

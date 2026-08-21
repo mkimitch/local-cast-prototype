@@ -3,8 +3,10 @@ import path from 'path';
 import {defineConfig} from 'vite';
 
 export default defineConfig(() => {
+  const apiTarget = process.env.LOCALCAST_VITE_API_TARGET || 'http://127.0.0.1:8787';
   return {
     plugins: [react()],
+    envDir: process.env.LOCALCAST_VITE_ENV_DIR || undefined,
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
@@ -14,8 +16,8 @@ export default defineConfig(() => {
       hmr: process.env.DISABLE_HMR !== 'true',
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
       proxy: {
-        '/api': 'http://127.0.0.1:8787',
-        '/media': 'http://127.0.0.1:8787',
+        '/api': apiTarget,
+        '/media': apiTarget,
       },
     },
   };

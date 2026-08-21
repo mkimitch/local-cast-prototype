@@ -1,7 +1,7 @@
 # LocalCast autonomous build plan
 
-Status: Slice 4 green on 2026-08-06; the checkpoint is the commit containing this plan
-Current slice: **4 — COMPLETE; Slice 5 has not started**
+Status: Slice 4 remains green; Slice 5 is implemented only to repository pre-live/pre-deployment review and is not complete
+Current slice: **5 — IMPLEMENTED TO PRE-LIVE/PRE-DEPLOYMENT REVIEW; LIVE, DEPLOYMENT, AND CHECKPOINT GATES DEFERRED**
 Execution policy: one vertical slice, one green checkpoint commit
 
 ## How to use this plan
@@ -255,7 +255,9 @@ Deterministic tests, the authorized Caddy attachment, HTTPS/TLS health, real per
 
 Suggested commit: `feat(prototype): deliver private podcast feed`
 
-## Slice 5 — Episode-grounded follow-up chat
+## Slice 5 — Episode-grounded follow-up chat — O-006 DEPLOYMENT GATE COMPLETE 2026-08-21; LIVE CHAT ACCEPTANCE REMAINS OPEN
+
+Repository implementation and deterministic synthetic evidence are present. O-006 completed the protected backup, migration 008, deployment, loopback-health, and controlled-restart gate on 2026-08-21. O-005's separately authorized live supported-answer/refusal evidence remains open, so this does not claim live chat acceptance or begin Slice 6.
 
 ### Outcome
 
@@ -265,14 +267,16 @@ The user can ask questions from a completed episode and receive persisted, cited
 
 - Require a completed episode and build all grounding context server-side.
 - Remove/reject arbitrary client context.
-- Add bounded chat provider schemas, citation validation, prompt-injection isolation, refusal behavior, safe failures, and persistence.
-- Add accessible chat UI, suggested-question actions, pending/error/retry state, citation resolution, and history.
+- Add bounded chat provider schemas, citation validation, prompt-injection isolation, refusal behavior, safe failures, and persistence. Pin chat independently to `gpt-5.4-mini-2026-03-17`; reject any other chat model; serialize and cap each complete provider request body at 131,072 UTF-8 bytes before fetch; retain the existing 2,500-token draft and 750-token support ceilings.
+- Limit a supported answer to two provider calls per claimed attempt, a refusal ordinarily to one, and every turn to an initial attempt plus one explicit retry. Reserve each draft/support stage transactionally under a current lease before entering its provider-adapter method. A runtime-validated native SQLite store must commit the stage row before it registers the mandatory process-private one-use grant bound to the exact episode/turn/attempt/stage/worker/row and row-scoped lifecycle operations; a crash between commit and registration leaves the slot consumed. No exported issuer, structural database substitute, no-op observer, or unrestricted lifecycle mutator may manufacture execution authority. A reserved stage with an unconfirmed outcome or finalization is non-retryable; permit the one explicit retry only after a pre-dispatch/no-reservation failure, a safely finalized retryable provider result, or stale recovery after all existing stages finalized and before any next stage/publication, with durable proof that no provider work remains unresolved or in flight. Persist only bounded lifecycle, usage, and provider-identifier metadata, and require exact finalized rows for publication.
+- Add accessible chat UI, suggested-question actions, pending/error/retry state, citation resolution, and history. Reconcile lost submission/retry responses only when durable history proves that exact submission key or accepted retry turn/key/attempt identity. One empty authoritative response does not prove rejection: retain a minimal non-content action identity in same-origin shared storage, continue a bounded exact-identity check across polling/reload/tabs, then remain safely blocked for manual reconciliation if still uncertain. Give every effect lifetime a fresh epoch and fence every mutation, automatic/manual history fetch, timer, cache write, persistent-record change, focus/status change, and lock change by that epoch, exact action generation, and a shared monotonic history-response generation. Migration 008 must keep one authoritative episode lock for queued/running turns and for every unpublished failed turn containing any provider-call lifecycle row, including a finalized row. Its ordinary-DML integrity triggers must release only an exact answer/refusal publication whose current and prior attempt/lifecycle history is complete and compatible, or a zero-provider terminal failure; reject conflict-resolution replacement paths before retained rows can be displaced; preserve lifecycle evidence against reparenting/deletion while parent history remains; and allow only production lifecycle transitions. Concurrent distinct-key tabs have one transaction winner even when browser coordination races; same-key replay remains idempotent, an eligible explicit retry stays on the locked turn, and a new sequential question is allowed only after exact publication or a provable terminal failure before provider reservation.
 - Ensure chat invokes no search/tools and survives original source deletion plus restart.
+- Isolate API and production smokes with explicit child-environment allowlists, temporary credential-free storage roots, absolute entry paths, and loopback-only ephemeral listeners. Production children use temporary working directories so dotenv cannot discover the repository `.env`; API children use the repository working directory only with entrypoints that do not load dotenv.
 
 ### Targeted evidence
 
-- Tests cover unknown/incomplete episode, arbitrary client context, source deletion, unsupported question, prompt injection, malformed answer, unknown citation, timeout, retry, and restart.
-- A live minimal question has source-grounded answer evidence; a deliberately unsupported question produces a refusal.
+- Tests cover unknown/incomplete episode, arbitrary client context, original-note deletion, unsupported question, prompt injection, malformed answer, unknown citation, draft/support body boundaries, Unicode/escaping overhead, NUL/lone-surrogate rejection, timeout, ambiguous outcomes, one-retry/two-attempt caps, native-SQLite commit-before-adapter authorization, strict lifecycle-required publication, stale `reserved` and `response_received` recovery, episode locking after every unpublished provider-using failure including finalized rejection/validation outcomes, bounded usage metadata, simultaneous retry contention, retry-versus-new-question contention, first-empty-history exact UI reconciliation, real development StrictMode replay, stale success/failure history ordering, unmount/remount callback fencing, malformed shared-record recovery, advisory same-origin tab coordination, independently stored two-client contention with authoritative convergence, transactional distinct-key initial contention, and app/worker/browser restart.
+- Deterministic tests prove source-grounded answer and deliberately unsupported refusal behavior without an external network request. Smoke regression evidence must prove parent credentials, root `.env`, and external secret paths cannot cross into child processes. The separately authorized live minimal supported/refusal evidence is still required before this slice can close.
 
 ### Rows closed by this slice
 

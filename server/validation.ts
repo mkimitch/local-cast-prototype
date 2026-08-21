@@ -1,13 +1,12 @@
 import {z} from 'zod';
 import type {AppSettings} from '../src/types';
 import type {EpisodeMode} from '../src/types';
+import {isBoundedLocalCastText, isWellFormedLocalCastText} from '../src/types';
 import type {CreateSourceInput, UpdateSourceInput} from './services/sourceStore';
 import type {SaveNoteInput, SaveStationInput} from './services/stationStore';
 import {hasEmbeddedUrlCredential} from './services/safeFeedFetcher';
 
 type ValidationResult<T> = {ok: true; value: T} | {ok: false; error: string};
-
-const optionalTrimmedString = z.string().trim().min(1).optional();
 const feedUrlSchema = z.string().trim().url().max(2048).refine(value => {
 	const url = new URL(value);
 	return (url.protocol === 'http:' || url.protocol === 'https:') && !hasEmbeddedUrlCredential(url) && !url.hash;
@@ -55,11 +54,11 @@ const stationSchema = z.object({
 	sourceIds: z.array(z.string().trim().min(1).max(200)).max(20),
 }).strict();
 
-const followUpSchema = z.object({
-	question: z.string().trim().min(1).max(4000),
-	context: optionalTrimmedString,
-	runId: optionalTrimmedString,
-}).strict();
+const chatQuestionSchema = z.object({question: z.string()}).strict();
+
+const idempotencyKeySchema = z.string().refine(value => (
+	value === value.trim() && isBoundedLocalCastText(value, 8, 200)
+), {message: 'Idempotency-Key must contain between 8 and 200 valid characters without surrounding whitespace'});
 
 const settingsSchema = z.object({
 	orbTheme: z.string().trim().min(1).max(80).optional(),
@@ -95,9 +94,17 @@ export const parseStationBody = (body: unknown): ValidationResult<SaveStationInp
 
 export const parseIdempotencyKey = (value: unknown): ValidationResult<string | undefined> => {
 	if (value === undefined) return {ok: true, value: undefined};
-	return parse(z.string().trim().min(8).max(200), value);
+	return parse(idempotencyKeySchema, value);
 };
 
-export const parseFollowUpRequest = (body: unknown): ValidationResult<{question: string; context?: string; runId?: string}> => parse(followUpSchema, body);
+export const parseChatQuestionRequest = (body: unknown): ValidationResult<{question: string}> => {
+	const parsed = parse(chatQuestionSchema, body);
+	if (!parsed.ok) return parsed;
+	const question = parsed.value.question.trim();
+	if (!isWellFormedLocalCastText(parsed.value.question) || !isBoundedLocalCastText(question, 1, 1_000)) {
+		return {ok: false, error: 'Question must contain between 1 and 1000 well-formed characters'};
+	}
+	return {ok: true, value: {question}};
+};
 
 export const parseSettingsBody = (body: unknown): ValidationResult<Partial<AppSettings>> => parse(settingsSchema, body);

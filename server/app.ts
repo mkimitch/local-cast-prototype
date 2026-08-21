@@ -5,7 +5,7 @@ import path from 'node:path';
 import {randomUUID} from 'node:crypto';
 import type {ServerConfig} from './config';
 import {briefingRunsRouter} from './routes/briefingRuns';
-import {followUpRouter} from './routes/followUp';
+import {chatRouter} from './routes/chat';
 import {healthRouter} from './routes/health';
 import {settingsRouter} from './routes/settings';
 import {sourcesRouter} from './routes/sources';
@@ -93,8 +93,8 @@ export const createApp = (config: ServerConfig) => {
 	app.use('/api', sourcesRouter);
 	app.use('/api', stationsRouter);
 	app.use('/api', briefingRunsRouter);
+	app.use('/api', chatRouter);
 	app.use('/api', settingsRouter);
-	app.use('/api', followUpRouter);
 	app.use(createPodcastRouter(config));
 	app.use(createMediaRouter(config));
 
