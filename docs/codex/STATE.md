@@ -5,14 +5,20 @@ Branch: `codex/localcast-prototype`
 Pre-bootstrap HEAD: `910485b77ead63450660b0b97544889960e45e3f`
 Slice 0 base HEAD: `e720d5818ab15efccfa143c94d6514c0c9a2baad`
 Current base checkpoint: Slice 4 at `6e1242e3e16c87c294d6f4ba0ca8bc2d0f187a1c`
-Current checkpoint: **Slice 5 implementation checkpoint authorized; O-005 live-chat acceptance remains open**
-Implementation slice: **5 — REPOSITORY, BACKUP, MIGRATION-008, DEPLOYMENT, HEALTH, AND CONTROLLED-RESTART GATES COMPLETE; LIVE CHAT ACCEPTANCE NOT CLAIMED**
-Next action: **O-005's separately authorized minimal live supported/refusal acceptance, if approved; do not begin Slice 6**
-Overall state: **SLICE 4 GREEN; SLICE 5 O-006 COMPLETE, WITH O-005 LIVE-CHAT ACCEPTANCE STILL OPEN**
+Current checkpoint: **Slice 5 O-006 and O-005 acceptance complete; local documentation checkpoint pending**
+Implementation slice: **5 — REPOSITORY, BACKUP, MIGRATION-008, DEPLOYMENT, HEALTH, CONTROLLED-RESTART, AND LIVE CHAT ACCEPTANCE GATES COMPLETE 2026-08-21**
+Next action: **Create the authorized local documentation checkpoint only; do not begin Slice 6**
+Overall state: **SLICE 5 COMPLETE 2026-08-21; SLICE 6 NOT STARTED**
+
+## O-005 live supported/refusal acceptance result — 2026-08-21
+
+The authorized live acceptance used synthetic fixture `run-o005-atomic-66552802-ca97-4996-a0a9-4456485dce9e`. The supported attempt answered with the grounded fact `18 hours`, one factual claim, and the exact atomic citation; draft and semantic-support lifecycle stages finalized successfully. The refusal attempt terminated with `EVIDENCE_INSUFFICIENT` and zero claims. Exactly three provider requests occurred (two supported-path calls and one refusal call), with zero retries and zero duplicate dispatches. Final generation, chat, provider, and synchronization work was quiescent; schema 008, integrity, foreign-key, and undisclosed identity checks remained valid; and app and worker remained healthy on immutable image `sha256:af9a5635deccac039955317be7652f8d757001022e3a265df3af6a4a6a8e1fd8`.
+
+The earlier synthetic fixture `run-o005-aurora-9cd647a5-b61b-47d0-8caf-16a142c5e8e3` remains retained as a fail-closed diagnostic: its supported attempt ended `CHAT_UNSUPPORTED_CLAIM` after two finalized provider calls, published no answer or claims, and was not retried.
 
 ## O-006 production migration and deployment result — 2026-08-21
 
-The authorized operation started at `2026-08-21T15:29:58Z` and completed at `2026-08-21T15:30:23Z`. The validated schema-007 rollback backup is `/opt/stacks/localcast-backups/schema007-pre-migration-20260821T132838Z/localcast.sqlite.007` with SHA-256 `0ee6e8e0c40b401d0dfe61ab88ab7f42c35655a51f92ae5107df46db41454afa`; its checksum chain was verified. Migration 008 completed. Schema, integrity, foreign-key, undisclosed installation-identity, and quiescence validation passed. App and worker are healthy on `sha256:af9a5635deccac039955317be7652f8d757001022e3a265df3af6a4a6a8e1fd8`; loopback health and controlled restart passed. No provider dispatch occurred. Rollback was not invoked, distinct rollback tags remain retained, temporary operational files were removed, and no storage-init container remains. This completes O-006 only; O-005 live supported/refusal acceptance remains open.
+The authorized operation started at `2026-08-21T15:29:58Z` and completed at `2026-08-21T15:30:23Z`. The validated schema-007 rollback backup is `/opt/stacks/localcast-backups/schema007-pre-migration-20260821T132838Z/localcast.sqlite.007` with SHA-256 `0ee6e8e0c40b401d0dfe61ab88ab7f42c35655a51f92ae5107df46db41454afa`; its checksum chain was verified. Migration 008 completed. Schema, integrity, foreign-key, undisclosed installation-identity, and quiescence validation passed. App and worker are healthy on `sha256:af9a5635deccac039955317be7652f8d757001022e3a265df3af6a4a6a8e1fd8`; loopback health and controlled restart passed. No provider dispatch occurred. Rollback was not invoked, distinct rollback tags remain retained, temporary operational files were removed, and no storage-init container remains. This completes O-006 and the O-005 acceptance recorded above.
 
 ## Superseding Slice 5 repair state — 2026-08-09
 

@@ -1,7 +1,7 @@
 # LocalCast autonomous build plan
 
-Status: Slice 4 remains green; Slice 5 is implemented only to repository pre-live/pre-deployment review and is not complete
-Current slice: **5 — IMPLEMENTED TO PRE-LIVE/PRE-DEPLOYMENT REVIEW; LIVE, DEPLOYMENT, AND CHECKPOINT GATES DEFERRED**
+Status: Slice 4 remains green; Slice 5 is complete 2026-08-21; Slice 6 has not started
+Current slice: **5 — COMPLETE 2026-08-21; Slice 6 NOT STARTED**
 Execution policy: one vertical slice, one green checkpoint commit
 
 ## How to use this plan
@@ -255,9 +255,9 @@ Deterministic tests, the authorized Caddy attachment, HTTPS/TLS health, real per
 
 Suggested commit: `feat(prototype): deliver private podcast feed`
 
-## Slice 5 — Episode-grounded follow-up chat — O-006 DEPLOYMENT GATE COMPLETE 2026-08-21; LIVE CHAT ACCEPTANCE REMAINS OPEN
+## Slice 5 — Episode-grounded follow-up chat — COMPLETE 2026-08-21
 
-Repository implementation and deterministic synthetic evidence are present. O-006 completed the protected backup, migration 008, deployment, loopback-health, and controlled-restart gate on 2026-08-21. O-005's separately authorized live supported-answer/refusal evidence remains open, so this does not claim live chat acceptance or begin Slice 6.
+Repository implementation and deterministic synthetic evidence are present. O-006 completed the protected backup, migration 008, deployment, loopback-health, and controlled-restart gate on 2026-08-21. O-005 then completed the separately authorized live supported-answer/refusal acceptance on the retained atomic synthetic fixture: the supported answer was grounded to `18 hours`, the refusal returned `EVIDENCE_INSUFFICIENT`, exactly three provider requests occurred, and there were no retries or duplicate dispatches. Final work was quiescent and the bound app/worker deployment remained healthy. Slice 6 is not started.
 
 ### Outcome
 
@@ -276,7 +276,7 @@ The user can ask questions from a completed episode and receive persisted, cited
 ### Targeted evidence
 
 - Tests cover unknown/incomplete episode, arbitrary client context, original-note deletion, unsupported question, prompt injection, malformed answer, unknown citation, draft/support body boundaries, Unicode/escaping overhead, NUL/lone-surrogate rejection, timeout, ambiguous outcomes, one-retry/two-attempt caps, native-SQLite commit-before-adapter authorization, strict lifecycle-required publication, stale `reserved` and `response_received` recovery, episode locking after every unpublished provider-using failure including finalized rejection/validation outcomes, bounded usage metadata, simultaneous retry contention, retry-versus-new-question contention, first-empty-history exact UI reconciliation, real development StrictMode replay, stale success/failure history ordering, unmount/remount callback fencing, malformed shared-record recovery, advisory same-origin tab coordination, independently stored two-client contention with authoritative convergence, transactional distinct-key initial contention, and app/worker/browser restart.
-- Deterministic tests prove source-grounded answer and deliberately unsupported refusal behavior without an external network request. Smoke regression evidence must prove parent credentials, root `.env`, and external secret paths cannot cross into child processes. The separately authorized live minimal supported/refusal evidence is still required before this slice can close.
+- Deterministic tests prove source-grounded answer and deliberately unsupported refusal behavior without an external network request. Smoke regression evidence proves parent credentials, root `.env`, and external secret paths cannot cross into child processes. The separately authorized live minimal supported/refusal evidence is complete as recorded in `STATE.md` and `TEST_MATRIX.md`.
 
 ### Rows closed by this slice
 
