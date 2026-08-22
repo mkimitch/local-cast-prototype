@@ -204,7 +204,7 @@ export interface AudioAsset {
 
 export interface ProviderSummary {
   adapter: string;
-  status: 'LIVE VERIFIED' | 'CONTRACT TESTED ONLY' | 'NOT CONFIGURED';
+  status: 'LIVE VERIFIED' | 'CONTRACT TESTED ONLY' | 'CONFIGURED UNVERIFIED' | 'NOT CONFIGURED';
   reason: string;
   model?: string;
   voice?: string;

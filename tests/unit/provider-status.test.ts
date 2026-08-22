@@ -22,6 +22,12 @@ describe('provider verification status', () => {
 		});
 
 		expect(checks.summary(config)).toMatchObject({
+			generationEnabled: false,
+			text: {status: 'CONFIGURED UNVERIFIED'},
+			speech: {status: 'CONFIGURED UNVERIFIED'},
+		});
+		checks.recordContract(config);
+		expect(checks.summary(config)).toMatchObject({
 			generationEnabled: true,
 			text: {status: 'CONTRACT TESTED ONLY'},
 			speech: {status: 'CONTRACT TESTED ONLY'},
@@ -42,10 +48,11 @@ describe('provider verification status', () => {
 		const changedVoice = {...config, openAiSpeechVoice: 'cedar'};
 		expect(checks.summary(changedVoice)).toMatchObject({
 			text: {status: 'CONTRACT TESTED ONLY'},
-			speech: {status: 'CONTRACT TESTED ONLY', voice: 'cedar'},
+			speech: {status: 'CONFIGURED UNVERIFIED', voice: 'cedar'},
 		});
-		checks.recordNotConfigured(config);
-		expect(checks.summary(config)).toMatchObject({
+		const missingCredential = {...config, processRole: 'worker' as const, openAiApiKey: undefined};
+		checks.recordNotConfigured(missingCredential);
+		expect(checks.summary(missingCredential)).toMatchObject({
 			generationEnabled: false,
 			text: {status: 'NOT CONFIGURED'},
 			speech: {status: 'NOT CONFIGURED'},
@@ -58,7 +65,12 @@ describe('provider verification status', () => {
 		const database = createTestDatabase();
 		databases.push(database);
 		const checks = new ProviderCheckStore(database, () => '2026-08-06T13:00:00.000Z');
-		const config = testConfig({textProvider: 'openai', speechProvider: 'openai', allowFakeProviders: false});
+		const config = testConfig({
+			textProvider: 'openai',
+			speechProvider: 'openai',
+			openAiApiKey: 'credential-canary',
+			allowFakeProviders: false,
+		});
 		checks.recordContract(config);
 
 		recordSpeechProviderSuccess({liveRequestPerformed: false}, config, checks);

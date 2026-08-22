@@ -1,7 +1,7 @@
 import type Database from 'better-sqlite3';
 import {createHash} from 'node:crypto';
-import type {ProviderStatus, ProviderSummary, ServerConfig} from '../config';
-import {providerSummaryForConfig} from '../config';
+import type {ProviderDescriptor, ProviderStatus, ProviderSummary, ServerConfig} from '../config';
+import {providerDescriptorForConfig, providerSummaryForConfig} from '../config';
 import {db} from '../database/index';
 
 type Capability = 'text' | 'speech';
@@ -25,25 +25,28 @@ export class ProviderCheckStore {
 
 	summary(config: ServerConfig): {text: ProviderSummary; speech: ProviderSummary; generationEnabled: boolean} {
 		const base = providerSummaryForConfig(config);
-		if (config.textProvider !== 'openai' || config.speechProvider !== 'openai') return base;
 		const text = this.summaryFor('text', config, base.text);
 		const speech = this.summaryFor('speech', config, base.speech);
 		return {
 			text,
 			speech,
-			generationEnabled: text.status !== 'NOT CONFIGURED' && speech.status !== 'NOT CONFIGURED',
+			generationEnabled: ['CONTRACT TESTED ONLY', 'LIVE VERIFIED'].includes(text.status)
+				&& ['CONTRACT TESTED ONLY', 'LIVE VERIFIED'].includes(speech.status),
 		};
 	}
 
 	recordContract(config: ServerConfig): void {
 		for (const capability of ['text', 'speech'] as const) {
-			this.write(capability, config, 'CONTRACT TESTED ONLY', 'Configured; live verification is pending');
+			if (providerDescriptorForConfig(capability, config)) {
+				this.write(capability, config, 'CONTRACT TESTED ONLY', 'Deterministic adapter contract passed; live verification is pending');
+			}
 		}
 	}
 
 	recordNotConfigured(config: ServerConfig): void {
-		this.write('text', config, 'NOT CONFIGURED', 'The worker is missing its server-side OpenAI credential');
-		this.write('speech', config, 'NOT CONFIGURED', 'The worker is missing its server-side OpenAI credential');
+		for (const capability of ['text', 'speech'] as const) {
+			this.database.prepare('DELETE FROM provider_checks WHERE capability = ?').run(capability);
+		}
 	}
 
 	recordLive(capability: Capability, config: ServerConfig): void {
@@ -55,8 +58,10 @@ export class ProviderCheckStore {
 	}
 
 	private summaryFor(capability: Capability, config: ServerConfig, fallback: ProviderSummary): ProviderSummary {
+		const descriptor = providerDescriptorForConfig(capability, config);
+		if (!descriptor) return fallback;
 		const row = this.database.prepare('SELECT * FROM provider_checks WHERE capability = ?').get(capability) as CheckRow | undefined;
-		if (!row || row.configuration_fingerprint !== this.fingerprint(capability, config)) return fallback;
+		if (!row || row.configuration_fingerprint !== this.fingerprint(descriptor)) return fallback;
 		return {
 			adapter: row.adapter,
 			model: row.model,
@@ -68,13 +73,13 @@ export class ProviderCheckStore {
 	}
 
 	private write(capability: Capability, config: ServerConfig, status: ProviderStatus, reason: string, verifiedAt?: string): void {
-		const model = capability === 'text' ? config.openAiTextModel : config.openAiSpeechModel;
-		const voice = capability === 'speech' ? config.openAiSpeechVoice : null;
+		const descriptor = providerDescriptorForConfig(capability, config);
+		if (!descriptor) return;
 		this.database.prepare(`
 			INSERT INTO provider_checks (
 				capability, adapter, model, voice, configuration_fingerprint,
 				status, reason, verified_at, updated_at
-			) VALUES (?, 'OpenAI', ?, ?, ?, ?, ?, ?, ?)
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 			ON CONFLICT(capability) DO UPDATE SET
 				adapter = excluded.adapter,
 				model = excluded.model,
@@ -84,14 +89,21 @@ export class ProviderCheckStore {
 				reason = excluded.reason,
 				verified_at = excluded.verified_at,
 				updated_at = excluded.updated_at
-		`).run(capability, model, voice, this.fingerprint(capability, config), status, reason, verifiedAt ?? null, this.now());
+		`).run(
+			capability,
+			descriptor.adapter,
+			descriptor.model,
+			descriptor.voice ?? null,
+			this.fingerprint(descriptor),
+			status,
+			reason,
+			verifiedAt ?? null,
+			this.now(),
+		);
 	}
 
-	private fingerprint(capability: Capability, config: ServerConfig): string {
-		const value = capability === 'text'
-			? `openai|text|${config.openAiTextModel}|${config.openAiReasoningEffort}`
-			: `openai|speech|${config.openAiSpeechModel}|${config.openAiSpeechVoice}|${config.openAiSpeechFormat}`;
-		return createHash('sha256').update(value).digest('hex');
+	private fingerprint(descriptor: ProviderDescriptor): string {
+		return createHash('sha256').update(descriptor.configurationFingerprintMaterial).digest('hex');
 	}
 }
 

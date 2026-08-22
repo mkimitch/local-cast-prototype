@@ -26,7 +26,10 @@ describe('server environment contract', () => {
 		['origin with path', {LOCALCAST_RUNTIME_MODE: 'development', LOCALCAST_TRUSTED_ORIGINS: 'https://localcast.example.test/path'}, /only an origin/],
 		['OpenAI credential in app', {LOCALCAST_RUNTIME_MODE: 'development', LOCALCAST_PROCESS_ROLE: 'app', OPENAI_API_KEY: 'credential-canary'}, /only in the worker/],
 		['podcast configuration in worker', {LOCALCAST_RUNTIME_MODE: 'development', LOCALCAST_PROCESS_ROLE: 'worker', PUBLIC_BASE_URL: 'https://localcast.example.test'}, /only in the app/],
-		['mixed OpenAI pair', {LOCALCAST_RUNTIME_MODE: 'development', TEXT_PROVIDER: 'openai', SPEECH_PROVIDER: 'not_configured'}, /selected together/],
+		['mixed deterministic pair', {LOCALCAST_RUNTIME_MODE: 'test', TEXT_PROVIDER: 'fake', SPEECH_PROVIDER: 'not_configured', LOCALCAST_ALLOW_FAKE_PROVIDERS: 'true'}, /must be selected together/],
+		['Ollama without model', {LOCALCAST_RUNTIME_MODE: 'development', TEXT_PROVIDER: 'ollama', OLLAMA_BASE_URL: 'http://127.0.0.1:11434'}, /OLLAMA_TEXT_MODEL/],
+		['LM Studio with credential-bearing endpoint', {LOCALCAST_RUNTIME_MODE: 'development', TEXT_PROVIDER: 'lm_studio', LM_STUDIO_BASE_URL: 'http://user:secret@127.0.0.1:1234', LM_STUDIO_TEXT_MODEL: 'local-model'}, /LM_STUDIO_BASE_URL/],
+		['Piper with relative executable', {LOCALCAST_RUNTIME_MODE: 'development', SPEECH_PROVIDER: 'piper', PIPER_EXECUTABLE: 'piper', PIPER_MODEL_PATH: '/models/voice.onnx'}, /PIPER_EXECUTABLE/],
 	])('rejects %s', (_name, environment, error) => {
 		expect(() => parseServerConfig(environment)).toThrow(error);
 	});
@@ -150,10 +153,32 @@ describe('server environment contract', () => {
 			openAiSpeechFormat: 'mp3',
 		});
 		expect(providerSummaryForConfig(appConfig)).toMatchObject({
-			generationEnabled: true,
-			text: {adapter: 'OpenAI', status: 'CONTRACT TESTED ONLY', model: 'gpt-5.4-mini'},
-			speech: {adapter: 'OpenAI', status: 'CONTRACT TESTED ONLY', model: 'gpt-4o-mini-tts', voice: 'marin'},
+			generationEnabled: false,
+			text: {adapter: 'OpenAI', status: 'CONFIGURED UNVERIFIED', model: 'gpt-5.4-mini'},
+			speech: {adapter: 'OpenAI', status: 'CONFIGURED UNVERIFIED', model: 'gpt-4o-mini-tts', voice: 'marin'},
 		});
+	});
+
+	it('uses explicit local-provider descriptors without exposing endpoint paths', () => {
+		const config = parseServerConfig({
+			LOCALCAST_RUNTIME_MODE: 'development',
+			TEXT_PROVIDER: 'ollama',
+			OLLAMA_BASE_URL: 'http://127.0.0.1:11434/v1/',
+			OLLAMA_TEXT_MODEL: 'llama-local',
+			SPEECH_PROVIDER: 'piper',
+			PIPER_EXECUTABLE: '/opt/piper/piper',
+			PIPER_MODEL_PATH: '/opt/piper/voice.onnx',
+		});
+		const status = providerSummaryForConfig(config);
+
+		expect(config.ollamaBaseUrl).toBe('http://127.0.0.1:11434/v1');
+		expect(status).toMatchObject({
+			text: {adapter: 'Ollama', model: 'llama-local', status: 'CONFIGURED UNVERIFIED'},
+			speech: {adapter: 'Piper', model: 'voice.onnx', status: 'CONFIGURED UNVERIFIED'},
+			generationEnabled: false,
+		});
+		expect(JSON.stringify(status)).not.toContain('127.0.0.1');
+		expect(JSON.stringify(status)).not.toContain('/opt/piper');
 	});
 
 	it('treats an explicitly empty worker credential as not configured', () => {

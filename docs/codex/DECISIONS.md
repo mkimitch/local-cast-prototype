@@ -84,20 +84,21 @@ Unknown values are configuration errors. Production never normalizes them to moc
 
 Deterministic fake providers are allowed only behind an explicit test/development gate that the production build/runtime rejects.
 
-## D-009 — Provider status has three exact states
+## D-009 — Provider status has four exact states
 
 Status: **ACCEPTED**
 Date: 2026-08-05
 
 The only top-level provider states are:
 
-- `LIVE VERIFIED`
-- `CONTRACT TESTED ONLY`
 - `NOT CONFIGURED`
+- `CONFIGURED UNVERIFIED`
+- `CONTRACT TESTED ONLY`
+- `LIVE VERIFIED`
 
-The status payload may also carry a redacted reason, configured model/voice label, and last-check time. A failed live check does not masquerade as live; a configured adapter with green deterministic contracts but no successful current live probe is `CONTRACT TESTED ONLY` with the failure reason.
+`NOT CONFIGURED` means required configuration is absent. `CONFIGURED UNVERIFIED` means validation found the required current configuration but neither deterministic contract evidence nor a successful current provider operation is recorded. `CONTRACT TESTED ONLY` means deterministic adapter evidence is recorded for that configuration, but no successful current provider operation is recorded. `LIVE VERIFIED` requires a successful current provider operation. The status payload may carry only a safe reason, configured model/voice label, and last-check time; it never carries credentials, endpoints, or executable paths.
 
-Live verification uses minimal synthetic input, never user content, and is explicitly initiated or clearly disclosed because it may incur cost.
+Configuration and deterministic tests never masquerade as live verification. A failed live check does not masquerade as live. Live verification uses minimal synthetic input, never user content, and is explicitly initiated or clearly disclosed because it may incur cost.
 
 ## D-010 — OpenAI is the real walking-skeleton provider pair
 
@@ -376,6 +377,15 @@ Date: 2026-08-08
 Initial/retry identities, questions, provider claims, and citation excerpts are bounded by Unicode code points only after application validation rejects embedded NUL, U+FFFD, and lone UTF-16 surrogates. Valid surrogate pairs are preserved as their non-BMP code point; values are never normalized, truncated, replaced, or reinterpreted. Invalid API questions receive the bounded validation response before durable mutation, and invalid provider claims/excerpts fail closed before publication.
 
 Migration 008 independently applies the length and representable-byte constraints that SQLite can enforce for persisted identities, including NUL, replacement-character encoding, and raw surrogate encodings. Native SQLite cannot express JavaScript UTF-16 well-formedness directly, so the application boundary remains an explicit layered control rather than being described as an identical database rule. Synthetic tests cover ASCII and non-BMP 7/8/200/201-code-point boundaries, NUL placement, lone surrogates, valid pairs, API/store/database behavior, and close/reopen preservation. Fractional usage metadata remains a documented nonblocking defense-in-depth gap behind application integer normalization.
+
+## D-040 — Slice 6A provider parity is deterministic and non-live
+
+Status: **ACCEPTED**
+Date: 2026-08-21
+
+Ollama and LM Studio use explicitly named, validated OpenAI-compatible text configurations; Piper uses a validated executable and model path. All three adapters share the required bounded cancellation, timeout, response/output-size, schema, and categorical-safe-error contracts. Piper’s raw output is normalized through the established ffmpeg/media publication path.
+
+The Slice 6A checkpoint proves these contracts only with synthetic OpenAI-compatible responses and a deterministic fake Piper executable. It performs no live Ollama, LM Studio, Piper, OpenAI, or other provider request; no local adapter is presented as `LIVE VERIFIED`. A separately authorized configured probe remains necessary to establish a deployment’s live status. Unsupported Gemini and legacy provider code are removed with their unused dependency graph rather than retained as an implicit fallback.
 
 ## Open operator decisions
 

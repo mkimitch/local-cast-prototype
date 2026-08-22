@@ -73,7 +73,7 @@ export interface PublishedAudio {
 	sha256: string;
 	mimeType: 'audio/mpeg';
 	validatedAt: string;
-	provider: 'OpenAI' | 'Deterministic test speech';
+	provider: 'OpenAI' | 'Piper' | 'Deterministic test speech';
 	model: string;
 	voice: string;
 	liveRequestPerformed?: boolean;

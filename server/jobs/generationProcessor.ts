@@ -1,12 +1,14 @@
 import type {ServerConfig} from '../config';
 import {OpenAiSpeechProvider, OpenAiTextProvider} from '../providers/openai';
+import {OpenAiCompatibleTextProvider} from '../providers/openAiCompatible';
+import {PiperSpeechProvider} from '../providers/piper';
 import {episodeStore} from '../services/episodeStore';
 import {synchronizeRequestSources} from '../services/episodePreparation';
 import {providerCheckStore} from '../services/providerCheckStore';
 import {GenerationError} from './types';
 import type {GenerationJob} from './types';
 import type {GenerationJobStore} from './generationJobStore';
-import type {EpisodeEvidence, PublishedAudio} from '../episodes/types';
+import type {EpisodeEvidence, GeneratedEpisodeScript, GeneratedSection, PublishedAudio} from '../episodes/types';
 import type {ProviderCheckStore} from '../services/providerCheckStore';
 
 export const recordSpeechProviderSuccess = (
@@ -19,6 +21,19 @@ export const recordSpeechProviderSuccess = (
 
 export interface GenerationProcessor {
 	process(job: GenerationJob, workerId: string, signal: AbortSignal): Promise<void>;
+}
+
+interface TextGenerationProvider {
+	generateEpisode(
+		request: Parameters<OpenAiTextProvider['generateEpisode']>[0],
+		evidence: EpisodeEvidence[],
+		signal: AbortSignal,
+		onDraftComplete?: () => void,
+	): Promise<{script: GeneratedEpisodeScript; sections: GeneratedSection[]; narration: string}>;
+}
+
+interface SpeechGenerationProvider {
+	render: OpenAiSpeechProvider['render'];
 }
 
 export const assertOpenAiEvidenceAuthorized = (evidence: EpisodeEvidence[]): void => {
@@ -37,18 +52,16 @@ class UnconfiguredGenerationProcessor implements GenerationProcessor {
 	}
 }
 
-class OpenAiGenerationProcessor implements GenerationProcessor {
-	private readonly text: OpenAiTextProvider;
-	private readonly speech: OpenAiSpeechProvider;
+class ConfiguredGenerationProcessor implements GenerationProcessor {
 
 	constructor(
 		private readonly config: ServerConfig,
 		private readonly jobs: GenerationJobStore,
-		apiKey: string,
-	) {
-		this.text = new OpenAiTextProvider(apiKey, config.openAiTextModel);
-		this.speech = new OpenAiSpeechProvider(apiKey, config);
-	}
+		private readonly text: TextGenerationProvider,
+		private readonly speech: SpeechGenerationProvider,
+		private readonly textProviderName: 'OpenAI' | 'Ollama' | 'LM Studio',
+		private readonly textModel: string,
+	) {}
 
 	async process(job: GenerationJob, workerId: string, signal: AbortSignal): Promise<void> {
 		if (job.payload.version !== 2) {
@@ -60,7 +73,7 @@ class OpenAiGenerationProcessor implements GenerationProcessor {
 		if (episodeStore.listEvidence(job.runId).length === 0) await synchronizeRequestSources(request.id, signal);
 		this.jobs.updatePhase(job.id, workerId, 'selecting', this.config.leaseMs);
 		const evidence = episodeStore.finalizeEvidence(request.id, job.runId);
-		assertOpenAiEvidenceAuthorized(evidence);
+		if (this.config.textProvider === 'openai') assertOpenAiEvidenceAuthorized(evidence);
 
 		this.jobs.updatePhase(job.id, workerId, 'drafting', this.config.leaseMs);
 		let generated;
@@ -92,21 +105,41 @@ class OpenAiGenerationProcessor implements GenerationProcessor {
 			request,
 			sections: generated.sections,
 			audio,
-			textProvider: 'OpenAI',
-			textModel: this.config.openAiTextModel,
+			textProvider: this.textProviderName,
+			textModel: this.textModel,
 		}));
 	}
 }
 
 export const createGenerationProcessor = (config: ServerConfig, jobs: GenerationJobStore): GenerationProcessor => {
-	if (config.textProvider === 'openai' && config.speechProvider === 'openai') {
-		if (!config.openAiApiKey) {
-			providerCheckStore.recordNotConfigured(config);
-			return new UnconfiguredGenerationProcessor();
-		}
-		providerCheckStore.recordContract(config);
-		return new OpenAiGenerationProcessor(config, jobs, config.openAiApiKey);
+	let text: TextGenerationProvider | undefined;
+	let textProviderName: 'OpenAI' | 'Ollama' | 'LM Studio' | undefined;
+	let textModel: string | undefined;
+	if (config.textProvider === 'openai' && config.openAiApiKey) {
+		text = new OpenAiTextProvider(config.openAiApiKey, config.openAiTextModel);
+		textProviderName = 'OpenAI';
+		textModel = config.openAiTextModel;
+	} else if (config.textProvider === 'ollama' && config.ollamaBaseUrl && config.ollamaTextModel) {
+		text = new OpenAiCompatibleTextProvider('Ollama', config.ollamaBaseUrl, config.ollamaTextModel);
+		textProviderName = 'Ollama';
+		textModel = config.ollamaTextModel;
+	} else if (config.textProvider === 'lm_studio' && config.lmStudioBaseUrl && config.lmStudioTextModel) {
+		text = new OpenAiCompatibleTextProvider('LM Studio', config.lmStudioBaseUrl, config.lmStudioTextModel);
+		textProviderName = 'LM Studio';
+		textModel = config.lmStudioTextModel;
 	}
 
-	return new UnconfiguredGenerationProcessor();
+	let speech: SpeechGenerationProvider | undefined;
+	if (config.speechProvider === 'openai' && config.openAiApiKey) {
+		speech = new OpenAiSpeechProvider(config.openAiApiKey, config);
+	} else if (config.speechProvider === 'piper' && config.piperExecutable && config.piperModelPath) {
+		speech = new PiperSpeechProvider(config);
+	}
+
+	if (!text || !speech || !textProviderName || !textModel) {
+		providerCheckStore.recordNotConfigured(config);
+		return new UnconfiguredGenerationProcessor();
+	}
+	providerCheckStore.recordContract(config);
+	return new ConfiguredGenerationProcessor(config, jobs, text, speech, textProviderName, textModel);
 };

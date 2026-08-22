@@ -39,7 +39,6 @@
     "verify": "npm run lint && npm run test && npm run test:integration && npm run build && npm run test:e2e && npm run smoke:api && npm run smoke:production && npm run smoke:compose"
   },
   "dependencies": {
-    "@google/genai": "^2.4.0",
     "@tanstack/react-query": "^5.90.5",
     "better-sqlite3": "^12.11.1",
     "dotenv": "^17.2.3",

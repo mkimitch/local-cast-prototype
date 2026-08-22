@@ -244,7 +244,7 @@ export class EpisodeStore {
 		request: EpisodeRequestSnapshot;
 		sections: GeneratedSection[];
 		audio: PublishedAudio;
-		textProvider: 'OpenAI' | 'Deterministic test text';
+		textProvider: 'OpenAI' | 'Ollama' | 'LM Studio' | 'Deterministic test text';
 		textModel: string;
 	}): void {
 		const evidence = this.listEvidence(input.runId);

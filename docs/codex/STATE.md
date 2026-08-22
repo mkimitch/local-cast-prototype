@@ -4,11 +4,29 @@ Last updated: 2026-08-21
 Branch: `codex/localcast-prototype`
 Pre-bootstrap HEAD: `910485b77ead63450660b0b97544889960e45e3f`
 Slice 0 base HEAD: `e720d5818ab15efccfa143c94d6514c0c9a2baad`
-Current base checkpoint: Slice 4 at `6e1242e3e16c87c294d6f4ba0ca8bc2d0f187a1c`
-Current checkpoint: **Slice 5 O-006 and O-005 acceptance complete; local documentation checkpoint pending**
-Implementation slice: **5 — REPOSITORY, BACKUP, MIGRATION-008, DEPLOYMENT, HEALTH, CONTROLLED-RESTART, AND LIVE CHAT ACCEPTANCE GATES COMPLETE 2026-08-21**
-Next action: **Create the authorized local documentation checkpoint only; do not begin Slice 6**
-Overall state: **SLICE 5 COMPLETE 2026-08-21; SLICE 6 NOT STARTED**
+Current base checkpoint: Slice 5 at `27665075a5f9b55062aedd859ca6bda762a18247`
+Current checkpoint: **Slice 6A provider-parity deterministic checkpoint**
+Implementation slice: **6A — PROVIDER PARITY AND HONEST STATUS CONTRACTS COMPLETE 2026-08-21**
+Next action: **Explicit authorization is required for any remaining Slice 6 gate; do not infer backup/restore, accessibility, Docker, deployment, or live-provider work**
+Overall state: **SLICE 5 COMPLETE 2026-08-21; SLICE 6A COMPLETE; REMAINING SLICE 6 GATES OPEN**
+
+## Slice 6A provider parity contract result — 2026-08-21
+
+Ollama and LM Studio now have explicitly named OpenAI-compatible text adapters/configurations; Piper has a validated executable/model contract that normalizes output through the existing ffmpeg/media path. Provider status is explicitly `NOT CONFIGURED`, `CONFIGURED UNVERIFIED`, `CONTRACT TESTED ONLY`, or `LIVE VERIFIED`: configuration and deterministic evidence do not claim a live result. All request/subprocess paths enforce cancellation, timeouts, bounded input/output, schemas, and categorical non-disclosing errors. Unsupported Gemini and legacy provider code, plus the now-unused `@google/genai` dependency graph, were removed.
+
+The checkpoint used only deterministic in-memory OpenAI-compatible responses and a fake local Piper executable. It made no provider/network request, downloaded no Piper asset, created no migration or backup, and did not change Docker, Compose, deployed services, databases, images, rollback tags, backups, or retained synthetic fixtures. The provider-parity rows `TXT-02` through `TXT-04`, `TTS-02`, and `PROV-03` are closed at `CONTRACT TESTED ONLY`; all other Slice 6 work remains open.
+
+### Slice 6A verification
+
+| Command | Result |
+| --- | --- |
+| `npm run lint` | PASS — TypeScript no-emit check |
+| `npm run test` | PASS — 227 unit tests in 13 files |
+| isolated `vitest` integration groups | PASS — 91 tests in 13 files; isolated loopback media roots avoid the known shared-fixture collision |
+| `npm run build` | PASS — web and server bundles; existing chunk-size warning only |
+| focused provider/configuration/Piper tests | PASS — 52 tests, including fake-executable cancellation/output/normalization paths |
+| dependency/reference and sensitive-output scans | PASS — no Gemini/legacy-provider references, credentials, endpoints, or executable paths in provider summaries |
+| `git diff --check` | PASS before checkpoint |
 
 ## O-005 live supported/refusal acceptance result — 2026-08-21
 

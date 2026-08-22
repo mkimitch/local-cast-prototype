@@ -257,7 +257,7 @@ Suggested commit: `feat(prototype): deliver private podcast feed`
 
 ## Slice 5 — Episode-grounded follow-up chat — COMPLETE 2026-08-21
 
-Repository implementation and deterministic synthetic evidence are present. O-006 completed the protected backup, migration 008, deployment, loopback-health, and controlled-restart gate on 2026-08-21. O-005 then completed the separately authorized live supported-answer/refusal acceptance on the retained atomic synthetic fixture: the supported answer was grounded to `18 hours`, the refusal returned `EVIDENCE_INSUFFICIENT`, exactly three provider requests occurred, and there were no retries or duplicate dispatches. Final work was quiescent and the bound app/worker deployment remained healthy. Slice 6 is not started.
+Repository implementation and deterministic synthetic evidence are present. O-006 completed the protected backup, migration 008, deployment, loopback-health, and controlled-restart gate on 2026-08-21. O-005 then completed the separately authorized live supported-answer/refusal acceptance on the retained atomic synthetic fixture: the supported answer was grounded to `18 hours`, the refusal returned `EVIDENCE_INSUFFICIENT`, exactly three provider requests occurred, and there were no retries or duplicate dispatches. Final work was quiescent and the bound app/worker deployment remained healthy. Slice 6A subsequently began the deterministic provider-parity checkpoint only; it does not claim the remaining Slice 6 gates.
 
 ### Outcome
 
@@ -321,6 +321,10 @@ Every provider path has honest status and contract evidence; the deployment is r
 ### Rows closed by this slice
 
 `ID-01`, `TRUST-01`, `GRD-04`, `TXT-02` through `TXT-04`, `TTS-02`, `TTS-04`, `PROV-03`, `DATA-02` through `DATA-04`, `JOB-03`, `JOB-05`, `MEDIA-04`, `DEP-02` through `DEP-04`, all still-open `SEC-*` and `PRIV-*` rows, `OPS-01` through `OPS-04`, all `A11Y-*` rows, the still-open `ARC-*` rows, and `NG-01` through `NG-14`. The final gate reruns every non-deferred matrix row, including requirements closed in earlier slices.
+
+### Slice 6A — provider parity checkpoint — COMPLETE 2026-08-21
+
+This bounded checkpoint closes only `TXT-02` through `TXT-04`, `TTS-02`, and `PROV-03` with deterministic contract evidence. It also advances Piper’s atomic-publication evidence. It adds no migration, backup/restore behavior, accessibility expansion, Docker/Compose hardening, deployment operation, or live provider probe. All remaining Slice 6 work and its final phase gate stay open.
 
 ## First post-prototype audio milestone — deferred two-host format
 

@@ -88,7 +88,7 @@ Exact duration is provider-dependent; factual density and honest failure take pr
 - **TXT-03 — LM Studio:** A server-side adapter supports LM Studio’s OpenAI-compatible endpoint with explicit base URL and model.
 - **TXT-04 — Bounds:** All text adapters enforce timeouts, cancellation, response-size limits, schema validation, and safe error classification.
 
-Gemini is not part of the frozen provider contract. Existing Gemini code may remain temporarily while untouched, but it must not appear as supported production behavior and should be removed when provider parity is completed.
+Gemini is not part of the frozen provider contract and is not a supported production provider.
 
 ### 4.7 Speech providers and MP3 production
 
@@ -104,9 +104,11 @@ OpenAI text plus OpenAI TTS is the default walking-skeleton pair because one cre
 - **PROV-01 — Server-side configuration:** Provider keys, endpoints, executable paths, models, and voices come from validated server environment/configuration. Browser settings contain no secret fields.
 - **PROV-02 — No production fallback:** Unknown, missing, or fake provider configuration never silently becomes a mock. The app may start in a visible not-configured state, but generation is disabled or fails clearly.
 - **PROV-03 — Status vocabulary:** Each adapter displays exactly one status:
-  - `LIVE VERIFIED`: a minimal live probe for the current configuration succeeded; show its timestamp.
-  - `CONTRACT TESTED ONLY`: deterministic adapter contract tests pass, but this deployment has no successful live probe for the current configuration; show a safe reason.
+  - `CONFIGURED UNVERIFIED`: the current configuration has all required validated fields, but LocalCast has not recorded deterministic contract evidence or a successful current live operation for it.
+  - `CONTRACT TESTED ONLY`: deterministic adapter contract evidence is recorded for the current configuration, but LocalCast has no successful current live operation; show a safe reason.
+  - `LIVE VERIFIED`: a successful current live provider operation is recorded; show its timestamp.
   - `NOT CONFIGURED`: required credentials, endpoint, executable, model, or voice are absent.
+  Configuration and deterministic tests alone never yield `LIVE VERIFIED`. Provider summaries omit credential, endpoint, and executable-path values.
 - **PROV-04 — Test fakes:** Deterministic text and speech fakes are available only through an explicit test/development gate that production rejects.
 - **PROV-05 — Disclosure:** Before an external provider is verified or used, the UI explains each external data flow: station direction and evidence sent for text generation, final narration sent for TTS, and the question, complete immutable episode transcript, and all frozen supporting evidence snapshots used to construct follow-up grounding. The disclosure states that supported follow-up answers can require a second external semantic-support request, refusals ordinarily require one request, and provider-side storage is disabled. Local provider status does not imply an external call.
 

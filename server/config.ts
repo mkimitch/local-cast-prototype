@@ -1,12 +1,12 @@
 import path from 'node:path';
 import {z} from 'zod';
 
-export const providerStatuses = ['LIVE VERIFIED', 'CONTRACT TESTED ONLY', 'NOT CONFIGURED'] as const;
+export const providerStatuses = ['NOT CONFIGURED', 'CONFIGURED UNVERIFIED', 'CONTRACT TESTED ONLY', 'LIVE VERIFIED'] as const;
 export type ProviderStatus = typeof providerStatuses[number];
 export type RuntimeMode = 'development' | 'test' | 'production';
 export type ProcessRole = 'app' | 'worker' | 'storage-init';
-export type BackendTextProvider = 'not_configured' | 'fake' | 'openai';
-export type BackendSpeechProvider = 'not_configured' | 'fake' | 'openai';
+export type BackendTextProvider = 'not_configured' | 'fake' | 'openai' | 'ollama' | 'lm_studio';
+export type BackendSpeechProvider = 'not_configured' | 'fake' | 'openai' | 'piper';
 
 const nonEmptyString = z.string().trim().min(1);
 const optionalCredential = z.preprocess(value => typeof value === 'string' && value.trim() === '' ? undefined : value, nonEmptyString.optional());
@@ -38,14 +38,20 @@ const rawEnvironmentSchema = z.object({
 	PUBLIC_BASE_URL: nonEmptyString.optional(),
 	LOCALCAST_PODCAST_TOKEN_FILE: nonEmptyString.optional(),
 	CORS_ORIGIN: z.string().optional(),
-	TEXT_PROVIDER: z.enum(['not_configured', 'fake', 'openai']).optional(),
-	SPEECH_PROVIDER: z.enum(['not_configured', 'fake', 'openai']).optional(),
+	TEXT_PROVIDER: z.enum(['not_configured', 'fake', 'openai', 'ollama', 'lm_studio']).optional(),
+	SPEECH_PROVIDER: z.enum(['not_configured', 'fake', 'openai', 'piper']).optional(),
 	OPENAI_API_KEY: optionalCredential,
 	OPENAI_TEXT_MODEL: nonEmptyString.optional(),
 	OPENAI_REASONING_EFFORT: z.enum(['low']).optional(),
 	OPENAI_SPEECH_MODEL: nonEmptyString.optional(),
 	OPENAI_SPEECH_VOICE: nonEmptyString.optional(),
 	OPENAI_SPEECH_FORMAT: z.literal('mp3').optional(),
+	OLLAMA_BASE_URL: nonEmptyString.optional(),
+	OLLAMA_TEXT_MODEL: nonEmptyString.optional(),
+	LM_STUDIO_BASE_URL: nonEmptyString.optional(),
+	LM_STUDIO_TEXT_MODEL: nonEmptyString.optional(),
+	PIPER_EXECUTABLE: nonEmptyString.optional(),
+	PIPER_MODEL_PATH: nonEmptyString.optional(),
 	FFPROBE_PATH: nonEmptyString.optional(),
 	FFMPEG_PATH: nonEmptyString.optional(),
 	LOCALCAST_ALLOW_FAKE_PROVIDERS: optionalBoolean,
@@ -83,6 +89,12 @@ export interface ServerConfig {
 	openAiSpeechModel: string;
 	openAiSpeechVoice: string;
 	openAiSpeechFormat: 'mp3';
+	ollamaBaseUrl?: string;
+	ollamaTextModel?: string;
+	lmStudioBaseUrl?: string;
+	lmStudioTextModel?: string;
+	piperExecutable?: string;
+	piperModelPath?: string;
 	ffprobePath: string;
 	ffmpegPath: string;
 	allowFakeProviders: boolean;
@@ -119,6 +131,34 @@ const normalizeHttpOrigin = (value: string, label: string, requireSecureNonLoopb
 		throw new Error(`Invalid LocalCast environment: ${label} must use HTTPS except for an explicit loopback test origin`);
 	}
 	return url.origin;
+};
+
+const normalizeProviderBaseUrl = (value: string, label: string): string => {
+	let url: URL;
+	try {
+		url = new URL(value);
+	} catch {
+		throw new Error(`Invalid LocalCast environment: ${label} must be an absolute HTTP(S) base URL`);
+	}
+	if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+		throw new Error(`Invalid LocalCast environment: ${label} must use HTTP(S)`);
+	}
+	if (url.username || url.password || url.search || url.hash || !['/', '/v1', '/v1/'].includes(url.pathname)) {
+		throw new Error(`Invalid LocalCast environment: ${label} must contain only an origin or /v1 base path`);
+	}
+	return `${url.origin}${url.pathname === '/' ? '' : '/v1'}`;
+};
+
+const requiredAbsolutePath = (value: string | undefined, label: string): string => {
+	if (!value || !path.isAbsolute(value)) {
+		throw new Error(`Invalid LocalCast environment: ${label} must be an absolute path`);
+	}
+	return value;
+};
+
+const requiredProviderModel = (value: string | undefined, label: string): string => {
+	if (!value?.trim()) throw new Error(`Invalid LocalCast environment: ${label} is required`);
+	return value.trim();
 };
 
 const splitOrigins = (value: string | undefined): string[] => {
@@ -202,6 +242,9 @@ export const parseServerConfig = (environment: NodeJS.ProcessEnv): ServerConfig 
 	if ((textProvider === 'fake' || speechProvider === 'fake') && (!env.LOCALCAST_ALLOW_FAKE_PROVIDERS || runtimeMode !== 'test')) {
 		throw new Error('Invalid LocalCast environment: fake providers require test mode and explicit opt-in');
 	}
+	if ((textProvider === 'fake') !== (speechProvider === 'fake')) {
+		throw new Error('Invalid LocalCast environment: deterministic fake text and speech providers must be selected together');
+	}
 
 	if (processRole !== 'worker' && env.OPENAI_API_KEY) {
 		throw new Error('Invalid LocalCast environment: OPENAI_API_KEY is allowed only in the worker process');
@@ -210,9 +253,24 @@ export const parseServerConfig = (environment: NodeJS.ProcessEnv): ServerConfig 
 		throw new Error('Invalid LocalCast environment: podcast origin and token file are allowed only in the app process');
 	}
 
-	if (textProvider === 'openai' && speechProvider !== 'openai' || textProvider !== 'openai' && speechProvider === 'openai') {
-		throw new Error('Invalid LocalCast environment: the Slice 1 OpenAI text and speech providers must be selected together');
-	}
+	const ollamaBaseUrl = textProvider === 'ollama'
+		? normalizeProviderBaseUrl(env.OLLAMA_BASE_URL || '', 'OLLAMA_BASE_URL')
+		: undefined;
+	const ollamaTextModel = textProvider === 'ollama'
+		? requiredProviderModel(env.OLLAMA_TEXT_MODEL, 'OLLAMA_TEXT_MODEL when TEXT_PROVIDER=ollama')
+		: undefined;
+	const lmStudioBaseUrl = textProvider === 'lm_studio'
+		? normalizeProviderBaseUrl(env.LM_STUDIO_BASE_URL || '', 'LM_STUDIO_BASE_URL')
+		: undefined;
+	const lmStudioTextModel = textProvider === 'lm_studio'
+		? requiredProviderModel(env.LM_STUDIO_TEXT_MODEL, 'LM_STUDIO_TEXT_MODEL when TEXT_PROVIDER=lm_studio')
+		: undefined;
+	const piperExecutable = speechProvider === 'piper'
+		? requiredAbsolutePath(env.PIPER_EXECUTABLE, 'PIPER_EXECUTABLE')
+		: undefined;
+	const piperModelPath = speechProvider === 'piper'
+		? requiredAbsolutePath(env.PIPER_MODEL_PATH, 'PIPER_MODEL_PATH')
+		: undefined;
 
 	if (env.LOCALCAST_FAKE_FAILURE_PHASE && (!env.LOCALCAST_ALLOW_FAKE_PROVIDERS || runtimeMode !== 'test')) {
 		throw new Error('Invalid LocalCast environment: fake failure injection requires test mode and explicit opt-in');
@@ -288,6 +346,12 @@ export const parseServerConfig = (environment: NodeJS.ProcessEnv): ServerConfig 
 		openAiSpeechModel: env.OPENAI_SPEECH_MODEL || 'gpt-4o-mini-tts',
 		openAiSpeechVoice: env.OPENAI_SPEECH_VOICE || 'marin',
 		openAiSpeechFormat: env.OPENAI_SPEECH_FORMAT || 'mp3',
+		ollamaBaseUrl,
+		ollamaTextModel,
+		lmStudioBaseUrl,
+		lmStudioTextModel,
+		piperExecutable,
+		piperModelPath,
 		ffprobePath: env.FFPROBE_PATH || 'ffprobe',
 		ffmpegPath: env.FFMPEG_PATH || 'ffmpeg',
 		allowFakeProviders: env.LOCALCAST_ALLOW_FAKE_PROVIDERS,
@@ -313,15 +377,76 @@ export interface ProviderSummary {
 	verifiedAt?: string;
 }
 
+export interface ProviderDescriptor {
+	adapter: string;
+	model: string;
+	voice?: string;
+	configurationFingerprintMaterial: string;
+}
+
+export const providerDescriptorForConfig = (capability: 'text' | 'speech', config: ServerConfig): ProviderDescriptor | undefined => {
+	if (capability === 'text') {
+		if (config.textProvider === 'openai') {
+			if (config.processRole === 'worker' && !config.openAiApiKey) return undefined;
+			return {
+				adapter: 'OpenAI',
+				model: config.openAiTextModel,
+				configurationFingerprintMaterial: `openai|text|${config.openAiTextModel}|${config.openAiReasoningEffort}`,
+			};
+		}
+		if (config.textProvider === 'ollama' && config.ollamaBaseUrl && config.ollamaTextModel) return {
+			adapter: 'Ollama',
+			model: config.ollamaTextModel,
+			configurationFingerprintMaterial: `ollama|text|${config.ollamaBaseUrl}|${config.ollamaTextModel}`,
+		};
+		if (config.textProvider === 'lm_studio' && config.lmStudioBaseUrl && config.lmStudioTextModel) return {
+			adapter: 'LM Studio',
+			model: config.lmStudioTextModel,
+			configurationFingerprintMaterial: `lm_studio|text|${config.lmStudioBaseUrl}|${config.lmStudioTextModel}`,
+		};
+		return undefined;
+	}
+
+	if (config.speechProvider === 'openai') {
+		if (config.processRole === 'worker' && !config.openAiApiKey) return undefined;
+		return {
+			adapter: 'OpenAI',
+			model: config.openAiSpeechModel,
+			voice: config.openAiSpeechVoice,
+			configurationFingerprintMaterial: `openai|speech|${config.openAiSpeechModel}|${config.openAiSpeechVoice}|${config.openAiSpeechFormat}`,
+		};
+	}
+	if (config.speechProvider === 'piper' && config.piperExecutable && config.piperModelPath) return {
+		adapter: 'Piper',
+		model: path.basename(config.piperModelPath),
+		configurationFingerprintMaterial: `piper|speech|${config.piperExecutable}|${config.piperModelPath}`,
+	};
+	return undefined;
+};
+
 export const providerSummaryForConfig = (config: ServerConfig): {text: ProviderSummary; speech: ProviderSummary; generationEnabled: boolean} => {
 	const fakeEnabled = config.runtimeMode === 'test' && config.allowFakeProviders;
-	const text: ProviderSummary = config.textProvider === 'openai'
-		? {adapter: 'OpenAI', model: config.openAiTextModel, status: 'CONTRACT TESTED ONLY', reason: 'Configured; live verification is pending'}
+	const textDescriptor = providerDescriptorForConfig('text', config);
+	const speechDescriptor = providerDescriptorForConfig('speech', config);
+	const text: ProviderSummary = textDescriptor
+		? {
+			adapter: textDescriptor.adapter,
+			model: textDescriptor.model,
+			...(textDescriptor.voice === undefined ? {} : {voice: textDescriptor.voice}),
+			status: 'CONFIGURED UNVERIFIED',
+			reason: 'Configured; deterministic contract or live verification has not been recorded for this worker session',
+		}
 		: config.textProvider === 'fake' && fakeEnabled
 			? {adapter: 'Deterministic test text', status: 'CONTRACT TESTED ONLY', reason: 'Enabled only for isolated tests'}
 			: {adapter: 'Text provider', status: 'NOT CONFIGURED', reason: 'Configure a supported server-side text provider'};
-	const speech: ProviderSummary = config.speechProvider === 'openai'
-		? {adapter: 'OpenAI', model: config.openAiSpeechModel, voice: config.openAiSpeechVoice, status: 'CONTRACT TESTED ONLY', reason: 'Configured; live verification is pending'}
+	const speech: ProviderSummary = speechDescriptor
+		? {
+			adapter: speechDescriptor.adapter,
+			model: speechDescriptor.model,
+			...(speechDescriptor.voice === undefined ? {} : {voice: speechDescriptor.voice}),
+			status: 'CONFIGURED UNVERIFIED',
+			reason: 'Configured; deterministic contract or live verification has not been recorded for this worker session',
+		}
 		: config.speechProvider === 'fake' && fakeEnabled
 			? {adapter: 'Deterministic test speech', status: 'CONTRACT TESTED ONLY', reason: 'Enabled only for isolated tests'}
 			: {adapter: 'Speech provider', status: 'NOT CONFIGURED', reason: 'Configure a supported server-side speech provider'};
@@ -329,11 +454,7 @@ export const providerSummaryForConfig = (config: ServerConfig): {text: ProviderS
 	return {
 		text,
 		speech,
-		generationEnabled: (
-			config.textProvider === 'openai' && config.speechProvider === 'openai'
-		) || (
-			text.status === 'CONTRACT TESTED ONLY' && speech.status === 'CONTRACT TESTED ONLY' && fakeEnabled
-		),
+		generationEnabled: text.status === 'CONTRACT TESTED ONLY' && speech.status === 'CONTRACT TESTED ONLY' && fakeEnabled,
 	};
 };
 

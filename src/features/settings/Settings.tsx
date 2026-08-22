@@ -187,7 +187,7 @@ export default function SettingsView() {
             Provider credentials and endpoints are configured only on the LocalCast server. They are never entered or stored in this browser.
           </p>
           <p className="field-help">
-            On explicit generation, OpenAI text receives station direction plus selected supplied titles, URLs, notes, and evidence; OpenAI TTS receives the final narration. A follow-up sends the question, the episode&apos;s complete frozen transcript, and all frozen supporting evidence snapshots used to construct grounding. A supported answer can use two external requests (draft plus semantic-support validation); an evidence-insufficient refusal ordinarily uses one. OpenAI provider-side response storage is disabled through <code>store: false</code>; LocalCast still keeps the ordered chat history in SQLite. LocalCast enables no provider tools, search, browsing, URL retrieval, file search, or general-knowledge fallback. Generated voices and audio are AI-generated.
+            On explicit generation, the selected server-side text provider receives station direction and supplied evidence, while the selected speech provider receives the final narration. OpenAI follow-up chat sends the question, the episode&apos;s complete frozen transcript, and all frozen supporting evidence snapshots used to construct grounding. A supported answer can use two external requests (draft plus semantic-support validation); an evidence-insufficient refusal ordinarily uses one. OpenAI provider-side response storage is disabled through <code>store: false</code>; LocalCast still keeps the ordered chat history in SQLite. LocalCast enables no provider tools, search, browsing, URL retrieval, file search, or general-knowledge fallback. Generated voices and audio are AI-generated.
           </p>
           <p className="field-help">
             OpenAI follow-up chat is pinned to <code>gpt-5.4-mini-2026-03-17</code> with low reasoning effort. Each draft or support request is limited to 131,072 serialized UTF-8 bytes; LocalCast uses a conservative 139,264-token input proxy including reserve, with output ceilings of 2,500 draft tokens and 750 support tokens. A turn permits at most two provider calls per attempt, two attempts total, and four durable provider-call slots. Ambiguous external outcomes cannot be retried. Returned usage is retained only as bounded numeric and request-audit metadata.
@@ -204,7 +204,7 @@ export default function SettingsView() {
                   <dd>
                     <strong>{provider.adapter}</strong>
                     <p>
-                      <span className={`badge ${provider.status === 'NOT CONFIGURED' ? 'badge--warning' : 'badge--primary'}`}>
+                      <span className={`badge ${['NOT CONFIGURED', 'CONFIGURED UNVERIFIED'].includes(provider.status) ? 'badge--warning' : 'badge--primary'}`}>
                         {provider.status}
                       </span>
                     </p>
@@ -218,7 +218,7 @@ export default function SettingsView() {
           </dl>
           {!settings.generationEnabled && (
             <p className="empty-state" role="status">
-              Sync and generate remains disabled until both providers are configured on the server.
+              Sync and generate remains disabled until both configured providers have deterministic contract evidence or current live verification.
             </p>
           )}
         </div>

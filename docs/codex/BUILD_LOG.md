@@ -1009,4 +1009,18 @@ The Compose smoke was not rerun because this authorization prohibits Docker chan
 
 ## 2026-08-21 — O-005 live supported/refusal acceptance completion
 
-This entry supersedes the deferred O-005 status in the preceding checkpoint entry. The separately authorized live gate completed on synthetic fixture `run-o005-atomic-66552802-ca97-4996-a0a9-4456485dce9e`. The supported attempt answered with the grounded fact `18 hours`, one factual claim, and the exact atomic citation; draft and semantic-support lifecycle stages finalized successfully. The refusal attempt returned `EVIDENCE_INSUFFICIENT` with zero claims. Exactly three provider requests occurred (two supported-path calls and one refusal call), with zero retries and zero duplicate dispatches. Final generation, chat, provider, and synchronization work was quiescent; schema 008, integrity, foreign-key, and undisclosed identity checks passed; and app and worker remained healthy on immutable image `sha256:af9a5635deccac039955317be7652f8d757001022e3a265df3af6a4a6a8e1fd8`. The earlier synthetic fixture's two-call `CHAT_UNSUPPORTED_CLAIM` result remains retained as a fail-closed diagnostic with no published answer or claims and no retry. This closes Slice 5; Slice 6 remains not started. The documentation-only checkpoint is authorized separately.
+This entry supersedes the deferred O-005 status in the preceding checkpoint entry. The separately authorized live gate completed on synthetic fixture `run-o005-atomic-66552802-ca97-4996-a0a9-4456485dce9e`. The supported attempt answered with the grounded fact `18 hours`, one factual claim, and the exact atomic citation; draft and semantic-support lifecycle stages finalized successfully. The refusal attempt returned `EVIDENCE_INSUFFICIENT` with zero claims. Exactly three provider requests occurred (two supported-path calls and one refusal call), with zero retries and zero duplicate dispatches. Final generation, chat, provider, and synchronization work was quiescent; schema 008, integrity, foreign-key, and undisclosed identity checks passed; and app and worker remained healthy on immutable image `sha256:af9a5635deccac039955317be7652f8d757001022e3a265df3af6a4a6a8e1fd8`. The earlier synthetic fixture's two-call `CHAT_UNSUPPORTED_CLAIM` result remains retained as a fail-closed diagnostic with no published answer or claims and no retry. This closes Slice 5; at that checkpoint, Slice 6 had not started. The documentation-only checkpoint was authorized separately.
+
+## 2026-08-21 — Slice 6A deterministic provider-parity checkpoint
+
+The bounded Slice 6A change adds named Ollama and LM Studio OpenAI-compatible text adapters plus Piper speech execution through the existing ffmpeg/media normalization path. All three are deterministic-contract evidence only: no Ollama, LM Studio, Piper, OpenAI, or other provider request, download, database action, Docker/Compose action, or deployment action occurred. Provider summaries now distinguish `NOT CONFIGURED`, `CONFIGURED UNVERIFIED`, `CONTRACT TESTED ONLY`, and `LIVE VERIFIED`; only a successful current provider operation can produce the last state. Summaries and errors omit credentials, endpoints, and executable paths.
+
+Unsupported Gemini and legacy provider implementation were removed with `@google/genai` and its provably unused transitive dependency graph. No retained synthetic fixture, provider lifecycle record, backup, image, or rollback tag was changed.
+
+| Command | Result |
+| --- | --- |
+| `npm run lint` | PASS — TypeScript no-emit check |
+| focused provider/configuration tests | PASS — 52 tests, including deterministic OpenAI-compatible success/failure/abort paths and fake Piper executable/model/normalization/cleanup paths |
+| `npm run test` | PASS — 227 unit tests in 13 files |
+| isolated loopback integration groups | PASS — 21 + 44 + 26 = 91 tests in 13 files |
+| `npm run build` | PASS — web and server bundles; existing chunk-size warning only |
