@@ -1044,3 +1044,18 @@ The implementation and drill used only synthetic data under `/tmp/localcast-slic
 | dependency/reference, sensitive-artifact, scope, and `git diff --check` scans | PASS — package-lock and dependency sets unchanged; no sensitive/runtime artifact in the checkpoint |
 
 Operator commands after a successful build are `npm run backup:create -- --database <absolute-db> --media <absolute-media> --destination <absolute-new-backup> --max-media-bytes <positive-integer>` and `npm run backup:restore -- --backup <absolute-backup> --data-target <absolute-new-or-empty-data> --media-target <absolute-new-or-empty-media>`. Failures emit only categorical codes; successes emit format and non-sensitive media totals.
+
+## 2026-08-22 — Slice 6C accessibility expansion checkpoint
+
+This checkpoint is limited to browser accessibility hardening: semantic destructive confirmations, keyboard route-heading focus, contrast and responsive wrapping corrections, and deterministic browser coverage. It uses no provider call, external network endpoint, Docker/Compose action, database/media access, deployment/image change, backup/rollback change, or dependency/lockfile change. The only remaining accessibility evidence is the explicitly operator-attested real screen-reader spot check; no automated result is presented as that check.
+
+| Command | Result |
+| --- | --- |
+| `npm run lint` | PASS — TypeScript no-emit check |
+| `npm run test` | PASS — 240 unit tests in 14 files |
+| `npm run test:integration` | PASS — 91 integration tests in 13 files with isolated loopback fixtures; expected failure-injection records only |
+| `npm run build` | PASS — web and server bundles; existing Vite chunk-size warning only |
+| `npm run test:e2e` | PASS — 20 Playwright/axe tests in 5.4 minutes; all five core routes are axe-clean in light/dark/high-contrast, with route focus, dialog focus, 320px/200%-text, reduced-motion, and media-keyboard coverage |
+| `npm run smoke:api` | PASS — credential-free API and worker smoke |
+| `npm run smoke:production` | PASS — credential-free production same-origin smoke |
+| dependency/reference, sensitive-output/artifact, scope, and `git diff --check` scans | PASS — no package or lockfile drift, credential/runtime artifact, unrelated path, or whitespace error |

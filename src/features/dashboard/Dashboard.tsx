@@ -76,8 +76,8 @@ export default function Dashboard({ onNavigateToRun, onNavigate }: DashboardProp
       <div className="metrics-grid">
         <div className="card metric-card">
           <div className="metric-card__label">
-            <Rss size={20} />
-            <h3>Active Sources</h3>
+            <Rss size={20} aria-hidden="true" />
+            <h2>Active Sources</h2>
           </div>
           <div className="metric-card__value-row">
             <p className="metric-card__value">{sources.length}</p>
@@ -106,8 +106,8 @@ export default function Dashboard({ onNavigateToRun, onNavigate }: DashboardProp
 
         <div className="card metric-card">
           <div className="metric-card__label">
-            <Activity size={20} />
-            <h3>Total Runs</h3>
+            <Activity size={20} aria-hidden="true" />
+            <h2>Total Runs</h2>
           </div>
           <p className="metric-card__value">{runs.length}</p>
           <button 
@@ -119,7 +119,7 @@ export default function Dashboard({ onNavigateToRun, onNavigate }: DashboardProp
         </div>
 
         <div className="hero-action-card">
-          <h3 className="hero-action-card__title">Create on demand</h3>
+          <h2 className="hero-action-card__title">Create on demand</h2>
           <p id="generation-help">{generationHelp}</p>
           <button 
             onClick={handleQuickGenerate}
@@ -127,7 +127,7 @@ export default function Dashboard({ onNavigateToRun, onNavigate }: DashboardProp
             aria-describedby="generation-help"
             className="button button--inverse"
           >
-            <Play size={18} />
+            <Play size={18} aria-hidden="true" />
             {isEnqueueing ? 'Enqueueing...' : 'Sync and generate'}
           </button>
           {stations.length === 0 && <button className="button button--link" onClick={() => onNavigate('stations')}>Create a station &rarr;</button>}

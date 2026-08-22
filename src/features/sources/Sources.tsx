@@ -4,6 +4,7 @@ import {AlertCircle, CheckCircle2, ExternalLink, List, Pencil, Plus, Power, Powe
 import {useSearchParams} from 'react-router-dom';
 import {sourceService} from '../../services';
 import type {MaterialSearchResult, Source} from '../../types';
+import ConfirmDialog from '../../components/layout/ConfirmDialog';
 
 const emptyForm = {name: '', url: '', category: ''};
 
@@ -47,8 +48,11 @@ export default function SourcesView() {
   const [syncingSourceId, setSyncingSourceId] = useState<string>();
   const [announcement, setAnnouncement] = useState('');
   const [error, setError] = useState<string>();
+  const [pendingDelete, setPendingDelete] = useState<Source>();
+  const [isDeleting, setIsDeleting] = useState(false);
   const firstFieldRef = useRef<HTMLInputElement>(null);
   const restoreFocusRef = useRef<HTMLElement>();
+  const deleteTriggerRef = useRef<HTMLElement>();
   const addButtonRef = useRef<HTMLButtonElement>(null);
   const sourcePanelRef = useRef<HTMLElement>(null);
   const focusPanelRef = useRef(false);
@@ -199,6 +203,7 @@ export default function SourcesView() {
 
   const handleDelete = async (source: Source) => {
     setError(undefined);
+    setIsDeleting(true);
     try {
       await sourceService.deleteSource(source.id);
       if (selectedSourceId === source.id) updateSourceParam();
@@ -207,7 +212,15 @@ export default function SourcesView() {
       addButtonRef.current?.focus();
     } catch (value) {
       setError(value instanceof Error ? value.message : 'The source could not be deleted.');
+    } finally {
+      setIsDeleting(false);
+      setPendingDelete(undefined);
     }
+  };
+
+  const cancelDelete = () => {
+    setPendingDelete(undefined);
+    requestAnimationFrame(() => deleteTriggerRef.current?.focus());
   };
 
   const sourceList = sources.data || [];
@@ -345,7 +358,7 @@ export default function SourcesView() {
                 <button onClick={() => void handleToggle(source)} className={`icon-button${source.isActive ? ' icon-button--success' : ' icon-button--muted'}`} aria-label={`${source.isActive ? 'Disable' : 'Enable'} source ${source.name}`}>
                   {source.isActive ? <Power size={18} /> : <PowerOff size={18} />}
                 </button>
-                <button onClick={() => void handleDelete(source)} className="icon-button icon-button--danger" aria-label={`Delete source ${source.name}`}><Trash2 size={18} /></button>
+                <button type="button" onClick={event => { event.preventDefault(); event.stopPropagation(); deleteTriggerRef.current = event.currentTarget; setPendingDelete(() => source); }} className="icon-button icon-button--danger" aria-label={`Delete source ${source.name}`}><Trash2 size={18} /></button>
               </div>
             </article>
           ))}
@@ -386,6 +399,16 @@ export default function SourcesView() {
             })}
           </div>}
         </section>
+      )}
+      {pendingDelete && (
+        <ConfirmDialog
+          title={`Delete ${pendingDelete.name}?`}
+          description="This removes the saved source and its mutable items. Completed episode evidence remains unchanged."
+          confirmLabel="Delete source"
+          busy={isDeleting}
+          onCancel={cancelDelete}
+          onConfirm={() => void handleDelete(pendingDelete)}
+        />
       )}
     </div>
   );

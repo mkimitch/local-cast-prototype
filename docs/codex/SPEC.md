@@ -204,6 +204,8 @@ The token is deployment configuration, not browser-stored application state. Bac
 - **A11Y-05 — Visual adaptability:** Existing theme, contrast, color-vision, text-size, density, and reduced-motion support remains functional. Layout reflows at a 320 CSS-pixel viewport and at 200% text resize without two-dimensional scrolling for ordinary content or clipping essential controls.
 - **A11Y-06 — Media alternative:** The complete transcript and resolved citations are available whenever audio is available.
 
+Automated browser evidence covers the complete core-route/theme matrix, keyboard/focus behavior, destructive confirmation, live-region structure, ordinary-content reflow, reduced motion, and real media controls. A real assistive-technology spot check remains operator-attested evidence; automated checks must not be represented as a completed screen-reader review.
+
 ## 9. Architectural contract
 
 - **ARC-01 — Preserve the application:** Keep the existing React/Vite/TypeScript frontend, Express server, feature-oriented UI, and route/service/store/provider boundaries. Do not rewrite solely to match a preferred stack.

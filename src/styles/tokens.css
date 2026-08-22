@@ -104,11 +104,11 @@ html.dark {
   --color-border-strong: #374151;
   --color-text: #f9fafb;
   --color-text-soft: #d1d5db;
-  --color-text-muted: #9ca3af;
+  --color-text-muted: #cbd5e1;
   --color-text-faint: #6b7280;
   --color-text-inverse: #111827;
 
-  --color-primary: #3b82f6;
+  --color-primary: #2563eb;
   --color-primary-hover: #2563eb;
   --color-primary-strong: #bfdbfe;
   --color-primary-soft: rgb(30 64 175 / 0.22);

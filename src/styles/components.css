@@ -13,7 +13,8 @@
   font-weight: 500;
   line-height: 1.2;
   text-decoration: none;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
   box-shadow: none;
   transition: background-color var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast), transform var(--transition-fast), opacity var(--transition-fast), box-shadow var(--transition-fast);
 }
@@ -82,7 +83,7 @@
 .button--plain {
   min-height: 0;
   padding: 0;
-  color: var(--color-text-muted);
+  color: var(--color-text-soft);
   background: transparent;
 }
 
@@ -116,6 +117,46 @@
 .icon-button--danger:hover {
   background: var(--color-danger-soft);
   color: var(--color-danger-text);
+}
+
+.button--danger {
+  background: var(--color-danger);
+  color: var(--color-text-inverse);
+}
+
+.button--danger:hover:not(:disabled) {
+  background: var(--color-danger-hover, var(--color-danger-text));
+}
+
+.confirm-dialog-backdrop {
+  position: fixed;
+  z-index: 90;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: var(--space-4);
+  background: rgb(3 7 18 / 0.62);
+}
+
+.confirm-dialog {
+  width: min(100%, 32rem);
+  padding: var(--space-6);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-xl);
+  background: var(--color-surface-raised);
+  color: var(--color-text);
+  box-shadow: var(--shadow-lg);
+}
+
+.confirm-dialog__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+}
+
+.confirm-dialog p {
+  margin: var(--space-3) 0 var(--space-5);
+  color: var(--color-text-muted);
 }
 
 .icon-button--success {
@@ -404,6 +445,7 @@
 .form-actions {
   display: flex;
   justify-content: flex-end;
+  flex-wrap: wrap;
   gap: var(--space-3);
   margin-top: var(--space-2);
 }
@@ -495,7 +537,7 @@
   padding: var(--space-2-5) var(--space-3);
   border-radius: var(--radius-lg);
   background: transparent;
-  color: var(--color-text-muted);
+  color: var(--color-text-soft);
   font-size: 0.875rem;
   font-weight: 500;
   text-align: left;
@@ -514,16 +556,17 @@
 
 .sidebar__nav-item[aria-current='page'] {
   background: var(--color-primary-soft);
-  color: var(--color-primary-text);
+  color: var(--color-text);
+  box-shadow: inset 3px 0 0 var(--color-primary);
 }
 
 .sidebar__nav-icon {
   flex: 0 0 auto;
-  color: var(--color-text-faint);
+  color: currentColor;
 }
 
 .sidebar__nav-item[aria-current='page'] .sidebar__nav-icon {
-  color: var(--color-primary);
+  color: currentColor;
 }
 
 .sidebar__footer {
@@ -544,7 +587,7 @@
   gap: var(--space-2);
   margin-bottom: var(--space-4);
   padding-inline: var(--space-2);
-  color: var(--color-text-muted);
+  color: var(--color-text-soft);
   font-size: 0.75rem;
   font-weight: 500;
 }
@@ -589,7 +632,7 @@
 
 .local-note__label {
   margin: 0 0 var(--space-1);
-  color: var(--color-text-muted);
+  color: var(--color-text-soft);
   font-size: 0.75rem;
   font-weight: 600;
   letter-spacing: 0.06em;
@@ -598,7 +641,7 @@
 
 .local-note__copy {
   margin: 0;
-  color: var(--color-text-muted);
+  color: var(--color-text-soft);
   font-size: 0.75rem;
   line-height: 1.6;
 }
@@ -619,7 +662,7 @@
   color: var(--color-text-muted);
 }
 
-.metric-card__label h3,
+.metric-card__label h2,
 .metric-card__label-title {
   margin: 0;
   font-size: 1rem;
@@ -650,6 +693,8 @@
 
 .metric-card__link {
   margin-top: var(--space-4);
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .schedule-card__header {
@@ -711,12 +756,29 @@
 
 .hero-action-card__title {
   margin: 0 0 var(--space-2);
-  color: color-mix(in oklch, var(--color-on-primary) 76%, var(--color-primary-soft));
-  font-weight: 500;
+  color: var(--color-on-primary);
+  font-weight: 600;
 }
 
 .hero-action-card .button {
   width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.hero-action-card .button--inverse {
+  background: var(--color-on-primary);
+  color: var(--color-primary-hover);
+}
+
+.hero-action-card .button--inverse:hover:not(:disabled) {
+  background: var(--color-primary-soft);
+  color: var(--color-text);
+}
+
+.hero-action-card .button--link {
+  color: var(--color-on-primary);
+  text-decoration: underline;
 }
 
 .briefing-row,
@@ -1377,11 +1439,11 @@
 }
 
 html.dark .podcast-setup .button--primary {
-  color: var(--color-text-inverse);
+  color: var(--color-on-primary);
 }
 
 html.dark .podcast-setup .button--primary:hover:not(:disabled) {
-  background: #60a5fa;
+  background: var(--color-primary-hover);
 }
 
 @media (max-width: 30rem) {
@@ -1953,6 +2015,16 @@ html.dark .orb-theme-preview {
     max-height: 42vh;
     border-right: 0;
     border-bottom: 1px solid var(--color-border);
+  }
+
+  .page-header .page-actions .button {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .form-actions .button {
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
 
   .sidebar--collapsed {

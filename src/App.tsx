@@ -1,4 +1,4 @@
-import {useRef, useState, useLayoutEffect} from 'react';
+import {useEffect, useRef, useState, useLayoutEffect} from 'react';
 import {AnimatePresence, motion, useReducedMotion} from 'motion/react';
 import {Navigate, Route, Routes, useLocation, useNavigate, useParams} from 'react-router-dom';
 import Sidebar from './components/layout/Sidebar';
@@ -22,6 +22,15 @@ const viewPath: Record<ViewState, string> = {
   settings: '/settings',
 };
 
+const routeHeading = (pathname: string): string | undefined => {
+  if (pathname === '/') return 'Dashboard';
+  if (pathname === '/sources') return 'Sources';
+  if (pathname.startsWith('/stations')) return 'Stations & Notes';
+  if (pathname === '/episodes') return 'Episodes';
+  if (pathname === '/settings') return 'Settings';
+  return undefined;
+};
+
 const EpisodeRoute = ({onPlay}: {onPlay: (run: BriefingRun) => void}) => {
   const navigate = useNavigate();
   const {runId = ''} = useParams();
@@ -37,12 +46,72 @@ export default function App() {
   const main = useRef<HTMLElement>(null);
   const priorPath = useRef(location.pathname);
   const pendingFocusPath = useRef<string | null>(null);
+  const hasMountedRoute = useRef(false);
   const playerReturnFocus = useRef<HTMLElement | null>(null);
 
   useLayoutEffect(() => {
     if (priorPath.current === location.pathname) return;
     priorPath.current = location.pathname;
     pendingFocusPath.current = location.pathname;
+  }, [location.pathname]);
+
+  const focusCurrentRouteHeading = () => {
+    if (pendingFocusPath.current !== location.pathname) return;
+    const frame = [...(main.current?.querySelectorAll<HTMLElement>('[data-route-content]') || [])]
+      .find(candidate => candidate.dataset.routeContent === location.pathname);
+    const focusTarget = frame?.querySelector<HTMLElement>('h1');
+    if (!focusTarget) return;
+    const expectedHeading = routeHeading(location.pathname);
+    if (expectedHeading && focusTarget.textContent?.trim() !== expectedHeading) return;
+    focusTarget.focus();
+    pendingFocusPath.current = null;
+  };
+
+  useEffect(() => {
+    if (pendingFocusPath.current !== location.pathname) return;
+    focusCurrentRouteHeading();
+    if (pendingFocusPath.current !== location.pathname || !main.current) return;
+    const observer = new MutationObserver(focusCurrentRouteHeading);
+    observer.observe(main.current, {childList: true, subtree: true});
+    let frames = 0;
+    let frame = 0;
+    const retryFocus = () => {
+      focusCurrentRouteHeading();
+      if (pendingFocusPath.current !== location.pathname) return;
+      if (frames++ >= 90) {
+        main.current?.focus();
+        pendingFocusPath.current = null;
+        return;
+      }
+      frame = requestAnimationFrame(retryFocus);
+    };
+    frame = requestAnimationFrame(retryFocus);
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(frame);
+    };
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (!hasMountedRoute.current) {
+      hasMountedRoute.current = true;
+      return;
+    }
+    const expectedHeading = routeHeading(location.pathname);
+    if (!expectedHeading || !main.current) return;
+    const focusExpectedHeading = () => {
+      const heading = [...main.current?.querySelectorAll<HTMLElement>('h1') || []]
+        .find(candidate => candidate.textContent?.trim() === expectedHeading);
+      if (!heading) return false;
+      heading.focus();
+      return true;
+    };
+    if (focusExpectedHeading()) return;
+    const observer = new MutationObserver(() => {
+      if (focusExpectedHeading()) observer.disconnect();
+    });
+    observer.observe(main.current, {childList: true, subtree: true});
+    return () => observer.disconnect();
   }, [location.pathname]);
 
   const navigateView = (view: ViewState) => navigate(viewPath[view]);
@@ -70,22 +139,21 @@ export default function App() {
             transition={{duration: prefersReducedMotion ? 0 : 0.2}}
             className="view-frame"
             onAnimationComplete={() => {
-              if (pendingFocusPath.current !== location.pathname) return;
-              const focusTarget = main.current?.querySelector<HTMLElement>('h1') || main.current;
-              focusTarget?.focus();
-              pendingFocusPath.current = null;
+              focusCurrentRouteHeading();
             }}
           >
-            <Routes location={location}>
-              <Route path="/" element={<Dashboard onNavigateToRun={navigateRun} onNavigate={navigateView} />} />
-              <Route path="/sources" element={<SourcesView />} />
-              <Route path="/stations" element={<StationsView />} />
-              <Route path="/stations/:stationId" element={<StationsView />} />
-              <Route path="/episodes" element={<RunsView />} />
-              <Route path="/episodes/:runId" element={<EpisodeRoute onPlay={openPlayer} />} />
-              <Route path="/settings" element={<SettingsView />} />
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
+            <div data-route-content={location.pathname}>
+              <Routes location={location}>
+                <Route path="/" element={<Dashboard onNavigateToRun={navigateRun} onNavigate={navigateView} />} />
+                <Route path="/sources" element={<SourcesView />} />
+                <Route path="/stations" element={<StationsView />} />
+                <Route path="/stations/:stationId" element={<StationsView />} />
+                <Route path="/episodes" element={<RunsView />} />
+                <Route path="/episodes/:runId" element={<EpisodeRoute onPlay={openPlayer} />} />
+                <Route path="/settings" element={<SettingsView />} />
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </div>
           </motion.div>
         </AnimatePresence>
       </main>

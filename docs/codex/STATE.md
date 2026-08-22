@@ -1,14 +1,33 @@
 # LocalCast build state
 
-Last updated: 2026-08-21
+Last updated: 2026-08-22
 Branch: `codex/localcast-prototype`
 Pre-bootstrap HEAD: `910485b77ead63450660b0b97544889960e45e3f`
 Slice 0 base HEAD: `e720d5818ab15efccfa143c94d6514c0c9a2baad`
-Current base checkpoint: Slice 6A at `3c53ed52a29a6fc232e245e21cfd8e9bb5988697`
-Current checkpoint: **Slice 6B versioned backup and safe-restore checkpoint**
-Implementation slice: **6B — VERSIONED BACKUP AND SAFE RESTORE COMPLETE 2026-08-21**
-Next action: **Explicit authorization is required for a later Slice 6 gate; do not infer accessibility, security/Docker hardening, deployment, live-provider work, production backup/restore, retention, or cleanup**
-Overall state: **SLICE 5 COMPLETE 2026-08-21; SLICE 6A AND 6B COMPLETE; REMAINING SLICE 6 GATES OPEN**
+Current base checkpoint: Slice 6B at `ac8300ad3b52906e6b23341d7344489b94aeb733`
+Current checkpoint: **Slice 6C accessibility expansion checkpoint**
+Implementation slice: **6C — ACCESSIBILITY EXPANSION COMPLETE 2026-08-22**
+Next action: **Complete the operator-attested screen-reader spot check and separately authorize the remaining Slice 6 security, deployment, live-provider, and final-phase gates**
+Overall state: **SLICE 5 COMPLETE 2026-08-21; SLICE 6A, 6B, AND 6C COMPLETE; REMAINING SLICE 6 GATES OPEN**
+
+## Slice 6C accessibility expansion result — 2026-08-22
+
+The core interface now has explicit alert-dialog confirmation before source, station, or note deletion; keyboard focus starts on Cancel, remains contained while the dialog is open, returns to the initiating control on cancellation, and moves to a stable form control after confirmed deletion. Keyboard route navigation moves focus to the destination route heading after animation, and dashboard heading levels, sidebar/hero contrast, button wrapping, dark-theme primary contrast, and narrow-layout wrapping were corrected.
+
+Deterministic Playwright/axe coverage exercises Dashboard, Sources, Stations & Notes, Episodes, and Settings in light, dark, and high-contrast themes; keyboard skip-link and route focus; destructive-dialog focus containment/restoration; deletion status/focus recovery; 320 CSS-pixel reflow at 200% text; reduced motion; and existing actual-audio keyboard controls. It does not claim a human screen-reader check. `A11Y-02` through `A11Y-05` are green from deterministic evidence; `A11Y-01` remains partial until an operator records the required assistive-technology spot check. No provider, external network endpoint, Docker/Compose, database, image, backup, rollback tag, synthetic fixture, or external service was accessed or changed.
+
+### Slice 6C verification
+
+| Command | Result |
+| --- | --- |
+| `npm run lint` | PASS — TypeScript no-emit check |
+| `npm run test` | PASS — 240 unit tests in 14 files |
+| `npm run test:integration` | PASS — 91 integration tests in 13 files using isolated loopback fixtures; expected injected generation-failure records were asserted by the tests |
+| `npm run build` | PASS — web and server bundles; existing Vite chunk-size warning only |
+| `npm run test:e2e` | PASS — 20 Playwright/axe tests in 5.4 minutes using temporary loopback servers; includes three Slice 6C cases |
+| `npm run smoke:api` | PASS — credential-free API and worker smoke |
+| `npm run smoke:production` | PASS — credential-free production same-origin smoke |
+| dependency/lockfile, sensitive-artifact, scope, and whitespace scans | PASS — no dependency/lockfile change, sensitive/runtime artifact, or whitespace error in the checkpoint |
 
 ## Slice 6B versioned backup and safe-restore result — 2026-08-21
 

@@ -1,7 +1,7 @@
 # LocalCast autonomous build plan
 
-Status: Slice 4 remains green; Slice 5 is complete 2026-08-21; Slice 6A and 6B checkpoints are complete 2026-08-21
-Current slice: **6 — 6A PROVIDER PARITY COMPLETE; 6B BACKUP/RESTORE COMPLETE; REMAINING GATES OPEN**
+Status: Slice 4 remains green; Slice 5 is complete 2026-08-21; Slice 6A, 6B, and 6C checkpoints are complete
+Current slice: **6 — 6A PROVIDER PARITY, 6B BACKUP/RESTORE, AND 6C ACCESSIBILITY COMPLETE; REMAINING GATES OPEN**
 Execution policy: one vertical slice, one green checkpoint commit
 
 ## How to use this plan
@@ -331,6 +331,10 @@ This bounded checkpoint closes only `TXT-02` through `TXT-04`, `TTS-02`, and `PR
 This bounded checkpoint closes `OPS-01` through `OPS-04` with synthetic, isolated evidence. It adds manual `backup:create` and `backup:restore` commands for a canonical version-1 artifact containing a SQLite backup-API snapshot, only referenced published media, categorical validation, and a SHA-256 chain. Restore verifies the complete artifact before mutation and publishes only into absent or explicitly empty targets, then revalidates schema, integrity, foreign keys, identity cardinality, quiescence, FTS, relationships, media, feed, jobs, citations, and chat. Credentials, tokens, environment files, raw provider payloads, logs, source/build output, and unrelated media are outside the allowlisted artifact; restored provider status remains `NOT CONFIGURED` until external configuration is supplied.
 
 No schema migration, production backup, production restore, Docker/Compose action, provider/network request, retention/deletion automation, or encryption feature is part of 6B. Accessibility expansion, security/deployment hardening, live provider evidence, and the full Slice 6 phase gate remain open.
+
+### Slice 6C — accessibility expansion checkpoint — COMPLETE 2026-08-22
+
+This bounded checkpoint adds semantic destructive confirmations, route-heading focus after keyboard navigation, contrast and reflow corrections, and deterministic browser coverage for all five core routes in light, dark, and high-contrast themes. The coverage includes keyboard skip and route navigation, dialog focus trapping and restoration, status/focus behavior, 320 CSS-pixel layout at 200% text size, reduced motion, and existing real-media keyboard controls. It closes deterministic evidence for `A11Y-02` through `A11Y-05` and advances `A11Y-01` to automated green evidence. A human screen-reader spot check remains operator-attested and keeps `A11Y-01` partially open; all security, deployment, live-provider, and full Slice 6 phase gates remain open.
 
 ## First post-prototype audio milestone — deferred two-host format
 

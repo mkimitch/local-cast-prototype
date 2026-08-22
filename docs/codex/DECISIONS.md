@@ -398,6 +398,13 @@ Restore verifies the canonical manifest, compatibility, exact artifact set, chec
 
 The commands do not schedule, retain, prune, upload, or encrypt backups and never overwrite production storage. Operators must choose an explicit maximum media-byte budget and protect the destination with storage permissions and, when needed, encryption outside LocalCast. Slice 6B evidence uses only synthetic databases, media, and temporary paths prefixed `localcast-slice6b-test-`.
 
+## D-042 — Accessibility evidence keeps automated coverage distinct from assistive-technology attestation
+
+Status: **ACCEPTED**
+Date: 2026-08-22
+
+Slice 6C uses deterministic browser checks for the five core routes across supported themes, keyboard route transitions, modal focus trapping/restoration, live-region structure, ordinary-content reflow at 320 CSS pixels with 200% text size, reduced motion, and real audio keyboard controls. These checks demonstrate the implemented contracts but do not simulate or claim a human screen-reader result. A real assistive-technology spot check remains an explicit operator-attested gate before `A11Y-01` can be fully closed.
+
 ## Open operator decisions
 
 These are genuine inputs that cannot be inferred safely. They do not block documentation bootstrap. A slice must stop before it needs an unresolved value.

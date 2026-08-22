@@ -1,9 +1,10 @@
-import {FormEvent, useState} from 'react';
+import {FormEvent, useEffect, useRef, useState} from 'react';
 import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query';
 import {FileText, Pencil, Play, Plus, Radio, Trash2} from 'lucide-react';
 import {Link, useNavigate, useParams} from 'react-router-dom';
 import {briefingService, providerService, sourceService, stationService} from '../../services';
 import type {EpisodeMode, Note, Station} from '../../types';
+import ConfirmDialog from '../../components/layout/ConfirmDialog';
 
 const emptyNote = {title: '', body: '', author: '', originalUrl: ''};
 const emptyStation = {name: '', topicInstruction: '', defaultMode: 'brief' as EpisodeMode, noteIds: [] as string[], sourceIds: [] as string[]};
@@ -22,6 +23,19 @@ export default function StationsView() {
   const [editingStationId, setEditingStationId] = useState<string>();
   const [runModes, setRunModes] = useState<Record<string, EpisodeMode>>({});
   const [error, setError] = useState<string>();
+  const [pendingDelete, setPendingDelete] = useState<{kind: 'note'; item: Note} | {kind: 'station'; item: Station}>();
+  const [isDeleting, setIsDeleting] = useState(false);
+  const noteTitle = useRef<HTMLInputElement>(null);
+  const stationName = useRef<HTMLInputElement>(null);
+  const deleteTrigger = useRef<HTMLElement>();
+
+  useEffect(() => {
+    if (editingNoteId) noteTitle.current?.focus();
+  }, [editingNoteId]);
+
+  useEffect(() => {
+    if (editingStationId) stationName.current?.focus();
+  }, [editingStationId]);
 
   const refreshNotes = async () => {
     await Promise.all([
@@ -91,6 +105,34 @@ export default function StationsView() {
     });
   };
 
+  const cancelDelete = () => {
+    setPendingDelete(undefined);
+    requestAnimationFrame(() => deleteTrigger.current?.focus());
+  };
+
+  const confirmDelete = async () => {
+    if (!pendingDelete) return;
+    const deletedKind = pendingDelete.kind;
+    setIsDeleting(true);
+    setError(undefined);
+    try {
+      if (pendingDelete.kind === 'note') {
+        await stationService.deleteNote(pendingDelete.item.id);
+        await refreshNotes();
+      } else {
+        await stationService.deleteStation(pendingDelete.item.id);
+        await refreshStations();
+        if (pendingDelete.item.id === stationId) navigate('/stations');
+      }
+      setPendingDelete(undefined);
+      requestAnimationFrame(() => (deletedKind === 'note' ? noteTitle.current : stationName.current)?.focus());
+    } catch (value) {
+      setError(value instanceof Error ? value.message : 'The selected item could not be deleted.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const toggleSelection = (kind: 'noteIds' | 'sourceIds', id: string) => {
     setStationForm(current => ({
       ...current,
@@ -129,7 +171,7 @@ export default function StationsView() {
           <form className="form-stack" onSubmit={submitNote}>
             <div className="field">
               <label className="form-label" htmlFor="note-title">Title</label>
-              <input id="note-title" className="control" maxLength={200} required value={noteForm.title} onChange={event => setNoteForm({...noteForm, title: event.target.value})} />
+              <input ref={noteTitle} id="note-title" className="control" maxLength={200} required value={noteForm.title} onChange={event => setNoteForm({...noteForm, title: event.target.value})} />
             </div>
             <div className="field">
               <label className="form-label" htmlFor="note-body">Pasted factual material</label>
@@ -161,7 +203,7 @@ export default function StationsView() {
                 </div>
                 <div className="page-actions">
                   <button className="icon-button" aria-label={`Edit note ${note.title}`} onClick={() => editNote(note)}><Pencil size={16} /></button>
-                  <button className="icon-button" aria-label={`Delete note ${note.title}`} onClick={async () => { await stationService.deleteNote(note.id); await refreshNotes(); }}><Trash2 size={16} /></button>
+                  <button type="button" className="icon-button" aria-label={`Delete note ${note.title}`} onClick={event => { event.preventDefault(); event.stopPropagation(); deleteTrigger.current = event.currentTarget; setPendingDelete(() => ({kind: 'note', item: note})); }}><Trash2 size={16} /></button>
                 </div>
               </article>
             ))}
@@ -174,7 +216,7 @@ export default function StationsView() {
           <form className="form-stack" onSubmit={submitStation}>
             <div className="field">
               <label className="form-label" htmlFor="station-name">Station name</label>
-              <input id="station-name" className="control" maxLength={200} required value={stationForm.name} onChange={event => setStationForm({...stationForm, name: event.target.value})} />
+              <input ref={stationName} id="station-name" className="control" maxLength={200} required value={stationForm.name} onChange={event => setStationForm({...stationForm, name: event.target.value})} />
             </div>
             <div className="field">
               <label className="form-label" htmlFor="station-topic">Topic and editorial direction</label>
@@ -239,7 +281,7 @@ export default function StationsView() {
                 </div>
                 <div className="page-actions">
                   <button className="icon-button" aria-label={`Edit station ${station.name}`} onClick={() => editStation(station)}><Pencil size={16} /></button>
-                  <button className="icon-button" aria-label={`Delete station ${station.name}`} onClick={async () => { await stationService.deleteStation(station.id); await refreshStations(); if (station.id === stationId) navigate('/stations'); }}><Trash2 size={16} /></button>
+                  <button type="button" className="icon-button" aria-label={`Delete station ${station.name}`} onClick={event => { event.preventDefault(); event.stopPropagation(); deleteTrigger.current = event.currentTarget; setPendingDelete(() => ({kind: 'station', item: station})); }}><Trash2 size={16} /></button>
                   <label>
                     <span className="sr-only">Generation mode for {station.name}</span>
                     <select
@@ -266,6 +308,18 @@ export default function StationsView() {
           </div>
         </section>
       </div>
+      {pendingDelete && (
+        <ConfirmDialog
+          title={`Delete ${pendingDelete.item.name || pendingDelete.item.title}?`}
+          description={pendingDelete.kind === 'note'
+            ? 'This removes the saved note. Completed episode evidence remains unchanged.'
+            : 'This removes the saved station. Completed episode evidence remains unchanged.'}
+          confirmLabel={pendingDelete.kind === 'note' ? 'Delete note' : 'Delete station'}
+          busy={isDeleting}
+          onCancel={cancelDelete}
+          onConfirm={() => void confirmDelete()}
+        />
+      )}
     </div>
   );
 }

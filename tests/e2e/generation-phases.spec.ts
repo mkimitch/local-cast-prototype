@@ -81,9 +81,13 @@ test('explicit browser action observes durable ordered phases across reload', as
 			mediaElement.addEventListener('error', () => reject(new Error('fixture MP3 did not decode')), {once: true});
 		});
 	});
-	await page.getByRole('button', {name: 'Play episode'}).click();
+	const playEpisode = page.getByRole('button', {name: 'Play episode'});
+	await playEpisode.focus();
+	await page.keyboard.press('Enter');
 	await expect.poll(() => audio.evaluate(element => !(element as HTMLAudioElement).paused)).toBe(true);
-	await page.getByRole('button', {name: 'Pause episode'}).click();
+	const pauseEpisode = page.getByRole('button', {name: 'Pause episode'});
+	await pauseEpisode.focus();
+	await page.keyboard.press('Enter');
 	await expect.poll(() => audio.evaluate(element => (element as HTMLAudioElement).paused)).toBe(true);
 	await audio.evaluate(element => {
 		element.dataset.seekEvents = '0';
@@ -91,10 +95,14 @@ test('explicit browser action observes durable ordered phases across reload', as
 			element.dataset.seekEvents = String(Number(element.dataset.seekEvents || '0') + 1);
 		});
 	});
-	await page.getByRole('button', {name: 'Skip forward 30 seconds'}).click();
+	const skipForward = page.getByRole('button', {name: 'Skip forward 30 seconds'});
+	await skipForward.focus();
+	await page.keyboard.press('Enter');
 	await expect.poll(() => audio.evaluate(element => Number(element.dataset.seekEvents || '0'))).toBeGreaterThan(0);
 	const forwardSeekEvents = await audio.evaluate(element => Number(element.dataset.seekEvents || '0'));
-	await page.getByRole('button', {name: 'Skip back 15 seconds'}).click();
+	const skipBack = page.getByRole('button', {name: 'Skip back 15 seconds'});
+	await skipBack.focus();
+	await page.keyboard.press('Enter');
 	await expect.poll(() => audio.evaluate(element => Number(element.dataset.seekEvents || '0'))).toBeGreaterThan(forwardSeekEvents);
 	await page.getByLabel('Playback speed').selectOption('1.5');
 	expect(await audio.evaluate(element => (element as HTMLAudioElement).playbackRate)).toBe(1.5);

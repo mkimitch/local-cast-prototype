@@ -58,9 +58,18 @@ test('production UI is same-origin, honest, and manually driven', async ({page})
 	await page.getByLabel('Station name').fill('Updated local station');
 	await page.getByRole('button', {name: 'Save station changes'}).click();
 	await expect(page.getByRole('heading', {name: 'Updated local station'})).toBeVisible();
-	await page.getByRole('button', {name: 'Delete station Updated local station'}).click();
+	const deleteStation = page.getByRole('button', {name: 'Delete station Updated local station'});
+	await deleteStation.click();
+	const stationConfirmation = page.getByRole('alertdialog', {name: 'Delete Updated local station?'});
+	await expect(stationConfirmation.getByRole('button', {name: 'Cancel'})).toBeFocused();
+	await page.keyboard.press('Escape');
+	await expect(deleteStation).toBeFocused();
+	await deleteStation.click();
+	await stationConfirmation.getByRole('button', {name: 'Delete station'}).click();
 	await expect(page.getByRole('heading', {name: 'Updated local station'})).toHaveCount(0);
-	await page.getByRole('button', {name: 'Delete note Updated supplied local note'}).click();
+	const deleteNote = page.getByRole('button', {name: 'Delete note Updated supplied local note'});
+	await deleteNote.click();
+	await page.getByRole('alertdialog', {name: 'Delete Updated supplied local note?'}).getByRole('button', {name: 'Delete note'}).click();
 	await expect(page.getByRole('heading', {name: 'Updated supplied local note'})).toHaveCount(0);
 
 	await page.getByRole('link', {name: 'Episodes'}).click();
