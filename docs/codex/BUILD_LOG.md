@@ -1024,3 +1024,23 @@ Unsupported Gemini and legacy provider implementation were removed with `@google
 | `npm run test` | PASS — 227 unit tests in 13 files |
 | isolated loopback integration groups | PASS — 21 + 44 + 26 = 91 tests in 13 files |
 | `npm run build` | PASS — web and server bundles; existing chunk-size warning only |
+
+## 2026-08-21 — Slice 6B versioned backup and safe-restore checkpoint
+
+This bounded checkpoint adds manual version-1 backup creation and verified restore to absent or explicitly empty targets. Backup uses the SQLite backup API, captures committed WAL state, validates schema/integrity/foreign keys/undisclosed identity/quiescence/FTS/relationships, copies only referenced published MP3s under an explicit operator aggregate limit, and atomically publishes private canonical manifest/validation/checksum artifacts. Restore validates compatibility and every artifact before output, revalidates database/media parity, recreates private storage markers, never overwrites a non-empty target, and removes only exact incomplete outputs after failure. Credentials, tokens, provider payloads, logs, source/build output, unrelated media, retention/pruning, upload, and encryption are excluded.
+
+The implementation and drill used only synthetic data under `/tmp/localcast-slice6b-test-*`. No production database/media/service, Docker/Compose/Caddy state, provider/network endpoint, retained O-005 fixture, backup evidence, image, or rollback tag was read or changed. No schema migration, package dependency, or lockfile change occurred.
+
+| Command or gate | Result |
+| --- | --- |
+| `npm run lint` | PASS — TypeScript no-emit check |
+| focused `vitest run tests/unit/backup-restore.test.ts` | PASS — 13 deterministic backup/restore and failure-injection cases |
+| `npm run test` | PASS — 240 tests in 14 unit files |
+| first sandboxed `npm run test:integration` | ENVIRONMENT-BLOCKED — 17 listener-dependent tests received only `listen EPERM 127.0.0.1`; no product assertion failed |
+| authorized loopback `npm run test:integration` | PASS — 91 tests in 13 files |
+| isolated rich restore drill | PASS — feed/FTS/jobs/evidence/citations/chat/provider lifecycle/media counts and bytes match; provider status defaults to `NOT CONFIGURED` |
+| built `dist-server/backup.js` and `dist-server/restore.js` database-only drill | PASS — categorical success tokens, schema 008, `quick_check=ok`, empty foreign-key result, synthetic-row presence, mode `0700`/`0600`, and byte-identical backup/restored database SHA-256; exact temporary tree removed |
+| `npm run build` | PASS — Vite production bundle plus app, worker, storage-init, backup, and restore server bundles; existing chunk-size warning only |
+| dependency/reference, sensitive-artifact, scope, and `git diff --check` scans | PASS — package-lock and dependency sets unchanged; no sensitive/runtime artifact in the checkpoint |
+
+Operator commands after a successful build are `npm run backup:create -- --database <absolute-db> --media <absolute-media> --destination <absolute-new-backup> --max-media-bytes <positive-integer>` and `npm run backup:restore -- --backup <absolute-backup> --data-target <absolute-new-or-empty-data> --media-target <absolute-new-or-empty-media>`. Failures emit only categorical codes; successes emit format and non-sensitive media totals.

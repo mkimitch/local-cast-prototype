@@ -15,6 +15,8 @@
     "build": "npm run build:web && npm run build:server",
     "build:web": "vite build",
     "build:server": "node scripts/build-server.mjs",
+    "backup:create": "node dist-server/backup.js",
+    "backup:restore": "node dist-server/restore.js",
     "start:app": "LOCALCAST_PROCESS_ROLE=app node dist-server/index.js",
     "start:worker": "LOCALCAST_PROCESS_ROLE=worker node dist-server/worker.js",
     "storage:init": "LOCALCAST_PROCESS_ROLE=storage-init node dist-server/storageInit.js",

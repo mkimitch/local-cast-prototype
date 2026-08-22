@@ -8,7 +8,9 @@ fs.rmSync(outputDirectory, {recursive: true, force: true});
 
 await build({
 	entryPoints: {
+		backup: 'server/backup.ts',
 		index: 'server/index.ts',
+		restore: 'server/restore.ts',
 		worker: 'server/worker.ts',
 		storageInit: 'server/storageInit.ts',
 	},

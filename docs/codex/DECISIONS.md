@@ -387,6 +387,17 @@ Ollama and LM Studio use explicitly named, validated OpenAI-compatible text conf
 
 The Slice 6A checkpoint proves these contracts only with synthetic OpenAI-compatible responses and a deterministic fake Piper executable. It performs no live Ollama, LM Studio, Piper, OpenAI, or other provider request; no local adapter is presented as `LIVE VERIFIED`. A separately authorized configured probe remains necessary to establish a deployment’s live status. Unsupported Gemini and legacy provider code are removed with their unused dependency graph rather than retained as an implicit fallback.
 
+## D-041 — Versioned backups are allowlisted, bounded, and restore only to new storage
+
+Status: **ACCEPTED**
+Date: 2026-08-21
+
+The manual Slice 6B artifact format is version 1. A canonical manifest binds application/schema compatibility, the SQLite backup-API snapshot, only database-referenced published MP3s, categorical database validation, operator-supplied media limits, sizes, and SHA-256 values. `SHA256SUMS` binds every retained data/control artifact and `SHA256SUMS.sha256` roots that list. Artifact directories are mode `0700`; files are mode `0600`. Inputs reject symlinks, hard links, special files, path traversal, duplicates, source changes, and configured size/count/path limits. Publication uses a private sibling staging directory and atomic rename into a destination that did not exist.
+
+Restore verifies the canonical manifest, compatibility, exact artifact set, checksum chain, database, and media before target creation. It accepts only absent or explicitly empty data/media targets, stages privately, publishes atomically, and removes only its exact incomplete outputs after failure. Post-copy validation covers migrations, `quick_check`, foreign keys, undisclosed installation-identity cardinality and equality, quiescence, FTS parity, job/attempt and citation/chat relationships, feed counts, and published-media hashes. Storage markers are recreated from the undisclosed database identity. Provider credentials and the podcast token remain external deployment configuration, so a restored deployment is `NOT CONFIGURED` until the operator supplies them.
+
+The commands do not schedule, retain, prune, upload, or encrypt backups and never overwrite production storage. Operators must choose an explicit maximum media-byte budget and protect the destination with storage permissions and, when needed, encryption outside LocalCast. Slice 6B evidence uses only synthetic databases, media, and temporary paths prefixed `localcast-slice6b-test-`.
+
 ## Open operator decisions
 
 These are genuine inputs that cannot be inferred safely. They do not block documentation bootstrap. A slice must stop before it needs an unresolved value.

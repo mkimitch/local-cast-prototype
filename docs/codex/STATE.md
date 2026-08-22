@@ -4,11 +4,37 @@ Last updated: 2026-08-21
 Branch: `codex/localcast-prototype`
 Pre-bootstrap HEAD: `910485b77ead63450660b0b97544889960e45e3f`
 Slice 0 base HEAD: `e720d5818ab15efccfa143c94d6514c0c9a2baad`
-Current base checkpoint: Slice 5 at `27665075a5f9b55062aedd859ca6bda762a18247`
-Current checkpoint: **Slice 6A provider-parity deterministic checkpoint**
-Implementation slice: **6A — PROVIDER PARITY AND HONEST STATUS CONTRACTS COMPLETE 2026-08-21**
-Next action: **Explicit authorization is required for any remaining Slice 6 gate; do not infer backup/restore, accessibility, Docker, deployment, or live-provider work**
-Overall state: **SLICE 5 COMPLETE 2026-08-21; SLICE 6A COMPLETE; REMAINING SLICE 6 GATES OPEN**
+Current base checkpoint: Slice 6A at `3c53ed52a29a6fc232e245e21cfd8e9bb5988697`
+Current checkpoint: **Slice 6B versioned backup and safe-restore checkpoint**
+Implementation slice: **6B — VERSIONED BACKUP AND SAFE RESTORE COMPLETE 2026-08-21**
+Next action: **Explicit authorization is required for a later Slice 6 gate; do not infer accessibility, security/Docker hardening, deployment, live-provider work, production backup/restore, retention, or cleanup**
+Overall state: **SLICE 5 COMPLETE 2026-08-21; SLICE 6A AND 6B COMPLETE; REMAINING SLICE 6 GATES OPEN**
+
+## Slice 6B versioned backup and safe-restore result — 2026-08-21
+
+LocalCast now builds explicit `backup:create` and `backup:restore` operator entrypoints. Backup requires absolute source/destination paths and a positive operator maximum for aggregate published media. It validates schema 008, `quick_check`, foreign keys, undisclosed installation identity, quiescence, FTS parity, and job/evidence/citation/chat relationships; uses `better-sqlite3`'s backup API so committed WAL state is captured; copies only strictly eligible database-referenced MP3s through no-follow descriptors; and atomically publishes a private canonical version-1 manifest, categorical validation record, and SHA-256 chain. Environment files, credentials, podcast tokens, logs, provider payloads, source/build files, unrelated media, symlinks, hard links, special files, traversal, duplicates, and partial files are outside the artifact contract.
+
+Restore verifies compatibility, the exact artifact set, every checksum, database validation, and database/media correspondence before creating output. It accepts only absent or explicitly empty data/media targets, copies into exact private sibling staging directories, recreates paired installation markers without disclosure, revalidates the restored database, and atomically publishes both targets. Failure injection proves exact incomplete-output cleanup; existing non-empty targets are never overwritten. Restored provider status is categorically `NOT CONFIGURED` until credentials are supplied outside the artifact.
+
+All evidence used synthetic SQLite/media fixtures and private `/tmp/localcast-slice6b-test-*` roots. No real backup or restore, production database/media/service access, Docker/Compose/Caddy operation, provider/network call, credential access, schema migration, dependency/lockfile change, retained-fixture cleanup, or external-system mutation occurred.
+
+### Slice 6B verification
+
+| Command | Result |
+| --- | --- |
+| `npm run lint` | PASS — TypeScript no-emit check |
+| `npm run test` | PASS — 240 unit tests in 14 files; 13 Slice 6B cases cover database-only/media artifacts, WAL capture, canonical determinism, restore parity, corrupt/malformed/extra artifacts, limits, unsafe files/paths, source changes, non-empty/read-only targets, and interrupted cleanup |
+| `npm run test:integration` | PASS — 91 tests in 13 files after permitting synthetic loopback listeners; the initial sandboxed run was blocked only by `listen EPERM 127.0.0.1` |
+| isolated restore drill | PASS — synthetic feed/FTS/job/evidence/chat/citation/media state restored with exact counts/hashes and provider status `NOT CONFIGURED` |
+| built CLI database-only drill | PASS — `LOCALCAST_BACKUP_COMPLETE` then `LOCALCAST_RESTORE_COMPLETE`; restored schema 008, `quick_check`, foreign keys, synthetic row, private modes, and byte-identical database hash passed; exact `/tmp/localcast-slice6b-test-cli-*` tree removed |
+| `npm run build` | PASS — web plus app, worker, storage-init, backup, and restore server bundles; existing web chunk-size warning only |
+| sensitive-artifact, dependency/lockfile, scope, and whitespace scans | PASS — no dependency or lockfile change and no sensitive/runtime artifact in scope |
+
+Operator syntax after `npm run build`:
+
+`npm run backup:create -- --database /absolute/path/localcast.sqlite --media /absolute/path/media --destination /absolute/new/backup --max-media-bytes <positive-integer>`
+
+`npm run backup:restore -- --backup /absolute/path/backup --data-target /absolute/new-or-empty/data --media-target /absolute/new-or-empty/media`
 
 ## Slice 6A provider parity contract result — 2026-08-21
 
@@ -438,7 +464,7 @@ No Slice 4 deterministic implementation blocker remains. The Slice 1 listening g
 | 5 | Focused audit found that finalized provider rejection/validation/support outcomes and lease loss after a finalized draft could release an unpublished turn's episode lock | Turn-wide provider-lifecycle detection now retains the lock for every unpublished provider-using failure; migration triggers enforce the same parent-lock rule for insert/update/release, while answer/refusal publication and proven zero-provider failure still release | SUPERSEDED REPOSITORY EVIDENCE — 33/33 migration/chat-workflow tests, typecheck, and current production build passed, but the subsequent focused audit found ordinary-DML publication and evidence-replacement gaps in migration 008 |
 | 5 | Final focused audit found that migration 008's publication exception checked only the current attempt and that SQLite conflict replacement could erase or transfer retained chat/provider evidence | Migration 008 now requires complete compatible current/prior attempt history, rejects unique/partial-index replacement displacement before conflict handling, freezes every stored chat identity used by publication/lifecycle state, and requires a published attempt outcome to match its turn | PASS (REPOSITORY ONLY; AWAITING FINAL MIGRATION-ONLY AUDIT) — 22 migration and 20 production chat-workflow tests pass with exact state-preservation assertions; typecheck, current production build, and three scoped reviews are green |
 
-The latest bounded Slice 5 repair and safe non-live evidence pass, but it has not yet received the required final migration-only read-only audit. Open operator decisions are listed in `DECISIONS.md`. Slice 4 is complete and remains green. Slice 5 is not complete: the migration-only audit, separately authorized exact-fixture live evidence, production backup/migration/deployment/restart proof, final review, and checkpoint remain open. Piper contract support remains Slice 6 work.
+This repair ledger is retained as historical evidence and is superseded by the completed Slice 5, Slice 6A, and Slice 6B records at the top of this file. No current deterministic blocker is known for the versioned backup/restore checkpoint. Remaining Slice 6 work requires a separately authorized bounded gate.
 
 ## Assumptions recorded at bootstrap
 
@@ -451,4 +477,4 @@ The latest bounded Slice 5 repair and safe non-live evidence pass, but it has no
 
 ## Next action
 
-Perform the final migration-only read-only audit of the unstaged Slice 5 repository implementation. Do not use a real provider credential, spend budget, apply migration 008 to existing data, deploy/recreate services, run a network-capable Compose build, stage, or commit without new authorization. Slice 4 remains the current green checkpoint; do not begin Slice 6.
+Await explicit authorization for the next bounded Slice 6 gate. Slice 6B does not authorize accessibility expansion, security or Docker/Compose/Caddy hardening, deployment, live-provider work, production backup/restore, retention/pruning, encryption, or cleanup of retained fixtures, images, rollback tags, or backups.

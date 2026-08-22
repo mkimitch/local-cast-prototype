@@ -1,7 +1,7 @@
 # LocalCast autonomous build plan
 
-Status: Slice 4 remains green; Slice 5 is complete 2026-08-21; Slice 6 has not started
-Current slice: **5 — COMPLETE 2026-08-21; Slice 6 NOT STARTED**
+Status: Slice 4 remains green; Slice 5 is complete 2026-08-21; Slice 6A and 6B checkpoints are complete 2026-08-21
+Current slice: **6 — 6A PROVIDER PARITY COMPLETE; 6B BACKUP/RESTORE COMPLETE; REMAINING GATES OPEN**
 Execution policy: one vertical slice, one green checkpoint commit
 
 ## How to use this plan
@@ -325,6 +325,12 @@ Every provider path has honest status and contract evidence; the deployment is r
 ### Slice 6A — provider parity checkpoint — COMPLETE 2026-08-21
 
 This bounded checkpoint closes only `TXT-02` through `TXT-04`, `TTS-02`, and `PROV-03` with deterministic contract evidence. It also advances Piper’s atomic-publication evidence. It adds no migration, backup/restore behavior, accessibility expansion, Docker/Compose hardening, deployment operation, or live provider probe. All remaining Slice 6 work and its final phase gate stay open.
+
+### Slice 6B — versioned backup and safe restore checkpoint — COMPLETE 2026-08-21
+
+This bounded checkpoint closes `OPS-01` through `OPS-04` with synthetic, isolated evidence. It adds manual `backup:create` and `backup:restore` commands for a canonical version-1 artifact containing a SQLite backup-API snapshot, only referenced published media, categorical validation, and a SHA-256 chain. Restore verifies the complete artifact before mutation and publishes only into absent or explicitly empty targets, then revalidates schema, integrity, foreign keys, identity cardinality, quiescence, FTS, relationships, media, feed, jobs, citations, and chat. Credentials, tokens, environment files, raw provider payloads, logs, source/build output, and unrelated media are outside the allowlisted artifact; restored provider status remains `NOT CONFIGURED` until external configuration is supplied.
+
+No schema migration, production backup, production restore, Docker/Compose action, provider/network request, retention/deletion automation, or encryption feature is part of 6B. Accessibility expansion, security/deployment hardening, live provider evidence, and the full Slice 6 phase gate remain open.
 
 ## First post-prototype audio milestone — deferred two-host format
 
