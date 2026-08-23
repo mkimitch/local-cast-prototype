@@ -1,14 +1,34 @@
 # LocalCast build state
 
-Last updated: 2026-08-22
+Last updated: 2026-08-23
 Branch: `codex/localcast-prototype`
 Pre-bootstrap HEAD: `910485b77ead63450660b0b97544889960e45e3f`
 Slice 0 base HEAD: `e720d5818ab15efccfa143c94d6514c0c9a2baad`
-Current base checkpoint: Slice 6B at `ac8300ad3b52906e6b23341d7344489b94aeb733`
-Current checkpoint: **Slice 6C accessibility expansion checkpoint**
-Implementation slice: **6C — ACCESSIBILITY EXPANSION COMPLETE 2026-08-22**
-Next action: **Complete the operator-attested screen-reader spot check and separately authorize the remaining Slice 6 security, deployment, live-provider, and final-phase gates**
-Overall state: **SLICE 5 COMPLETE 2026-08-21; SLICE 6A, 6B, AND 6C COMPLETE; REMAINING SLICE 6 GATES OPEN**
+Current base checkpoint: Slice 6C at `fc34c2dd291d9c976e420da0e88606214d2e4cc5`
+Current checkpoint: **Slice 6D deterministic security/privacy checkpoint**
+Implementation slice: **6D — DETERMINISTIC SECURITY, PRIVACY, AND FAILURE INJECTION COMPLETE 2026-08-23**
+Next action: **Separately authorize the smallest operational topology/runtime gate; A11Y-01 remains independently operator-attested**
+Overall state: **SLICE 5 COMPLETE; SLICE 6A–6D DETERMINISTIC CHECKPOINTS COMPLETE; OPERATIONAL/DESIGN AND A11Y-01 GATES OPEN**
+
+## Slice 6D deterministic security/privacy result — 2026-08-23
+
+The bounded implementation closes deterministic gaps in mixed-provider evidence authorization, CSP/security headers and correlated request parsing, serialized UTF-8 provider-request bounds, Piper executable/model readiness plus subprocess deadline/live-output cleanup, media-integrity revalidation caching, generation lease-expiry fencing, storage symlink/link rejection, canonical episode publication, FTS/citation/evidence/lifecycle backup validation, restore-cleanup inode fencing, IPv6 cloud-metadata denial, trusted-LAN/plaintext-backup disclosure, first-party-only core-route loading, and production dependency/import non-goal regression. A Settings async-loading focus replacement discovered by the browser gate was corrected by preserving the focused heading node.
+
+The security review found four residuals that are not falsely closed: durable pre-dispatch ambiguity fencing for generation provider calls and durable expected-byte identity for pre-existing generated audio require lifecycle/storage design authorization; crash-atomic publication across separate restored data/media targets requires a broader restore design; and complete proxy isolation plus deployed-image, real capacity/read-only/corruption, and non-cooperative shutdown evidence requires an operational Docker/Compose/Caddy gate. No migration, dependency, lockfile, provider request, external network request, Docker/Compose/Caddy action, production database/evidence access, image, backup, rollback-tag, or external-system mutation occurred. `A11Y-01` remains partial pending the human screen-reader attestation.
+
+### Slice 6D verification
+
+| Command | Result |
+| --- | --- |
+| `npm run lint` | PASS — TypeScript no-emit check |
+| `npm run test` | PASS — 248 unit tests in 15 files, including Piper timeout/output, backup corruption/cleanup, serialized-request, SSRF, and non-goal guards |
+| `npm run test:integration` | PASS — 94 tests in 13 files, including lease expiry, mixed-provider privacy, media-cache mutation, storage links, and correlated HTTP-boundary failures |
+| `npm run build` | PASS — web plus app, worker, storage-init, backup, and restore bundles; existing Vite chunk-size warning only |
+| `npm run test:e2e` | PASS after one evidence-based focus repair — final full run 21/21 in 5.4 minutes; core routes remained first-party-only and privacy copy was visible |
+| `npm run smoke:api` | PASS — credential-free API and worker smoke |
+| `npm run smoke:production` | PASS — credential-free production same-origin smoke |
+| immutable baseline security review | COMPLETE — 14 findings reconciled into repaired deterministic gaps and explicit design/operational residuals |
+| dependency/lockfile, sensitive-output/artifact, scope, and whitespace scans | PASS — stale extraneous Gemini install residue was pruned offline with scripts disabled; declared tree is clean, package and lockfile hashes are unchanged, and no credential/runtime/backup artifact or whitespace error is in scope |
 
 ## Slice 6C accessibility expansion result — 2026-08-22
 

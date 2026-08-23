@@ -117,6 +117,7 @@ const alwaysBlockedV6 = new BlockList();
 	['2001:db8::', 32],
 	['2002::', 16],
 	['3fff::', 20],
+	['fd00:ec2::254', 128],
 	['fec0::', 10],
 	['fe80::', 10],
 	['ff00::', 8],
@@ -166,6 +167,7 @@ export const classifyFeedAddress = (value: string): AddressClass => {
 		if (privateV4.check(normalized.address, 'ipv4')) return 'private';
 		return 'public';
 	}
+	if (normalized.address === 'fd00:ec2::254') return 'always_blocked';
 	if (privateV6.check(normalized.address, 'ipv6')) return 'private';
 	if (alwaysBlockedV6.check(normalized.address, 'ipv6')) return 'always_blocked';
 	return publicV6.check(normalized.address, 'ipv6') ? 'public' : 'always_blocked';

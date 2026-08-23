@@ -1059,3 +1059,24 @@ This checkpoint is limited to browser accessibility hardening: semantic destruct
 | `npm run smoke:api` | PASS — credential-free API and worker smoke |
 | `npm run smoke:production` | PASS — credential-free production same-origin smoke |
 | dependency/reference, sensitive-output/artifact, scope, and `git diff --check` scans | PASS — no package or lockfile drift, credential/runtime artifact, unrelated path, or whitespace error |
+
+## 2026-08-23 — Slice 6D deterministic security, privacy, and failure-injection checkpoint
+
+The immutable Slice 6C baseline was reviewed across HTTP/provider, storage/job/backup, and whole-product security surfaces. Deterministic repairs authorize private evidence whenever either selected provider is external; add CSP, clickjacking, permissions, referrer, isolation, nosniff, and correlated JSON-boundary controls; bound complete serialized provider requests; validate Piper assets before contract status and enforce per-chunk timeout/live-output cleanup; cache media integrity by stable descriptor identity; fence every generation mutation after lease expiry; deny the AWS IPv6 metadata address; reject storage symlinks/hard links; share one canonical episode-publication predicate; strengthen evidence/citation/lifecycle/FTS backup validation; and bind incomplete cleanup to the originally created inode. README and Settings now disclose trusted-LAN authority, local SQLite/media retention, plaintext backup sensitivity, and backup credential/token exclusion. A deterministic import/dependency guard covers the explicit non-goals.
+
+No provider, external network endpoint, Docker/Compose/Caddy resource, production database, retained evidence, image, backup, rollback tag, or external system was accessed or changed. Package and lockfile remained byte-identical. The review retains four explicit residuals: durable generation dispatch ambiguity, durable expected-byte identity for pre-existing generated media, crash-atomic publication across two restore targets, and operational proxy/runtime/capacity/image checks. `A11Y-01` remains partial.
+
+| Command or gate | Result |
+| --- | --- |
+| `npm run lint` | PASS — TypeScript no-emit check |
+| `npm run test` | PASS — 248 tests in 15 unit files |
+| `npm run test:integration` | PASS — 94 tests in 13 integration files with loopback-only listeners |
+| `npm run build` | PASS — Vite web and five server entry bundles; existing chunk-size warning only |
+| first `npm run test:e2e` | REPAIRED — 20/21 passed; Settings replaced its focused loading heading after async completion |
+| focused `npx playwright test tests/e2e/accessibility-expansion.spec.ts` | PASS — 4/4 after preserving the same Settings heading node |
+| final `npm run test:e2e` | PASS — 21/21 in 5.4 minutes |
+| `npm run smoke:api` | PASS — API and worker smoke checks |
+| `npm run smoke:production` | PASS — production same-origin smoke checks |
+| immutable baseline security review | COMPLETE — 14 confirmed findings reconciled; repaired controls and four explicit residual designs/operations retained |
+| `npm prune --offline --ignore-scripts --no-save` then `npm ls --depth=0` | PASS — removed 35 stale untracked Gemini/transitive install residues; declared dependency tree is clean and package/lock hashes are unchanged |
+| dependency, lockfile, sensitive-output/artifact, non-goal, scope, and `git diff --check` scans | PASS — no drift, protected value, runtime artifact, backup, or whitespace error |

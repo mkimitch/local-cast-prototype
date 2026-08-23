@@ -513,7 +513,13 @@ export class GenerationJobStore {
 
 	private requireOwnedRunningJob(jobId: string, workerId: string): GenerationJob {
 		const current = this.get(jobId);
-		if (!current || current.state !== 'running' || current.leaseOwner !== workerId) {
+		if (
+			!current
+			|| current.state !== 'running'
+			|| current.leaseOwner !== workerId
+			|| !current.leaseExpiresAt
+			|| current.leaseExpiresAt <= this.now()
+		) {
 			throw new JobStateError('Worker does not own this running job');
 		}
 		return current;

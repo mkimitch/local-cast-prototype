@@ -178,15 +178,15 @@ The token is deployment configuration, not browser-stored application state. Bac
 
 ### 7.2 Security and privacy
 
-- **SEC-01 — Feed SSRF controls:** The RSS fetch policy in `SRC-04` is applied to initial DNS resolution and every redirect, including rebinding-safe connection checks.
+- **SEC-01 — Feed SSRF controls:** The RSS fetch policy in `SRC-04` is applied to initial DNS resolution and every redirect, including rebinding-safe connection checks and unconditional cloud-metadata denial before any private-host exception.
 - **SEC-02 — Safe browser links/content:** Feed/provider content is rendered as text. Original links use an allowed `http`/`https` scheme and safe external-link attributes.
 - **SEC-03 — Prompt isolation:** Prompts delimit untrusted material, tell providers to ignore embedded instructions, disable tools/search, and validate structured output.
-- **SEC-04 — Secrets:** Provider credentials are used only by the server in authorization to the configured provider and are absent from browser artifacts/network/storage, browser-facing API responses, logs, test snapshots, errors, Git, images, and backups. The podcast token has one narrow exception: the explicit trusted-operator feed-URL copy/reveal response and clipboard. It remains absent from bundles, persistent storage, routine APIs, logs, snapshots, errors, Git, images, and backups.
+- **SEC-04 — Secrets:** Provider credentials are used only by the server in authorization to the configured provider and are absent from browser artifacts/network/storage, browser-facing API responses, logs, test snapshots, errors, Git, images, and backups. Private/unknown feed evidence may reach an external provider only after the explicit external-evidence authorization, including mixed local-text/external-speech configurations. The podcast token has one narrow exception: the explicit trusted-operator feed-URL copy/reveal response and clipboard. It remains absent from bundles, persistent storage, routine APIs, logs, snapshots, errors, Git, images, and backups.
 - **SEC-05 — Same-origin controls:** Production rejects wildcard CORS and unexpected Origin/Host/proxy values. Absolute URLs derive only from validated configuration.
-- **SEC-06 — Bounded input and output:** JSON, feed XML, notes, provider responses, chat questions, and media operations have documented size/time/resource bounds.
+- **SEC-06 — Bounded input and output:** JSON, feed XML, notes, complete serialized provider requests/responses, chat questions, Piper subprocesses, backup artifacts, and media operations have documented size/time/resource bounds.
 - **SEC-07 — Safe errors/logs:** Logs use correlation IDs and stable error codes without source bodies, prompts, raw provider responses, tokens, or internal stack traces in client responses.
 - **PRIV-01 — No browser third-party egress:** Production browser assets are self-hosted; loading the UI does not contact Google Fonts, analytics, CDNs, or provider endpoints.
-- **PRIV-02 — Honest disclosure:** The UI and deployment docs accurately describe the all-LAN-clients-trusted model, local storage, backups, and external-provider data flow.
+- **PRIV-02 — Honest disclosure:** The UI and deployment docs accurately describe the all-LAN-clients-trusted model, local SQLite/media storage, plaintext backup sensitivity and credential exclusion, and external-provider data flow.
 
 ### 7.3 Backup and restore
 

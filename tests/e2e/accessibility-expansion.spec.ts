@@ -20,6 +20,15 @@ const assertNoPageOverflow = async (page: Page) => {
 
 test.describe('Slice 6C accessibility coverage', () => {
 	test('all core routes are named, axe-clean, keyboard-navigable, and reflow at 320 CSS pixels with 200% text', async ({page}) => {
+		const thirdPartyOrigins = new Set<string>();
+		let applicationOrigin: string | undefined;
+		page.on('request', request => {
+			const requested = new URL(request.url());
+			if (request.isNavigationRequest() && request.frame() === page.mainFrame() && !applicationOrigin) applicationOrigin = requested.origin;
+			if ((requested.protocol === 'http:' || requested.protocol === 'https:') && applicationOrigin && requested.origin !== applicationOrigin) {
+				thirdPartyOrigins.add(requested.origin);
+			}
+		});
 		for (const route of routes) {
 			await page.goto(route.path);
 			await expect(page.getByRole('heading', {name: route.heading, level: 1})).toBeVisible();
@@ -55,6 +64,7 @@ test.describe('Slice 6C accessibility coverage', () => {
 			await page.keyboard.press('Enter');
 			await expect(page.getByRole('heading', {name: route.heading, level: 1})).toBeFocused();
 		}
+		expect([...thirdPartyOrigins]).toEqual([]);
 	});
 
 	test('source destructive confirmation traps focus, restores it on cancel, and announces completed deletion once', async ({page}) => {
@@ -94,5 +104,12 @@ test.describe('Slice 6C accessibility coverage', () => {
 			}));
 			expect(animated).toBe(true);
 		});
+	});
+
+	test('settings discloses trusted-client and plaintext-backup privacy boundaries', async ({page}) => {
+		await page.goto('/settings');
+		await expect(page.getByText(/any client admitted to the application origin is treated as an authorized operator/i)).toBeVisible();
+		await expect(page.getByText(/versioned backups contain that user content and media in plaintext/i)).toBeVisible();
+		await expect(page.getByText(/backups exclude provider credentials, configured endpoints, environment files, and the podcast bearer token/i)).toBeVisible();
 	});
 });

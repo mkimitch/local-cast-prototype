@@ -303,6 +303,36 @@ describe('versioned backup and safe restore', () => {
 		}
 	});
 
+	it('rejects a completed episode whose grounding no longer satisfies the canonical publication predicate', async () => {
+		const fixture = createFixture({media: true});
+		fixture.database.prepare("DELETE FROM episode_citations WHERE claim_id IN (SELECT id FROM transcript_claims WHERE run_id = 'run-backup-media')").run();
+		fixture.database.close();
+		await expect(createVersionedBackup({
+			databasePath: fixture.databasePath,
+			mediaPath: fixture.mediaPath,
+			destinationPath: path.join(fixture.root, 'invalid-grounding-backup'),
+			maximumMediaBytes: 1024 * 1024,
+		})).rejects.toMatchObject({code: 'PUBLISHED_EPISODE_INVALID'});
+	});
+
+	it('rejects duplicate FTS rows even when set-based values still match', async () => {
+		const fixture = createFixture();
+		insertSource(fixture.database, 'source-fts-duplicate');
+		insertSourceItem(fixture.database, 'source-fts-duplicate', 'item-fts-duplicate');
+		fixture.database.prepare(`
+			INSERT INTO material_fts (kind, material_id, source_id, source_name, title, body, author, url, occurred_at)
+			SELECT kind, material_id, source_id, source_name, title, body, author, url, occurred_at
+			FROM material_fts WHERE material_id = 'item-fts-duplicate'
+		`).run();
+		fixture.database.close();
+		await expect(createVersionedBackup({
+			databasePath: fixture.databasePath,
+			mediaPath: fixture.mediaPath,
+			destinationPath: path.join(fixture.root, 'duplicate-fts-backup'),
+			maximumMediaBytes: 1024 * 1024,
+		})).rejects.toMatchObject({code: 'FTS_PARITY_FAILED'});
+	});
+
 	it('rejects a source database change during backup', async () => {
 		const fixture = createFixture();
 		const backupPath = path.join(fixture.root, 'backup');
@@ -362,5 +392,31 @@ describe('versioned backup and safe restore', () => {
 		expect(fs.existsSync(dataTarget)).toBe(false);
 		expect(fs.existsSync(mediaTarget)).toBe(false);
 		expect(fs.readdirSync(fixture.root).some(name => name.includes('.localcast-incomplete-'))).toBe(false);
+	});
+
+	it('refuses to remove an incomplete restore directory whose inode was replaced', async () => {
+		const fixture = createFixture({media: true});
+		const backupPath = path.join(fixture.root, 'backup-replacement-fence');
+		fixture.database.close();
+		await createVersionedBackup({databasePath: fixture.databasePath, mediaPath: fixture.mediaPath, destinationPath: backupPath, maximumMediaBytes: 1024 * 1024});
+		const dataTarget = path.join(fixture.root, 'data-replacement-target');
+		const mediaTarget = path.join(fixture.root, 'media-replacement-target');
+
+		expect(errorCode(() => restoreVersionedBackup({
+			backupPath,
+			dataTargetPath: dataTarget,
+			mediaTargetPath: mediaTarget,
+			onPhase: phase => {
+				if (phase !== 'restore-media-copied') return;
+				const stageName = fs.readdirSync(fixture.root).find(name => name.startsWith('.data-replacement-target.localcast-incomplete-'))!;
+				const stage = path.join(fixture.root, stageName);
+				fs.renameSync(stage, `${stage}.original`);
+				fs.mkdirSync(stage, {mode: 0o700});
+				fs.writeFileSync(path.join(stage, 'replacement-canary'), 'must remain');
+				throw new Error('injected replacement race');
+			},
+		}))).toBe('UNSAFE_CLEANUP_SCOPE');
+		const replacement = fs.readdirSync(fixture.root).find(name => name.startsWith('.data-replacement-target.localcast-incomplete-') && !name.endsWith('.original'))!;
+		expect(fs.readFileSync(path.join(fixture.root, replacement, 'replacement-canary'), 'utf8')).toBe('must remain');
 	});
 });

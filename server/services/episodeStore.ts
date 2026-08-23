@@ -6,6 +6,7 @@ import {hasEmbeddedUrlCredential} from './safeFeedFetcher';
 import type {EpisodeEvidence, EpisodeRequestSnapshot, EpisodeRequestSource, GeneratedSection, PublishedAudio} from '../episodes/types';
 import {assertEvidenceSufficient} from '../episodes/modePolicy';
 import {assertGeneratedEpisode} from '../episodes/validation';
+import {publishedEpisodePredicate} from '../episodes/publication';
 
 type RequestRow = {
 	id: string;
@@ -366,8 +367,7 @@ export class EpisodeStore {
 				aa.mime_type AS mimeType, aa.sha256, aa.validated_at AS validatedAt
 			FROM audio_assets aa
 			JOIN briefing_runs br ON br.id = aa.run_id
-			WHERE aa.id = ? AND br.status = 'complete' AND br.script_format_version = 1
-				AND aa.storage_filename IS NOT NULL AND aa.validated_at IS NOT NULL
+			WHERE aa.id = ? AND ${publishedEpisodePredicate()}
 		`).get(assetId) as PublishedMediaRecord | undefined;
 	}
 
@@ -378,38 +378,7 @@ export class EpisodeStore {
 				aa.mime_type AS mimeType, aa.sha256, aa.validated_at AS validatedAt
 			FROM audio_assets aa
 			JOIN briefing_runs br ON br.id = aa.run_id
-			WHERE aa.run_id = ?
-				AND br.status = 'complete'
-				AND br.ai_generated = 1
-				AND br.script_format_version = 1
-				AND aa.format = 'mp3'
-				AND aa.mime_type = 'audio/mpeg'
-				AND aa.storage_filename IS NOT NULL
-				AND aa.validated_at IS NOT NULL
-				AND aa.ai_generated = 1
-				AND aa.byte_length > 0
-				AND aa.duration_ms > 0
-				AND length(aa.sha256) = 64
-				AND EXISTS (
-					SELECT 1
-					FROM transcript_claims tc
-					JOIN episode_citations ec ON ec.claim_id = tc.id
-					WHERE tc.run_id = br.id
-						AND tc.kind = 'factual'
-						AND tc.support_status = 'supported'
-				)
-				AND NOT EXISTS (
-					SELECT 1
-					FROM transcript_claims tc
-					WHERE tc.run_id = br.id
-						AND tc.kind = 'factual'
-						AND (
-							tc.support_status <> 'supported'
-							OR NOT EXISTS (
-								SELECT 1 FROM episode_citations ec WHERE ec.claim_id = tc.id
-							)
-						)
-				)
+			WHERE aa.run_id = ? AND ${publishedEpisodePredicate()}
 		`).get(runId) as PublishedMediaRecord | undefined;
 	}
 }

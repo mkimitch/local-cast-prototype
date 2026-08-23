@@ -42,17 +42,55 @@ const isPodcastTarget = (req: Request): boolean => {
 	return pathname === '/podcast' || pathname.startsWith('/podcast/');
 };
 
+const contentSecurityPolicy = [
+	"default-src 'self'",
+	"base-uri 'none'",
+	"connect-src 'self'",
+	"font-src 'self'",
+	"form-action 'self'",
+	"frame-ancestors 'none'",
+	"frame-src 'none'",
+	"img-src 'self' data:",
+	"manifest-src 'self'",
+	"media-src 'self'",
+	"object-src 'none'",
+	"script-src 'self'",
+	"style-src 'self' 'unsafe-inline'",
+	"worker-src 'none'",
+].join('; ');
+
+const applySecurityHeaders = (res: Response): void => {
+	res.header('Content-Security-Policy', contentSecurityPolicy);
+	res.header('Cross-Origin-Opener-Policy', 'same-origin');
+	res.header('Cross-Origin-Resource-Policy', 'same-origin');
+	res.header('Permissions-Policy', 'camera=(), geolocation=(), microphone=(), payment=(), usb=()');
+	res.header('Referrer-Policy', 'no-referrer');
+	res.header('X-Content-Type-Options', 'nosniff');
+	res.header('X-Frame-Options', 'DENY');
+};
+
+const parserErrorStatus = (error: unknown): {status: 400 | 413; code: string; message: string} | undefined => {
+	if (!error || typeof error !== 'object') return undefined;
+	const value = error as {status?: unknown; type?: unknown};
+	if (value.status === 413 || value.type === 'entity.too.large') {
+		return {status: 413, code: 'REQUEST_TOO_LARGE', message: 'The request body exceeded the allowed size'};
+	}
+	if (value.status === 400 && (value.type === 'entity.parse.failed' || error instanceof SyntaxError)) {
+		return {status: 400, code: 'INVALID_JSON', message: 'The request body is not valid JSON'};
+	}
+	return undefined;
+};
+
 export const createApp = (config: ServerConfig) => {
 	const app = express();
 	app.disable('x-powered-by');
 	app.set('trust proxy', false);
-	app.use(express.json({limit: '1mb'}));
 
 	app.use((req, res, next) => {
 		const correlationId = randomUUID();
 		res.locals.correlationId = correlationId;
 		res.header('X-Correlation-Id', correlationId);
-		res.header('Referrer-Policy', 'no-referrer');
+		applySecurityHeaders(res);
 
 		if (!isCanonicalProxyRequest(config, req)) {
 			if (isPodcastTarget(req)) sendPodcastNotFound(res);
@@ -88,6 +126,7 @@ export const createApp = (config: ServerConfig) => {
 
 		next();
 	});
+	app.use(express.json({limit: '1mb'}));
 
 	app.use('/api', healthRouter);
 	app.use('/api', sourcesRouter);
@@ -118,6 +157,15 @@ export const createApp = (config: ServerConfig) => {
 			return;
 		}
 		const correlationId = res.locals.correlationId as string | undefined;
+		const parserFailure = parserErrorStatus(error);
+		if (parserFailure) {
+			res.status(parserFailure.status).json({
+				code: parserFailure.code,
+				error: parserFailure.message,
+				correlationId,
+			});
+			return;
+		}
 		const errorName = error instanceof Error ? error.name : 'UnknownError';
 		console.error(`[request:${correlationId || 'unknown'}] ${errorName}`);
 		res.status(500).json({

@@ -21,6 +21,9 @@ export interface PiperProviderOptions {
 	normalize?: (ffmpegPath: string, input: string, output: string, signal: AbortSignal) => Promise<void>;
 	probe?: (ffprobePath: string, filePath: string, signal?: AbortSignal) => Promise<number>;
 	concatenate?: (ffmpegPath: string, inputs: string[], output: string, signal?: AbortSignal) => Promise<void>;
+	piperTimeoutMs?: number;
+	maximumOutputBytes?: number;
+	outputPollIntervalMs?: number;
 }
 
 const assertRegularFile = (filePath: string, label: string, executable = false): void => {
@@ -33,6 +36,11 @@ const assertRegularFile = (filePath: string, label: string, executable = false):
 	if (!stat.isFile() || stat.isSymbolicLink() || (executable && (stat.mode & 0o111) === 0)) {
 		throw new GenerationError('PIPER_NOT_CONFIGURED', `The configured Piper ${label} is unsafe`, false);
 	}
+};
+
+export const assertPiperConfiguration = (executable: string, modelPath: string): void => {
+	assertRegularFile(executable, 'executable', true);
+	assertRegularFile(modelPath, 'model');
 };
 
 const runPiperProcess = async (executable: string, modelPath: string, text: string, destination: string, signal: AbortSignal): Promise<void> => {
@@ -56,8 +64,94 @@ const runPiperProcess = async (executable: string, modelPath: string, text: stri
 		});
 		child.stdin.end(text);
 	});
-	if (!fs.existsSync(destination) || fs.lstatSync(destination).isSymbolicLink() || fs.statSync(destination).size > maximumPiperOutputBytes) {
+};
+
+const assertBoundedPiperOutput = (destination: string, maximumBytes: number): void => {
+	let stat: fs.Stats;
+	try {
+		stat = fs.lstatSync(destination);
+	} catch {
 		throw new GenerationError('PIPER_INVALID_OUTPUT', 'The configured Piper provider produced invalid audio output', true);
+	}
+	if (!stat.isFile() || stat.isSymbolicLink() || stat.nlink !== 1 || stat.size <= 0 || stat.size > maximumBytes) {
+		throw new GenerationError('PIPER_INVALID_OUTPUT', 'The configured Piper provider produced invalid audio output', true);
+	}
+};
+
+const describeBoundedFile = (filePath: string): {byteLength: number; sha256: string; modifiedAt: Date} => {
+	let fd: number | undefined;
+	try {
+		fd = fs.openSync(filePath, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0));
+		const stat = fs.fstatSync(fd);
+		if (!stat.isFile() || stat.nlink !== 1 || stat.size <= 0 || stat.size > maximumPiperOutputBytes) {
+			throw new Error('unsafe output metadata');
+		}
+		const hash = createHash('sha256');
+		const buffer = Buffer.allocUnsafe(Math.min(64 * 1024, stat.size));
+		let position = 0;
+		while (position < stat.size) {
+			const read = fs.readSync(fd, buffer, 0, Math.min(buffer.byteLength, stat.size - position), position);
+			if (read <= 0) throw new Error('short output read');
+			hash.update(buffer.subarray(0, read));
+			position += read;
+		}
+		return {byteLength: stat.size, sha256: hash.digest('hex'), modifiedAt: stat.mtime};
+	} catch {
+		throw new GenerationError('PIPER_INVALID_OUTPUT', 'The configured Piper provider produced unsafe audio output', true);
+	} finally {
+		if (fd !== undefined) fs.closeSync(fd);
+	}
+};
+
+const runBoundedPiper = async (
+	runner: NonNullable<PiperProviderOptions['runPiper']>,
+	executable: string,
+	modelPath: string,
+	text: string,
+	destination: string,
+	externalSignal: AbortSignal,
+	timeoutMs: number,
+	maximumBytes: number,
+	pollIntervalMs: number,
+): Promise<void> => {
+	if (externalSignal.aborted) throw new DOMException('Worker stopped', 'AbortError');
+	const controller = new AbortController();
+	let timedOut = false;
+	let invalidOutput = false;
+	let rejectBoundary: ((reason: unknown) => void) | undefined;
+	const boundary = new Promise<never>((_resolve, reject) => { rejectBoundary = reject; });
+	const abortFor = (reason: 'external' | 'timeout' | 'output'): void => {
+		if (controller.signal.aborted) return;
+		timedOut = reason === 'timeout';
+		invalidOutput = reason === 'output';
+		controller.abort();
+		rejectBoundary?.(new DOMException('Piper execution stopped', 'AbortError'));
+	};
+	const onExternalAbort = (): void => abortFor('external');
+	externalSignal.addEventListener('abort', onExternalAbort, {once: true});
+	const timeout = setTimeout(() => abortFor('timeout'), timeoutMs);
+	const outputMonitor = setInterval(() => {
+		if (!fs.existsSync(destination)) return;
+		try {
+			const stat = fs.lstatSync(destination);
+			if (!stat.isFile() || stat.isSymbolicLink() || stat.nlink !== 1 || stat.size > maximumBytes) abortFor('output');
+		} catch {
+			abortFor('output');
+		}
+	}, pollIntervalMs);
+
+	try {
+		await Promise.race([runner(executable, modelPath, text, destination, controller.signal), boundary]);
+		assertBoundedPiperOutput(destination, maximumBytes);
+	} catch (error) {
+		if (externalSignal.aborted) throw new DOMException('Worker stopped', 'AbortError');
+		if (timedOut) throw new GenerationError('PIPER_TIMEOUT', 'The configured Piper provider timed out', true);
+		if (invalidOutput) throw new GenerationError('PIPER_INVALID_OUTPUT', 'The configured Piper provider exceeded its output boundary', true);
+		throw error;
+	} finally {
+		clearTimeout(timeout);
+		clearInterval(outputMonitor);
+		externalSignal.removeEventListener('abort', onExternalAbort);
 	}
 };
 
@@ -98,8 +192,7 @@ export class PiperSpeechProvider {
 		if (!this.config.piperExecutable || !this.config.piperModelPath) {
 			throw new GenerationError('PIPER_NOT_CONFIGURED', 'Piper executable and model paths are required', false);
 		}
-		assertRegularFile(this.config.piperExecutable, 'executable', true);
-		assertRegularFile(this.config.piperModelPath, 'model');
+		assertPiperConfiguration(this.config.piperExecutable, this.config.piperModelPath);
 		const script = typeof input === 'string' ? compatibilityScript(input) : input;
 		const chunks = splitScriptForSpeech(script);
 		const renderingHash = createHash('sha256').update(JSON.stringify({script, model: this.config.piperModelPath, format: 'mp3'})).digest('hex');
@@ -108,6 +201,9 @@ export class PiperSpeechProvider {
 		const assetId = `audio-${runId}`;
 		const probe = this.options.probe || validateMp3WithFfprobe;
 		const concatenate = this.options.concatenate || concatenateMp3WithFfmpeg;
+		const piperTimeoutMs = this.options.piperTimeoutMs ?? 120_000;
+		const maximumOutputBytes = this.options.maximumOutputBytes ?? maximumPiperOutputBytes;
+		const outputPollIntervalMs = this.options.outputPollIntervalMs ?? 25;
 		fs.mkdirSync(this.config.mediaPath, {recursive: true, mode: 0o750});
 		if (fs.existsSync(destination)) return this.describe(assetId, storageFilename, destination, await probe(this.config.ffprobePath, destination, signal), false);
 
@@ -120,7 +216,17 @@ export class PiperSpeechProvider {
 				const wav = path.join(this.config.mediaPath, `.${storageFilename}.${operationId}.${index}.wav.tmp`);
 				const mp3 = path.join(this.config.mediaPath, `.${storageFilename}.${operationId}.${index}.mp3.tmp`);
 				temporaryFiles.push(wav, mp3);
-				await (this.options.runPiper || runPiperProcess)(this.config.piperExecutable, this.config.piperModelPath, chunk, wav, signal);
+				await runBoundedPiper(
+					this.options.runPiper || runPiperProcess,
+					this.config.piperExecutable,
+					this.config.piperModelPath,
+					chunk,
+					wav,
+					signal,
+					piperTimeoutMs,
+					maximumOutputBytes,
+					outputPollIntervalMs,
+				);
 				await (this.options.normalize || normalizeWav)(this.config.ffmpegPath, wav, mp3, signal);
 				try { fs.unlinkSync(wav); } catch { /* only the unique temporary file is removed */ }
 				await probe(this.config.ffprobePath, mp3, signal);
@@ -153,15 +259,15 @@ export class PiperSpeechProvider {
 	}
 
 	private describe(assetId: string, storageFilename: string, filePath: string, durationMs: number, liveRequestPerformed: boolean): PublishedAudio {
-		const bytes = fs.readFileSync(filePath);
+		const file = describeBoundedFile(filePath);
 		return {
 			id: assetId,
 			storageFilename,
 			durationMs,
-			byteLength: bytes.byteLength,
-			sha256: createHash('sha256').update(bytes).digest('hex'),
+			byteLength: file.byteLength,
+			sha256: file.sha256,
 			mimeType: 'audio/mpeg',
-			validatedAt: fs.statSync(filePath).mtime.toISOString(),
+			validatedAt: file.modifiedAt.toISOString(),
 			provider: 'Piper',
 			model: path.basename(this.config.piperModelPath || 'piper'),
 			voice: 'configured Piper model',

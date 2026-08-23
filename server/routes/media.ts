@@ -8,6 +8,7 @@ import {episodeStore} from '../services/episodeStore';
 import type {PublishedMediaRecord} from '../services/episodeStore';
 
 type PublishedMediaStore = Pick<typeof episodeStore, 'getPublishedMedia'>;
+export type MediaIntegrityVerifier = (fd: number, stat: fs.Stats, asset: PublishedMediaRecord) => boolean;
 
 interface ByteRange {
 	start: number;
@@ -46,10 +47,32 @@ const hashFileDescriptor = (fd: number, byteLength: number): string => {
 	return hash.digest('hex');
 };
 
+export const createMediaIntegrityVerifier = (
+	maximumEntries = 256,
+	hash: (fd: number, byteLength: number) => string = hashFileDescriptor,
+): MediaIntegrityVerifier => {
+	const cache = new Map<string, true>();
+	const entryLimit = Math.max(1, maximumEntries);
+	return (fd, stat, asset) => {
+		const key = [stat.dev, stat.ino, stat.size, stat.mtimeMs, stat.ctimeMs, asset.sha256].join(':');
+		if (cache.delete(key)) {
+			cache.set(key, true);
+			return true;
+		}
+		if (hash(fd, asset.byteLength) !== asset.sha256) return false;
+		cache.set(key, true);
+		while (cache.size > entryLimit) cache.delete(cache.keys().next().value!);
+		return true;
+	};
+};
+
+const defaultIntegrityVerifier = createMediaIntegrityVerifier();
+
 const openValidatedMedia = (
 	config: ServerConfig,
 	asset: PublishedMediaRecord,
 	failures: MediaFailureHandlers,
+	verifyIntegrity: MediaIntegrityVerifier,
 ): OpenedMedia | undefined => {
 	if (
 		path.basename(asset.storageFilename) !== asset.storageFilename
@@ -81,7 +104,7 @@ const openValidatedMedia = (
 
 	try {
 		const stat = fs.fstatSync(fd);
-		if (!stat.isFile() || stat.size !== asset.byteLength || hashFileDescriptor(fd, asset.byteLength) !== asset.sha256) {
+		if (!stat.isFile() || stat.nlink !== 1 || stat.size !== asset.byteLength || !verifyIntegrity(fd, stat, asset)) {
 			closeFile(fd);
 			failures.unavailable();
 			return undefined;
@@ -144,12 +167,13 @@ export const servePublishedMedia = (
 	req: Request,
 	res: Response,
 	failures: MediaFailureHandlers,
+	verifyIntegrity: MediaIntegrityVerifier = defaultIntegrityVerifier,
 ): void => {
 	if (!asset) {
 		failures.notFound();
 		return;
 	}
-	const opened = openValidatedMedia(config, asset, failures);
+	const opened = openValidatedMedia(config, asset, failures, verifyIntegrity);
 	if (!opened) return;
 
 	const etag = `"${asset.sha256}"`;
@@ -216,7 +240,11 @@ export const servePublishedMedia = (
 	stream.pipe(res);
 };
 
-export const createMediaRouter = (config: ServerConfig, mediaStore: PublishedMediaStore = episodeStore): Router => {
+export const createMediaRouter = (
+	config: ServerConfig,
+	mediaStore: PublishedMediaStore = episodeStore,
+	verifyIntegrity: MediaIntegrityVerifier = createMediaIntegrityVerifier(),
+): Router => {
 	const router = Router();
 	const handler = (req: Request, res: Response): void => servePublishedMedia(
 		config,
@@ -227,6 +255,7 @@ export const createMediaRouter = (config: ServerConfig, mediaStore: PublishedMed
 			notFound: () => res.status(404).json({code: 'MEDIA_NOT_FOUND', error: 'Published audio was not found'}),
 			unavailable: () => res.status(503).json({code: 'MEDIA_UNAVAILABLE', error: 'Published audio failed its storage check'}),
 		},
+		verifyIntegrity,
 	);
 	router.route('/media/:assetId').get(handler).head(handler);
 	return router;

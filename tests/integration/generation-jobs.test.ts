@@ -96,6 +96,28 @@ describe('durable generation queue', () => {
 		expect(reclaimed).toMatchObject({state: 'running', phase: 'syncing', attemptCount: 2, leaseOwner: 'worker-after-crash'});
 	});
 
+	it('fences every worker mutation after its generation lease expires', () => {
+		const cases: Array<(store: GenerationJobStore, job: GenerationJob) => void> = [
+			(store, job) => store.updatePhase(job.id, 'expired-worker', 'selecting', 1_000),
+			(store, job) => store.renewLease(job.id, 'expired-worker', 1_000),
+			(store, job) => store.complete(job.id, 'expired-worker'),
+			(store, job) => store.fail(job.id, 'expired-worker', {code: 'TEST', message: 'Synthetic failure', retryable: true}),
+			(store, job) => store.interrupt(job.id, 'expired-worker'),
+		];
+
+		for (const mutate of cases) {
+			const db = database();
+			insertSource(db);
+			let currentTime = Date.parse('2026-08-23T12:00:00.000Z');
+			const store = new GenerationJobStore(db, () => new Date(currentTime).toISOString());
+			const queued = store.enqueue(['source-1']).job;
+			const claimed = store.claimNext('expired-worker', 1_000)!;
+			expect(claimed.id).toBe(queued.id);
+			currentTime += 1_001;
+			expect(() => mutate(store, claimed)).toThrow(JobStateError);
+		}
+	});
+
 	it('makes retry and repeated claim safe', () => {
 		const db = database();
 		insertSource(db);

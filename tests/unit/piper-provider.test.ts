@@ -82,4 +82,28 @@ describe('Piper speech provider contract', () => {
 		await expect(rendering).rejects.toMatchObject({name: 'AbortError'});
 		expect(fs.readdirSync(files.media).filter(name => name.endsWith('.mp3'))).toEqual([]);
 	});
+
+	it.each([
+		{
+			name: 'hung executable',
+			source: '#!/bin/sh\nwhile :; do :; done\n',
+			expectedCode: 'PIPER_TIMEOUT',
+			options: {piperTimeoutMs: 25, outputPollIntervalMs: 5},
+		},
+		{
+			name: 'oversized live output',
+			source: '#!/bin/sh\nhead -c 4096 /dev/zero > "$4"\nwhile :; do :; done\n',
+			expectedCode: 'PIPER_INVALID_OUTPUT',
+			options: {piperTimeoutMs: 1_000, maximumOutputBytes: 1_024, outputPollIntervalMs: 5},
+		},
+	])('terminates a $name and removes its exact temporary artifacts', async ({source, expectedCode, options}) => {
+		const files = fixture();
+		fs.writeFileSync(files.executable, source, {mode: 0o700});
+		const provider = new PiperSpeechProvider(testConfig({
+			speechProvider: 'piper', piperExecutable: files.executable, piperModelPath: files.model, mediaPath: files.media,
+		}), options);
+
+		await expect(provider.render(`run-${expectedCode.toLowerCase()}`, script, new AbortController().signal)).rejects.toMatchObject({code: expectedCode});
+		expect(fs.readdirSync(files.media)).toEqual([]);
+	});
 });

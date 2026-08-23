@@ -272,6 +272,14 @@ describe('OpenAI text provider contract', () => {
 		expect(fetchImpl).not.toHaveBeenCalled();
 	});
 
+	it('measures multibyte provider input as serialized UTF-8 before network use', async () => {
+		const fetchImpl = vi.fn<typeof fetch>();
+		const provider = new OpenAiTextProvider('credential-canary', 'gpt-5.4-mini', {fetchImpl, baseUrl: 'http://provider.test/v1', allowTestBaseUrl: true});
+		const oversizedEvidence: EpisodeEvidence[] = [{...evidence[0]!, body: '😀'.repeat(50_000)}];
+		await expect(provider.generateEpisode(request, oversizedEvidence, new AbortController().signal)).rejects.toMatchObject({code: 'EVIDENCE_INPUT_TOO_LARGE', retryable: false});
+		expect(fetchImpl).not.toHaveBeenCalled();
+	});
+
 	it('honors timeout and caller cancellation', async () => {
 		const hangingFetch = vi.fn<typeof fetch>(async (_input, init) => new Promise<Response>((_resolve, reject) => {
 			init?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), {once: true});

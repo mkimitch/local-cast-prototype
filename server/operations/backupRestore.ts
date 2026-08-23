@@ -3,6 +3,7 @@ import {createHash, randomUUID} from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import {migrationIds} from '../database/migrations';
+import {publishedEpisodePredicate} from '../episodes/publication';
 
 export const LOCALCAST_BACKUP_FORMAT_VERSION = 1;
 export const LOCALCAST_BACKUP_APPLICATION_VERSION = '0.0.0';
@@ -187,12 +188,15 @@ const removePublishedRestoreTarget = (target: RestoreTarget, expected: fs.Stats 
 	fs.rmSync(target.path, {recursive: true, force: false});
 };
 
-const safeRemoveIncomplete = (target: string, expectedParent: string): void => {
+const safeRemoveIncomplete = (target: string, expectedParent: string, expected: fs.Stats | undefined): void => {
 	if (!fs.existsSync(target)) return;
-	if (path.dirname(target) !== expectedParent || !path.basename(target).includes('.localcast-incomplete-')) {
+	if (!expected || path.dirname(target) !== expectedParent || !path.basename(target).includes('.localcast-incomplete-')) {
 		throw new BackupRestoreError('UNSAFE_CLEANUP_SCOPE', 'Refusing to clean an unexpected path');
 	}
-	lstatDirectory(target, 'UNSAFE_CLEANUP_SCOPE');
+	const current = lstatDirectory(target, 'UNSAFE_CLEANUP_SCOPE');
+	if (current.dev !== expected.dev || current.ino !== expected.ino) {
+		throw new BackupRestoreError('UNSAFE_CLEANUP_SCOPE', 'Refusing to clean a replaced incomplete directory');
+	}
 	fs.rmSync(target, {recursive: true, force: false});
 };
 
@@ -298,6 +302,10 @@ const validateDatabase = (databasePath: string): InternalValidation => {
 		if ((database.pragma('foreign_key_check') as unknown[]).length !== 0) fail('FOREIGN_KEY_CHECK_FAILED', 'SQLite foreign_key_check failed');
 		const identities = database.prepare("SELECT value FROM localcast_metadata WHERE key = 'installation_id'").all() as Array<{value: string}>;
 		if (identities.length !== 1 || typeof identities[0]?.value !== 'string' || identities[0].value.length < 16) fail('IDENTITY_INVALID', 'Installation identity cardinality is invalid');
+		const snapshots = database.prepare('SELECT body, content_sha256 AS contentSha256 FROM episode_evidence_snapshots').all() as Array<{body: string; contentSha256: string}>;
+		if (snapshots.some(snapshot => createHash('sha256').update(snapshot.body).digest('hex') !== snapshot.contentSha256)) {
+			fail('RELATIONSHIP_VALIDATION_FAILED', 'An immutable evidence snapshot failed its content binding');
+		}
 		requireZero(database, "SELECT COUNT(*) AS value FROM generation_jobs WHERE state IN ('queued', 'running')", 'ACTIVE_WORK');
 		requireZero(database, "SELECT COUNT(*) AS value FROM generation_attempts WHERE outcome = 'running'", 'ACTIVE_WORK');
 		requireZero(database, "SELECT COUNT(*) AS value FROM chat_turns WHERE state IN ('queued', 'running')", 'ACTIVE_WORK');
@@ -317,41 +325,66 @@ const validateDatabase = (databasePath: string): InternalValidation => {
 			) SELECT COUNT(*) AS value FROM differences
 		`, 'FTS_PARITY_FAILED');
 		requireZero(database, `
+			SELECT abs(
+				(SELECT COUNT(*) FROM material_fts)
+				- ((SELECT COUNT(*) FROM source_items) + (SELECT COUNT(*) FROM notes))
+			) AS value
+		`, 'FTS_PARITY_FAILED');
+		requireZero(database, `
+			SELECT COUNT(*) AS value FROM (
+				SELECT kind, material_id FROM material_fts GROUP BY kind, material_id HAVING COUNT(*) <> 1
+			)
+		`, 'FTS_PARITY_FAILED');
+		requireZero(database, `
 			SELECT COUNT(*) AS value FROM episode_citations ec
 			LEFT JOIN transcript_claims tc ON tc.id = ec.claim_id
+			LEFT JOIN briefing_sections bs ON bs.id = tc.section_id
 			LEFT JOIN episode_evidence_snapshots es ON es.id = ec.snapshot_id
-			WHERE tc.id IS NULL OR es.id IS NULL OR tc.run_id <> es.run_id
+			WHERE tc.id IS NULL OR bs.id IS NULL OR es.id IS NULL OR tc.run_id <> es.run_id OR tc.run_id <> bs.run_id
+				OR ec.excerpt <> trim(ec.excerpt) OR instr(es.body, ec.excerpt) = 0
+		`, 'RELATIONSHIP_VALIDATION_FAILED');
+		requireZero(database, `
+			SELECT COUNT(*) AS value FROM (
+				SELECT claim_id, snapshot_id FROM episode_citations GROUP BY claim_id, snapshot_id HAVING COUNT(*) <> 1
+			)
 		`, 'RELATIONSHIP_VALIDATION_FAILED');
 		requireZero(database, `
 			SELECT COUNT(*) AS value FROM chat_citations cc
 			LEFT JOIN chat_claims cl ON cl.id = cc.claim_id
 			LEFT JOIN episode_evidence_snapshots es ON es.id = cc.snapshot_id
 			WHERE cl.id IS NULL OR es.id IS NULL OR cl.run_id <> es.run_id
+				OR cc.excerpt <> trim(cc.excerpt) OR instr(es.body, cc.excerpt) = 0
 		`, 'RELATIONSHIP_VALIDATION_FAILED');
 		requireZero(database, `
 			SELECT COUNT(*) AS value FROM generation_jobs gj
 			WHERE gj.attempt_count <> (SELECT COUNT(*) FROM generation_attempts ga WHERE ga.job_id = gj.id)
 				OR (gj.state IN ('queued', 'running') AND gj.completed_at IS NOT NULL)
 				OR (gj.state IN ('complete', 'failed') AND gj.completed_at IS NULL)
+				OR (gj.state = 'complete' AND NOT EXISTS (SELECT 1 FROM generation_attempts ga WHERE ga.job_id = gj.id AND ga.attempt_number = gj.attempt_count AND ga.outcome = 'complete'))
+				OR (gj.state = 'failed' AND NOT EXISTS (SELECT 1 FROM generation_attempts ga WHERE ga.job_id = gj.id AND ga.attempt_number = gj.attempt_count AND ga.outcome = 'failed'))
 		`, 'RELATIONSHIP_VALIDATION_FAILED');
 		requireZero(database, `
 			SELECT COUNT(*) AS value FROM chat_turns ct
 			WHERE ct.attempt_count <> (SELECT COUNT(*) FROM chat_attempts ca WHERE ca.turn_id = ct.id)
 				OR (ct.state = 'answered' AND NOT EXISTS (SELECT 1 FROM chat_claims cc WHERE cc.turn_id = ct.id))
 				OR (ct.state = 'refused' AND EXISTS (SELECT 1 FROM chat_claims cc WHERE cc.turn_id = ct.id))
+				OR (ct.state = 'answered' AND NOT EXISTS (SELECT 1 FROM chat_attempts ca WHERE ca.turn_id = ct.id AND ca.attempt_number = ct.attempt_count AND ca.outcome = 'answered'))
+				OR (ct.state = 'refused' AND NOT EXISTS (SELECT 1 FROM chat_attempts ca WHERE ca.turn_id = ct.id AND ca.attempt_number = ct.attempt_count AND ca.outcome = 'refused'))
+				OR (ct.state = 'failed' AND NOT EXISTS (SELECT 1 FROM chat_attempts ca WHERE ca.turn_id = ct.id AND ca.attempt_number = ct.attempt_count AND ca.outcome = 'failed'))
 		`, 'RELATIONSHIP_VALIDATION_FAILED');
 		requireZero(database, `
 			SELECT COUNT(*) AS value FROM chat_claims cc
 			WHERE NOT EXISTS (SELECT 1 FROM chat_citations ci WHERE ci.claim_id = cc.id)
 		`, 'RELATIONSHIP_VALIDATION_FAILED');
 		const count = (table: string): number => scalarCount(database, `SELECT COUNT(*) AS value FROM ${table}`);
+		requireZero(database, `
+			SELECT COUNT(*) AS value
+			FROM briefing_runs br LEFT JOIN audio_assets aa ON aa.run_id = br.id
+			WHERE br.status = 'complete' AND NOT (${publishedEpisodePredicate()})
+		`, 'PUBLISHED_EPISODE_INVALID');
 		const publishedEpisodes = scalarCount(database, `
 			SELECT COUNT(*) AS value FROM briefing_runs br JOIN audio_assets aa ON aa.run_id = br.id
-			WHERE br.status = 'complete' AND br.completed_at IS NOT NULL AND br.ai_generated = 1 AND br.script_format_version = 1
-				AND aa.format = 'mp3' AND aa.mime_type = 'audio/mpeg' AND aa.storage_filename IS NOT NULL
-				AND aa.validated_at IS NOT NULL AND aa.ai_generated = 1 AND aa.byte_length > 0 AND aa.duration_ms > 0 AND length(aa.sha256) = 64
-				AND EXISTS (SELECT 1 FROM transcript_claims tc JOIN episode_citations ec ON ec.claim_id = tc.id WHERE tc.run_id = br.id AND tc.kind = 'factual' AND tc.support_status = 'supported')
-				AND NOT EXISTS (SELECT 1 FROM transcript_claims tc WHERE tc.run_id = br.id AND tc.kind = 'factual' AND (tc.support_status <> 'supported' OR NOT EXISTS (SELECT 1 FROM episode_citations ec WHERE ec.claim_id = tc.id)))
+			WHERE ${publishedEpisodePredicate()}
 		`);
 		return {
 			installationId: identities[0].value,
@@ -378,11 +411,7 @@ const listPublishedMedia = (databasePath: string): Array<{filename: string; byte
 		return (database.prepare(`
 			SELECT aa.storage_filename AS filename, aa.byte_length AS bytes, aa.sha256
 			FROM briefing_runs br JOIN audio_assets aa ON aa.run_id = br.id
-			WHERE br.status = 'complete' AND br.completed_at IS NOT NULL AND br.ai_generated = 1 AND br.script_format_version = 1
-				AND aa.format = 'mp3' AND aa.mime_type = 'audio/mpeg' AND aa.storage_filename IS NOT NULL
-				AND aa.validated_at IS NOT NULL AND aa.ai_generated = 1 AND aa.byte_length > 0 AND aa.duration_ms > 0 AND length(aa.sha256) = 64
-				AND EXISTS (SELECT 1 FROM transcript_claims tc JOIN episode_citations ec ON ec.claim_id = tc.id WHERE tc.run_id = br.id AND tc.kind = 'factual' AND tc.support_status = 'supported')
-				AND NOT EXISTS (SELECT 1 FROM transcript_claims tc WHERE tc.run_id = br.id AND tc.kind = 'factual' AND (tc.support_status <> 'supported' OR NOT EXISTS (SELECT 1 FROM episode_citations ec WHERE ec.claim_id = tc.id)))
+			WHERE ${publishedEpisodePredicate()}
 			ORDER BY aa.storage_filename
 			LIMIT ${MAX_MEDIA_FILES + 1}
 		`).all() as Array<{filename: string; bytes: number; sha256: string}>);
@@ -521,8 +550,10 @@ export const createVersionedBackup = async (options: CreateBackupOptions): Promi
 	lstatDirectory(mediaPath, 'MEDIA_PATH_INVALID');
 	const stagingPath = path.join(destinationParent, `.${path.basename(destinationPath)}.localcast-incomplete-${randomUUID()}`);
 	const previousUmask = process.umask(0o077);
+	let stagingStat: fs.Stats | undefined;
 	try {
 		fs.mkdirSync(stagingPath, {mode: 0o700});
+		stagingStat = lstatDirectory(stagingPath, 'DESTINATION_STAGING_INVALID');
 		fs.mkdirSync(path.join(stagingPath, 'database'), {mode: 0o700});
 		fs.mkdirSync(path.join(stagingPath, 'media'), {mode: 0o700});
 		const sourceValidation = validateDatabase(databasePath);
@@ -579,7 +610,7 @@ export const createVersionedBackup = async (options: CreateBackupOptions): Promi
 			sourceDatabase.close();
 		}
 	} catch (error) {
-		safeRemoveIncomplete(stagingPath, destinationParent);
+		safeRemoveIncomplete(stagingPath, destinationParent, stagingStat);
 		throw error;
 	} finally {
 		process.umask(previousUmask);
@@ -609,9 +640,13 @@ export const restoreVersionedBackup = (options: RestoreBackupOptions): BackupMan
 	let mediaPublished = false;
 	let dataPublishedStat: fs.Stats | undefined;
 	let mediaPublishedStat: fs.Stats | undefined;
+	let dataStageStat: fs.Stats | undefined;
+	let mediaStageStat: fs.Stats | undefined;
 	try {
 		fs.mkdirSync(dataStage, {mode: 0o700});
+		dataStageStat = lstatDirectory(dataStage, 'DATA_STAGING_INVALID');
 		fs.mkdirSync(mediaStage, {mode: 0o700});
+		mediaStageStat = lstatDirectory(mediaStage, 'MEDIA_STAGING_INVALID');
 		copyRegularFile(path.join(backupPath, DATABASE_ARTIFACT), path.join(dataStage, 'localcast.sqlite'), MAX_DATABASE_BYTES, {bytes: verified.manifest.database.bytes, sha256: verified.manifest.database.sha256});
 		options.onPhase?.('restore-database-copied');
 		let restoredBytes = 0;
@@ -644,8 +679,8 @@ export const restoreVersionedBackup = (options: RestoreBackupOptions): BackupMan
 	} catch (error) {
 		if (dataPublished) removePublishedRestoreTarget(dataTarget, dataPublishedStat);
 		if (mediaPublished) removePublishedRestoreTarget(mediaTarget, mediaPublishedStat);
-		safeRemoveIncomplete(dataStage, dataParent);
-		safeRemoveIncomplete(mediaStage, mediaParent);
+		safeRemoveIncomplete(dataStage, dataParent, dataStageStat);
+		safeRemoveIncomplete(mediaStage, mediaParent, mediaStageStat);
 		restoreEmptyTarget(dataTarget);
 		restoreEmptyTarget(mediaTarget);
 		throw error;

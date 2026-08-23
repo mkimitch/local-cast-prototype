@@ -22,6 +22,7 @@ describe('feed destination policy primitives', () => {
 		['fe80::1', 'always_blocked'],
 		['ff02::1', 'always_blocked'],
 		['2001:db8::1', 'always_blocked'],
+		['fd00:ec2::254', 'always_blocked'],
 	])('classifies %s as %s', (address, expected) => {
 		expect(classifyFeedAddress(address)).toBe(expected);
 	});

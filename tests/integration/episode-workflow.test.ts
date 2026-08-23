@@ -31,8 +31,9 @@ const harness = (input: {mode?: 'brief' | 'deep'; words?: number; failurePhase?:
 	const mediaPath = fs.mkdtempSync(path.join(os.tmpdir(), 'localcast-episode-workflow-'));
 	roots.push(mediaPath);
 	let id = 0;
+	let clock = Date.UTC(2026, 7, 6, 12, 0, 0);
 	const stations = new StationStore(database, () => '2026-08-06T12:00:00.000Z', () => `domain-${++id}`);
-	const jobs = new GenerationJobStore(database, () => new Date(Date.UTC(2026, 7, 6, 12, 0, id++)).toISOString(), () => `job-${++id}`);
+	const jobs = new GenerationJobStore(database, () => new Date(clock++).toISOString(), () => `job-${++id}`);
 	const episodes = new EpisodeStore(database);
 	const note = stations.createNote({title: 'Grounded workflow fixture', body: factualBody(input.words ?? 800)});
 	const station = stations.createStation({

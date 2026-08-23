@@ -26,6 +26,7 @@ const fingerprint = async (response: Response): Promise<Record<string, string | 
 
 const safeRequest = async (url: string, init: RequestInit = {}): Promise<Response> => new Promise((resolve, reject) => {
 	const target = new URL(url);
+	const body = typeof init.body === 'string' ? init.body : undefined;
 	const request = httpRequest({
 		host: target.hostname,
 		port: target.port,
@@ -44,7 +45,7 @@ const safeRequest = async (url: string, init: RequestInit = {}): Promise<Respons
 		});
 	});
 	request.once('error', () => reject(new Error('Private-route origin request failed')));
-	request.end();
+	request.end(body);
 });
 
 describe('canonical application origin', () => {
@@ -73,7 +74,17 @@ describe('canonical application origin', () => {
 			if (!address || typeof address === 'string') throw new Error('Origin test server did not bind');
 			const origin = `http://127.0.0.1:${address.port}`;
 			const canonicalHeaders = {Host: 'localcast.example.test', 'X-Forwarded-Host': 'localcast.example.test', 'X-Forwarded-Proto': 'https'};
-			expect((await safeRequest(`${origin}/api/podcast/status`, {headers: canonicalHeaders})).status).toBe(200);
+			const status = await safeRequest(`${origin}/api/podcast/status`, {headers: canonicalHeaders});
+			expect(status.status).toBe(200);
+			expect(status.headers.get('content-security-policy')).toContain("default-src 'self'");
+			expect(status.headers.get('content-security-policy')).toContain("frame-ancestors 'none'");
+			expect(status.headers.get('cross-origin-opener-policy')).toBe('same-origin');
+			expect(status.headers.get('cross-origin-resource-policy')).toBe('same-origin');
+			expect(status.headers.get('permissions-policy')).toBe('camera=(), geolocation=(), microphone=(), payment=(), usb=()');
+			expect(status.headers.get('referrer-policy')).toBe('no-referrer');
+			expect(status.headers.get('x-content-type-options')).toBe('nosniff');
+			expect(status.headers.get('x-frame-options')).toBe('DENY');
+			expect(status.headers.get('x-powered-by')).toBeNull();
 			for (const headers of [
 				{Host: 'unexpected.example.test'},
 				{...canonicalHeaders, 'X-Forwarded-Host': 'unexpected.example.test'},
@@ -84,6 +95,26 @@ describe('canonical application origin', () => {
 				expect((await safeRequest(`${origin}/api/health`, {headers})).status).toBe(421);
 			}
 			expect((await safeRequest(`${origin}/api/settings`, {headers: {...canonicalHeaders, Origin: 'https://unexpected.example.test'}})).status).toBe(403);
+
+			const malformed = await safeRequest(`${origin}/api/stations`, {
+				method: 'POST',
+				headers: {...canonicalHeaders, 'Content-Type': 'application/json'},
+				body: '{"name":',
+			});
+			const malformedBody = await malformed.json() as {code?: string; correlationId?: string};
+			expect(malformed.status).toBe(400);
+			expect(malformedBody).toMatchObject({code: 'INVALID_JSON'});
+			expect(malformedBody.correlationId).toBe(malformed.headers.get('x-correlation-id'));
+
+			const oversized = await safeRequest(`${origin}/api/stations`, {
+				method: 'POST',
+				headers: {...canonicalHeaders, 'Content-Type': 'application/json'},
+				body: JSON.stringify({value: 'x'.repeat(1024 * 1024)}),
+			});
+			const oversizedBody = await oversized.json() as {code?: string; correlationId?: string};
+			expect(oversized.status).toBe(413);
+			expect(oversizedBody).toMatchObject({code: 'REQUEST_TOO_LARGE'});
+			expect(oversizedBody.correlationId).toBe(oversized.headers.get('x-correlation-id'));
 
 			const routine = await safeRequest(`${origin}/api/podcast/status`, {headers: {...canonicalHeaders, Origin: publicBaseUrl}});
 			const routineBody = await routine.text();

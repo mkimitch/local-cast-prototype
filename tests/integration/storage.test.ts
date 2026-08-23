@@ -116,7 +116,35 @@ describe('production storage contract', () => {
 		fs.mkdirSync(path.dirname(config.databasePath), {recursive: true});
 		fs.symlinkSync(path.dirname(config.databasePath), config.mediaPath, 'dir');
 
-		expect(() => initializeStorage(config)).toThrow(/resolve to distinct storage/);
+		expect(() => initializeStorage(config)).toThrow(/non-symlink directory/);
+	});
+
+	it('rejects distinct symlinked storage directories and protected storage files', () => {
+		const directoryRoot = makeRoot();
+		const directoryConfig = productionConfig(directoryRoot);
+		const realMedia = path.join(directoryRoot, 'real-media');
+		fs.mkdirSync(realMedia, {recursive: true});
+		fs.symlinkSync(realMedia, directoryConfig.mediaPath, 'dir');
+		expect(() => initializeStorage(directoryConfig)).toThrow(/non-symlink directory/);
+
+		const markerConfig = productionConfig(makeRoot());
+		initializeStorage(markerConfig);
+		const markerDatabase = openDatabase(markerConfig, {initializingStorage: true});
+		markerDatabase.close();
+		const markers = storageMarkerPaths(markerConfig);
+		const markerBacking = `${markers.media}.backing`;
+		fs.renameSync(markers.media, markerBacking);
+		fs.symlinkSync(markerBacking, markers.media);
+		expect(() => verifyStorage(markerConfig)).toThrow(/storage marker must be a regular non-symlink/);
+
+		const databaseConfig = productionConfig(makeRoot());
+		initializeStorage(databaseConfig);
+		const database = openDatabase(databaseConfig, {initializingStorage: true});
+		database.close();
+		const databaseBacking = `${databaseConfig.databasePath}.backing`;
+		fs.renameSync(databaseConfig.databasePath, databaseBacking);
+		fs.symlinkSync(databaseBacking, databaseConfig.databasePath);
+		expect(() => verifyStorage(databaseConfig)).toThrow(/database file must be a regular non-symlink/);
 	});
 
 	it('checks existing database identity before applying migrations', () => {

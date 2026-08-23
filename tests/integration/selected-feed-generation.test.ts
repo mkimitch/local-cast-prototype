@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {afterEach, describe, expect, it} from 'vitest';
 import {applyMigrations} from '../../server/database/migrations';
-import {assertOpenAiEvidenceAuthorized} from '../../server/jobs/generationProcessor';
+import {assertGenerationEvidenceAuthorized, assertOpenAiEvidenceAuthorized} from '../../server/jobs/generationProcessor';
 import {GenerationJobStore} from '../../server/jobs/generationJobStore';
 import {GenerationWorker} from '../../server/jobs/generationWorker';
 import {EpisodeStore, episodeEvidenceLimits} from '../../server/services/episodeStore';
@@ -116,6 +116,20 @@ describe('selected-feed generation evidence barrier', () => {
 		const evidence = episodes.listEvidence(queued.runId);
 		expect(evidence).toEqual([expect.objectContaining({kind: 'feed', sourceId: selected.id, sourceName: 'Selected feed', networkScope: 'private', body: adequateBody})]);
 		expect(() => assertOpenAiEvidenceAuthorized(evidence)).toThrowError(expect.objectContaining({code: 'CLOUD_PROCESSING_NOT_AUTHORIZED'}));
+		for (const providerPair of [
+			{textProvider: 'openai', speechProvider: 'piper'},
+			{textProvider: 'ollama', speechProvider: 'openai'},
+			{textProvider: 'lm_studio', speechProvider: 'openai'},
+		] as const) {
+			expect(() => assertGenerationEvidenceAuthorized(testConfig(providerPair), evidence)).toThrowError(expect.objectContaining({
+				code: 'CLOUD_PROCESSING_NOT_AUTHORIZED',
+			}));
+		}
+		expect(() => assertGenerationEvidenceAuthorized(testConfig({textProvider: 'ollama', speechProvider: 'piper'}), evidence)).not.toThrow();
+		expect(() => assertGenerationEvidenceAuthorized(
+			testConfig({textProvider: 'ollama', speechProvider: 'openai'}),
+			evidence.map(item => ({...item, networkScope: 'public' as const})),
+		)).not.toThrow();
 
 		const before = projection(database, queued.runId);
 		changed = true;

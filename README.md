@@ -2,7 +2,7 @@
 
 LocalCast is a local-first, single-user audio briefing prototype for a trusted LAN. The product contract lives in [`docs/codex/SPEC.md`](docs/codex/SPEC.md); the current implementation state and evidence are recorded in [`docs/codex/STATE.md`](docs/codex/STATE.md).
 
-The current checkpoint is the credential-free Slice 0 foundation. It provides explicit runtime configuration, SQLite migrations and storage identity checks, a durable FIFO generation queue, a separate worker, test-only deterministic providers, same-origin production serving, and a non-root Compose topology. Real text and speech generation are intentionally not configured yet.
+The current checkpoint includes the completed Slice 5 grounded-chat product and the deterministic Slice 6 provider, backup/restore, accessibility, security, and privacy contracts. LocalCast supports explicit RSS/note ingestion, grounded episode generation, private podcast delivery, episode-scoped chat, Ollama/LM Studio/OpenAI text adapters, and OpenAI/Piper speech adapters. Provider status distinguishes configuration, deterministic contract evidence, and live verification; production never silently selects a mock.
 
 ## Runtime shape
 
@@ -11,7 +11,7 @@ The current checkpoint is the credential-free Slice 0 foundation. It provides ex
 - The API only enqueues work; one worker claims at most one generation job at a time.
 - Episode creation and feed synchronization occur only after explicit user actions.
 - Browser code always uses the relative `/api` endpoint and never accepts provider credentials.
-- Production has no mock fallback. Missing providers are shown as `NOT CONFIGURED`, and generation stays disabled.
+- Production has no mock fallback. Provider status is honest (`NOT CONFIGURED`, `CONFIGURED UNVERIFIED`, `CONTRACT TESTED ONLY`, or `LIVE VERIFIED`), and generation remains disabled without sufficient status evidence.
 - Deterministic text/speech fakes are available only with explicit `test` runtime gates.
 
 ## Local development
@@ -101,14 +101,14 @@ Important server-only variables are:
 | `MEDIA_PATH` | Media directory; explicit absolute path required in production. |
 | `LOCALCAST_INSTALLATION_ID` | Stable storage identity, required in production. |
 | `LOCALCAST_TRUSTED_ORIGINS` | Exact comma-separated HTTP(S) origins; no wildcard. |
-| `TEXT_PROVIDER` / `SPEECH_PROVIDER` | Slice 0 accepts `not_configured` in production and `fake` only under the test gate. |
+| `TEXT_PROVIDER` / `SPEECH_PROVIDER` | Explicit server-side adapter selection; supported production values are `openai`, `ollama`, or `lm_studio` for text and `openai` or `piper` for speech. |
 | `LOCALCAST_ALLOW_FAKE_PROVIDERS` | Must be false outside tests. Production rejects true. |
 
-`RSS_SYNC_ON_START` and `RSS_SYNC_INTERVAL_MINUTES` are rejected when enabled. Provider keys, endpoints, and voices will remain server-only as later provider slices are implemented.
+`RSS_SYNC_ON_START` and `RSS_SYNC_INTERVAL_MINUTES` are rejected when enabled. Provider keys, configured endpoints, executable paths, and voices remain server-only. LocalCast never sends them to browser APIs or bundles.
 
 ## Persistence and jobs
 
-Migrations `001` through `004` are ordered, additive, transactional, and recorded in `schema_migrations`. Migration 004 adds storage identity metadata, generation jobs, attempts, leases, and ordered events while scrubbing legacy browser provider/schedule fields from persisted appearance settings.
+Migrations `001` through `008` are ordered, additive, transactional, and recorded in `schema_migrations`. They cover storage identity, durable generation, immutable grounding, private podcast publication, and episode-scoped grounded chat.
 
 The durable phase sequence is:
 
@@ -118,6 +118,18 @@ queued -> syncing -> selecting -> drafting -> validating -> rendering_audio -> c
 
 One partial unique index enforces a single running generation lease. Later jobs remain FIFO queued. Expired leases recover to the queue with retained attempt history; shutdown interrupts and releases owned work. API enqueue and retry primitives are idempotent.
 
+## Backup and restore privacy
+
+Build the server entry points before running the versioned offline operators. Stop all writers and verify quiescence before backup:
+
+```bash
+npm run build:server
+npm run backup:create -- --database /absolute/data/localcast.sqlite --media /absolute/media --destination /private/backups/localcast-YYYYMMDD --max-media-bytes 10737418240
+npm run backup:restore -- --backup /private/backups/localcast-YYYYMMDD --data-target /new/empty/data --media-target /new/empty/media
+```
+
+Backups are private, checksum-bound, versioned artifacts. They contain SQLite records and published media in plaintext, including supplied source bodies, transcripts, citations, and chat history. Store them in an operator-controlled `0700` location and apply host-level encryption, retention, and deletion policy appropriate to that content. Backup artifacts deliberately exclude provider credentials, configured provider endpoints, environment files, and the podcast bearer token. A restored installation therefore requires the operator to supply current server configuration and a podcast token separately. Restore accepts only new or empty targets and fails closed on malformed, linked, oversized, corrupt, inconsistent, or active-work artifacts.
+
 ## Current limitations
 
-This checkpoint is infrastructure, not the finished product. In particular, it does not claim live provider verification, real generated MP3s, saved stations/notes, citation support artifacts, the private podcast feed, grounded follow-up chat, or Caddy/podcast-client interoperability. Those belong to later slices in [`docs/codex/PLAN.md`](docs/codex/PLAN.md) and must not be represented as working until their evidence is green.
+Deterministic contract evidence is not live-provider verification. Caddy/LAN isolation, deployed-image inspection, non-cooperative shutdown, real capacity/read-only/corruption drills, reproducible-image comparison, and the A11Y-01 human screen-reader spot check remain operator-gated. See [`docs/codex/STATE.md`](docs/codex/STATE.md) and [`docs/codex/TEST_MATRIX.md`](docs/codex/TEST_MATRIX.md) for the exact evidence state.

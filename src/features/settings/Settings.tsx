@@ -43,7 +43,13 @@ export default function SettingsView() {
   if (!settings) {
     return (
       <div className="page page--narrow">
-        <h1 tabIndex={-1} className="page-title">Settings</h1>
+        <div className="page-header page-header--bottom-aligned">
+          <div>
+            <h1 tabIndex={-1} className="page-title">Settings</h1>
+            <p className="page-description">Review private delivery and server-side provider status, then adjust appearance.</p>
+          </div>
+          <div className="saving-status" />
+        </div>
         {error ? (
           <div className="empty-state" role="alert">
             <p>{error}</p>
@@ -185,6 +191,9 @@ export default function SettingsView() {
         <div className="card__body settings-stack">
           <p className="field-help">
             Provider credentials and endpoints are configured only on the LocalCast server. They are never entered or stored in this browser.
+          </p>
+          <p className="field-help">
+            LocalCast is a single-user service for a trusted LAN: any client admitted to the application origin is treated as an authorized operator. Supplied sources, transcripts, citations, chat history, and published audio are retained in local SQLite and media storage. Versioned backups contain that user content and media in plaintext, so protect and encrypt their destination at the host level. Backups exclude provider credentials, configured endpoints, environment files, and the podcast bearer token.
           </p>
           <p className="field-help">
             On explicit generation, the selected server-side text provider receives station direction and supplied evidence, while the selected speech provider receives the final narration. OpenAI follow-up chat sends the question, the episode&apos;s complete frozen transcript, and all frozen supporting evidence snapshots used to construct grounding. A supported answer can use two external requests (draft plus semantic-support validation); an evidence-insufficient refusal ordinarily uses one. OpenAI provider-side response storage is disabled through <code>store: false</code>; LocalCast still keeps the ordered chat history in SQLite. LocalCast enables no provider tools, search, browsing, URL retrieval, file search, or general-knowledge fallback. Generated voices and audio are AI-generated.

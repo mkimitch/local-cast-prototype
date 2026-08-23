@@ -12,14 +12,44 @@ const markerSchema = z.object({
 const databaseDirectory = (config: ServerConfig): string => path.dirname(config.databasePath);
 const markerPath = (directory: string): string => path.join(directory, markerFileName);
 
+const lstatRegularSingleLinkFile = (filePath: string, label: string, options: {privateMode?: boolean} = {}): fs.Stats => {
+	let stat: fs.Stats;
+	try {
+		stat = fs.lstatSync(filePath);
+	} catch {
+		throw new Error(`LocalCast ${label} is missing or unreadable: ${filePath}`);
+	}
+	if (!stat.isFile() || stat.isSymbolicLink() || stat.nlink !== 1) {
+		throw new Error(`LocalCast ${label} must be a regular non-symlink single-link file: ${filePath}`);
+	}
+	if (options.privateMode && (stat.mode & 0o077) !== 0) {
+		throw new Error(`LocalCast ${label} must not be accessible to group or other users: ${filePath}`);
+	}
+	return stat;
+};
+
 const readMarker = (directory: string): z.infer<typeof markerSchema> => {
 	const filePath = markerPath(directory);
 	let value: unknown;
-
+	const stat = lstatRegularSingleLinkFile(filePath, 'storage marker', {privateMode: true});
+	if (stat.size <= 0 || stat.size > 4_096) throw new Error(`LocalCast storage marker has an invalid size: ${filePath}`);
+	let descriptor: number;
 	try {
-		value = JSON.parse(fs.readFileSync(filePath, 'utf8')) as unknown;
+		descriptor = fs.openSync(filePath, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0));
 	} catch {
 		throw new Error(`LocalCast storage marker is missing or unreadable: ${filePath}`);
+	}
+
+	try {
+		const opened = fs.fstatSync(descriptor);
+		if (opened.dev !== stat.dev || opened.ino !== stat.ino || opened.nlink !== 1) {
+			throw new Error('Storage marker changed while opening');
+		}
+		value = JSON.parse(fs.readFileSync(descriptor, 'utf8')) as unknown;
+	} catch {
+		throw new Error(`LocalCast storage marker is missing or unreadable: ${filePath}`);
+	} finally {
+		fs.closeSync(descriptor);
 	}
 
 	const parsed = markerSchema.safeParse(value);
@@ -31,8 +61,8 @@ const readMarker = (directory: string): z.infer<typeof markerSchema> => {
 };
 
 const assertWritableDirectory = (directory: string): void => {
-	const stat = fs.statSync(directory);
-	if (!stat.isDirectory()) throw new Error(`LocalCast storage path is not a directory: ${directory}`);
+	const stat = fs.lstatSync(directory);
+	if (!stat.isDirectory() || stat.isSymbolicLink()) throw new Error(`LocalCast storage path is not a non-symlink directory: ${directory}`);
 	fs.accessSync(directory, fs.constants.R_OK | fs.constants.W_OK);
 };
 
@@ -80,6 +110,9 @@ export const initializeStorage = (config: ServerConfig): void => {
 
 	assertSafeToInitialize(dataDirectory, [databaseName, `${databaseName}-wal`, `${databaseName}-shm`]);
 	assertSafeToInitialize(mediaDirectory, []);
+	for (const candidate of [config.databasePath, `${config.databasePath}-wal`, `${config.databasePath}-shm`]) {
+		if (fs.existsSync(candidate)) lstatRegularSingleLinkFile(candidate, 'database storage file');
+	}
 	fs.mkdirSync(dataDirectory, {recursive: true, mode: 0o750});
 	fs.mkdirSync(mediaDirectory, {recursive: true, mode: 0o750});
 	assertWritableDirectory(dataDirectory);
@@ -113,6 +146,7 @@ export const verifyStorage = (config: ServerConfig, options: {allowMissingDataba
 	if (!options.allowMissingDatabase && !fs.existsSync(config.databasePath)) {
 		throw new Error(`Initialized LocalCast database is missing: ${config.databasePath}`);
 	}
+	if (fs.existsSync(config.databasePath)) lstatRegularSingleLinkFile(config.databasePath, 'database file');
 
 	assertWritableDirectory(dataDirectory);
 	assertWritableDirectory(mediaDirectory);

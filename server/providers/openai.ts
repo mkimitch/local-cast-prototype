@@ -527,17 +527,19 @@ const requestSerializedJson = async (
 	}
 };
 
-const requestJson = async (
-	options: ProviderRequestOptions,
-	apiKey: string,
-	body: unknown,
-	externalSignal: AbortSignal,
-): Promise<{payload: OpenAiResponsePayload; usage: SafeUsage}> => requestSerializedJson(
-	options,
-	apiKey,
-	JSON.stringify(body),
-	externalSignal,
-);
+const serializeBoundedRequest = (body: unknown, code: 'EVIDENCE_INPUT_TOO_LARGE' | 'SUPPORT_INPUT_TOO_LARGE'): string => {
+	const serialized = JSON.stringify(body);
+	if (Buffer.byteLength(serialized, 'utf8') > 160_000) {
+		throw new GenerationError(
+			code,
+			code === 'EVIDENCE_INPUT_TOO_LARGE'
+				? 'The selected supplied material exceeds the provider input limit'
+				: 'The generated transcript exceeded the support-validation limit',
+			false,
+		);
+	}
+	return serialized;
+};
 
 export class OpenAiTextProvider {
 	private readonly options: TextProviderRequestOptions;
@@ -571,7 +573,7 @@ export class OpenAiTextProvider {
 				publishedAt: item.publishedAt || null,
 			})),
 		});
-		if (userContent.length > 160_000) {
+		if (Buffer.byteLength(userContent, 'utf8') > 160_000) {
 			throw new GenerationError('EVIDENCE_INPUT_TOO_LARGE', 'The selected supplied material exceeds the provider input limit', false);
 		}
 		const modePolicy = assertEvidenceSufficient(request.mode, evidence);
@@ -602,7 +604,12 @@ export class OpenAiTextProvider {
 			],
 			text: {format: {type: 'json_schema', name: 'localcast_episode', strict: true, schema: episodeJsonSchema}},
 		};
-		const draftResponse = await requestJson(this.options, this.apiKey, draftBody, signal);
+		const draftResponse = await requestSerializedJson(
+			this.options,
+			this.apiKey,
+			serializeBoundedRequest(draftBody, 'EVIDENCE_INPUT_TOO_LARGE'),
+			signal,
+		);
 		onDraftComplete();
 		let draft: z.infer<typeof draftSchema>;
 		try {
@@ -668,7 +675,7 @@ export class OpenAiTextProvider {
 			claim: claim.text,
 			citedEvidence: claim.citations.map(citation => ({snapshotId: citation.snapshotId, excerpt: citation.excerpt})),
 		}))});
-		if (supportUserContent.length > 160_000) {
+		if (Buffer.byteLength(supportUserContent, 'utf8') > 160_000) {
 			throw new GenerationError('SUPPORT_INPUT_TOO_LARGE', 'The generated transcript exceeded the support-validation limit', false);
 		}
 		const supportBody = {
@@ -688,7 +695,12 @@ export class OpenAiTextProvider {
 			],
 			text: {format: {type: 'json_schema', name: 'localcast_support', strict: true, schema: supportJsonSchema}},
 		};
-		const supportResponse = await requestJson(this.options, this.apiKey, supportBody, signal);
+		const supportResponse = await requestSerializedJson(
+			this.options,
+			this.apiKey,
+			serializeBoundedRequest(supportBody, 'SUPPORT_INPUT_TOO_LARGE'),
+			signal,
+		);
 		let support: z.infer<typeof supportSchema>;
 		try {
 			support = supportSchema.parse(JSON.parse(extractOutputText(supportResponse.payload)) as unknown);

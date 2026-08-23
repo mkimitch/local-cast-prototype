@@ -1,6 +1,6 @@
 # LocalCast autonomous build plan
 
-Status: Slice 4 remains green; Slice 5 is complete 2026-08-21; Slice 6A, 6B, and 6C checkpoints are complete
+Status: Slice 4 remains green; Slice 5 is complete 2026-08-21; Slice 6A, 6B, 6C, and deterministic 6D checkpoints are complete
 Current slice: **6 — 6A PROVIDER PARITY, 6B BACKUP/RESTORE, AND 6C ACCESSIBILITY COMPLETE; REMAINING GATES OPEN**
 Execution policy: one vertical slice, one green checkpoint commit
 
@@ -335,6 +335,12 @@ No schema migration, production backup, production restore, Docker/Compose actio
 ### Slice 6C — accessibility expansion checkpoint — COMPLETE 2026-08-22
 
 This bounded checkpoint adds semantic destructive confirmations, route-heading focus after keyboard navigation, contrast and reflow corrections, and deterministic browser coverage for all five core routes in light, dark, and high-contrast themes. The coverage includes keyboard skip and route navigation, dialog focus trapping and restoration, status/focus behavior, 320 CSS-pixel layout at 200% text size, reduced motion, and existing real-media keyboard controls. It closes deterministic evidence for `A11Y-02` through `A11Y-05` and advances `A11Y-01` to automated green evidence. A human screen-reader spot check remains operator-attested and keeps `A11Y-01` partially open; all security, deployment, live-provider, and full Slice 6 phase gates remain open.
+
+### Slice 6D — deterministic security, privacy, and failure-injection checkpoint — COMPLETE 2026-08-23
+
+This bounded checkpoint closes the source-testable gaps in mixed-provider disclosure, HTTP security headers and parser ordering, provider/Piper bounds, media validation amplification, generation lease expiry, storage path/link safety, backup publication/FTS/relationship validation, exact cleanup scope, cloud-metadata SSRF denial, browser first-party-only loading, honest trusted-LAN/backup copy, and non-goal dependency/import regression. All fixtures are synthetic and all network listeners are loopback test processes; no provider, production data, Docker, Compose, Caddy, image, backup evidence, or external system was accessed or changed.
+
+This checkpoint intentionally does not close `A11Y-01`, operational `DEP-02`/`DEP-03`/`ARC-07` evidence, live provider checks, real capacity/read-only/corruption drills, or non-cooperative Compose shutdown. Durable generation pre-dispatch ambiguity fencing, deterministic pre-existing audio byte identity, and crash-atomic two-target restore publication require separately authorized designs; no migration or topology change is introduced here. Slice 6 as a whole therefore remains open.
 
 ## First post-prototype audio milestone — deferred two-host format
 

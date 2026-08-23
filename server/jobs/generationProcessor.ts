@@ -1,7 +1,7 @@
 import type {ServerConfig} from '../config';
 import {OpenAiSpeechProvider, OpenAiTextProvider} from '../providers/openai';
 import {OpenAiCompatibleTextProvider} from '../providers/openAiCompatible';
-import {PiperSpeechProvider} from '../providers/piper';
+import {assertPiperConfiguration, PiperSpeechProvider} from '../providers/piper';
 import {episodeStore} from '../services/episodeStore';
 import {synchronizeRequestSources} from '../services/episodePreparation';
 import {providerCheckStore} from '../services/providerCheckStore';
@@ -46,6 +46,12 @@ export const assertOpenAiEvidenceAuthorized = (evidence: EpisodeEvidence[]): voi
 	}
 };
 
+export const assertGenerationEvidenceAuthorized = (config: ServerConfig, evidence: EpisodeEvidence[]): void => {
+	if (config.textProvider === 'openai' || config.speechProvider === 'openai') {
+		assertOpenAiEvidenceAuthorized(evidence);
+	}
+};
+
 class UnconfiguredGenerationProcessor implements GenerationProcessor {
 	async process(): Promise<void> {
 		throw new GenerationError('PROVIDER_NOT_CONFIGURED', 'Text and speech providers are not configured', false);
@@ -73,7 +79,7 @@ class ConfiguredGenerationProcessor implements GenerationProcessor {
 		if (episodeStore.listEvidence(job.runId).length === 0) await synchronizeRequestSources(request.id, signal);
 		this.jobs.updatePhase(job.id, workerId, 'selecting', this.config.leaseMs);
 		const evidence = episodeStore.finalizeEvidence(request.id, job.runId);
-		if (this.config.textProvider === 'openai') assertOpenAiEvidenceAuthorized(evidence);
+		assertGenerationEvidenceAuthorized(this.config, evidence);
 
 		this.jobs.updatePhase(job.id, workerId, 'drafting', this.config.leaseMs);
 		let generated;
@@ -133,7 +139,12 @@ export const createGenerationProcessor = (config: ServerConfig, jobs: Generation
 	if (config.speechProvider === 'openai' && config.openAiApiKey) {
 		speech = new OpenAiSpeechProvider(config.openAiApiKey, config);
 	} else if (config.speechProvider === 'piper' && config.piperExecutable && config.piperModelPath) {
-		speech = new PiperSpeechProvider(config);
+		try {
+			assertPiperConfiguration(config.piperExecutable, config.piperModelPath);
+			speech = new PiperSpeechProvider(config);
+		} catch {
+			// An unsafe or unavailable configured executable/model is categorically not configured.
+		}
 	}
 
 	if (!text || !speech || !textProviderName || !textModel) {

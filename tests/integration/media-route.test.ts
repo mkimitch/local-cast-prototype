@@ -5,7 +5,8 @@ import os from 'node:os';
 import path from 'node:path';
 import express from 'express';
 import {afterEach, describe, expect, it} from 'vitest';
-import {createMediaRouter} from '../../server/routes/media';
+import {createMediaIntegrityVerifier, createMediaRouter} from '../../server/routes/media';
+import type {MediaIntegrityVerifier} from '../../server/routes/media';
 import type {PublishedMediaRecord} from '../../server/services/episodeStore';
 import {deterministicFakeMp3Bytes} from '../../server/testing/fakeGenerationProcessor';
 import {testConfig} from '../helpers/database';
@@ -20,9 +21,10 @@ const withServer = async (
 	mediaPath: string,
 	lookup: (assetId: string) => PublishedMediaRecord | undefined,
 	assertion: (origin: string) => Promise<void>,
+	verifyIntegrity?: MediaIntegrityVerifier,
 ): Promise<void> => {
 	const app = express();
-	app.use(createMediaRouter(testConfig({mediaPath}), {getPublishedMedia: lookup}));
+	app.use(createMediaRouter(testConfig({mediaPath}), {getPublishedMedia: lookup}, verifyIntegrity));
 	const server = createServer(app);
 	await new Promise<void>((resolve, reject) => {
 		server.once('error', reject);
@@ -138,6 +140,31 @@ describe('published media route', () => {
 			expect(head.headers.get('content-length')).toBe('16');
 			expect((await head.arrayBuffer()).byteLength).toBe(0);
 		});
+	});
+
+	it('hashes repeated tiny ranges once per stable file identity and revalidates mutations', async () => {
+		const root = fs.mkdtempSync(path.join(os.tmpdir(), 'localcast-media-cache-'));
+		roots.push(root);
+		const {asset, bytes} = fixture(root);
+		let hashCount = 0;
+		const verifier = createMediaIntegrityVerifier(8, (fd, byteLength) => {
+			hashCount += 1;
+			const content = Buffer.alloc(byteLength);
+			fs.readSync(fd, content, 0, byteLength, 0);
+			return createHash('sha256').update(content).digest('hex');
+		});
+
+		await withServer(root, id => id === asset.assetId ? asset : undefined, async origin => {
+			for (let index = 0; index < 8; index += 1) {
+				const response = await fetch(`${origin}/media/audio-safe`, {headers: {Range: `bytes=${index}-${index}`}});
+				expect(response.status).toBe(206);
+			}
+			expect(hashCount).toBe(1);
+			const mediaPath = path.join(root, asset.storageFilename);
+			fs.writeFileSync(mediaPath, Buffer.alloc(bytes.byteLength, 7));
+			expect((await fetch(`${origin}/media/audio-safe`, {headers: {Range: 'bytes=0-0'}})).status).toBe(503);
+			expect(hashCount).toBe(2);
+		}, verifier);
 	});
 
 	it('uses a documented single-range policy and returns exact 416 metadata', async () => {

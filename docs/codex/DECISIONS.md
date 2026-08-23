@@ -405,6 +405,15 @@ Date: 2026-08-22
 
 Slice 6C uses deterministic browser checks for the five core routes across supported themes, keyboard route transitions, modal focus trapping/restoration, live-region structure, ordinary-content reflow at 320 CSS pixels with 200% text size, reduced motion, and real audio keyboard controls. These checks demonstrate the implemented contracts but do not simulate or claim a human screen-reader result. A real assistive-technology spot check remains an explicit operator-attested gate before `A11Y-01` can be fully closed.
 
+## D-043 — Slice 6D closes deterministic security gaps without claiming operational topology
+
+Status: **ACCEPTED**
+Date: 2026-08-23
+
+Slice 6D applies security and privacy controls that can be proven with synthetic local evidence: mixed-provider evidence authorization, CSP and browser security headers, correlated JSON-boundary failures, serialized provider-request limits, Piper subprocess deadline/output enforcement, media-integrity caching by descriptor identity, generation lease-expiry fencing, canonical episode publication, stronger backup/FTS/relationship validation, restore-cleanup inode fencing, storage symlink/link rejection, cloud-metadata IPv6 denial, explicit LAN/backup privacy copy, and a production dependency/import non-goal guard. It performs no provider, Docker, Caddy, production database, retained evidence, or external-network operation.
+
+Four residuals remain explicit rather than being hidden by deterministic tests: generation needs a durable pre-dispatch ambiguity protocol before crash recovery can guarantee no external-call replay; deterministic pre-existing audio reuse needs a durable expected byte identity; a power loss between separate data/media restore renames requires a broader crash-atomic publication design; and proxy-only access plus real capacity/read-only/corruption/shutdown/image checks require a separately authorized operational gate. `A11Y-01` also remains partial pending operator screen-reader attestation.
+
 ## Open operator decisions
 
 These are genuine inputs that cannot be inferred safely. They do not block documentation bootstrap. A slice must stop before it needs an unresolved value.
