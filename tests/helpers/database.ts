@@ -33,6 +33,7 @@ export const testConfig = (overrides: Partial<ServerConfig> = {}): ServerConfig 
 	port: 8787,
 	databasePath: ':memory:',
 	mediaPath: '/tmp/localcast-test-media',
+	credentialDirectory: '/tmp/localcast-test-media/.credentials',
 	webDistPath: '/tmp/localcast-test-dist',
 	trustedOrigins: [],
 	textProvider: 'fake',

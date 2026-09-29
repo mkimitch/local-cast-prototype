@@ -5,6 +5,7 @@ import {isBoundedLocalCastText, isWellFormedLocalCastText} from '../src/types';
 import type {CreateSourceInput, UpdateSourceInput} from './services/sourceStore';
 import type {SaveNoteInput, SaveStationInput} from './services/stationStore';
 import {hasEmbeddedUrlCredential} from './services/safeFeedFetcher';
+import {openAiApiKeySchema} from './credentials/openAiCredentialStore';
 
 type ValidationResult<T> = {ok: true; value: T} | {ok: false; error: string};
 const feedUrlSchema = z.string().trim().url().max(2048).refine(value => {
@@ -69,6 +70,8 @@ const settingsSchema = z.object({
 	density: z.enum(['compact', 'normal', 'comfortable']),
 }).strict();
 
+const openAiCredentialSchema = z.object({apiKey: openAiApiKeySchema}).strict();
+
 const parse = <T>(schema: z.ZodType<T>, value: unknown): ValidationResult<T> => {
 	const result = schema.safeParse(value);
 	if (result.success) return {ok: true, value: result.data};
@@ -108,3 +111,5 @@ export const parseChatQuestionRequest = (body: unknown): ValidationResult<{quest
 };
 
 export const parseSettingsBody = (body: unknown): ValidationResult<Partial<AppSettings>> => parse(settingsSchema, body);
+
+export const parseOpenAiCredentialBody = (body: unknown): ValidationResult<{apiKey: string}> => parse(openAiCredentialSchema, body);

@@ -111,10 +111,13 @@ describe('versioned backup and safe restore', () => {
 		const fixture = createFixture({media: true, wal: true});
 		fixture.database.prepare("INSERT INTO notes (id, title, body, created_at, updated_at) VALUES ('wal-note', 'WAL', 'committed WAL content', ?, ?)")
 			.run('2026-08-21T12:00:00.000Z', '2026-08-21T12:00:00.000Z');
-		const excludedCanaries = ['provider-key-canary', 'podcast-token-canary', 'raw-provider-payload-canary'];
+		const excludedCanaries = ['provider-key-canary', 'podcast-token-canary', 'raw-provider-payload-canary', 'installation-credential-canary'];
 		fs.writeFileSync(path.join(fixture.mediaPath, 'unreferenced-secret.env'), excludedCanaries[0], {mode: 0o600});
 		fs.writeFileSync(path.join(fixture.mediaPath, 'podcast-token'), excludedCanaries[1], {mode: 0o600});
 		fs.writeFileSync(path.join(fixture.mediaPath, 'provider-response.json'), excludedCanaries[2], {mode: 0o600});
+		const credentialDirectory = path.join(path.dirname(fixture.databasePath), '.credentials');
+		fs.mkdirSync(credentialDirectory, {mode: 0o700});
+		fs.writeFileSync(path.join(credentialDirectory, 'openai-api-key'), excludedCanaries[3], {mode: 0o600});
 		const backupPath = path.join(fixture.root, 'backup');
 		await createVersionedBackup({databasePath: fixture.databasePath, mediaPath: fixture.mediaPath, destinationPath: backupPath, maximumMediaBytes: 1024 * 1024});
 		fixture.database.close();
@@ -123,6 +126,7 @@ describe('versioned backup and safe restore', () => {
 		expect(manifest.media.fileCount).toBe(1);
 		expect(manifest.media.files[0]?.path).toBe('media/episode-run-backup-media.mp3');
 		expect(fs.existsSync(path.join(backupPath, 'media/unreferenced-secret.env'))).toBe(false);
+		expect(fs.existsSync(path.join(backupPath, '.credentials'))).toBe(false);
 		const artifactText = fs.readdirSync(backupPath, {recursive: true, encoding: 'utf8'})
 			.filter(relative => fs.lstatSync(path.join(backupPath, relative)).isFile())
 			.map(relative => fs.readFileSync(path.join(backupPath, relative)))

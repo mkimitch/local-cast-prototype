@@ -135,11 +135,14 @@
   display: grid;
   place-items: center;
   padding: var(--space-4);
+  overflow-y: auto;
   background: rgb(3 7 18 / 0.62);
 }
 
 .confirm-dialog {
   width: min(100%, 32rem);
+  max-height: calc(100dvh - (2 * var(--space-4)));
+  overflow-y: auto;
   padding: var(--space-6);
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-xl);

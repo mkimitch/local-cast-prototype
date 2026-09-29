@@ -1,9 +1,9 @@
 import type {AppSettings} from '../../src/types';
 import {serverConfig} from '../config';
 import {db} from '../database/index';
-import {providerCheckStore} from './providerCheckStore';
+import {openAiCredentialService, type OpenAiCredentialService} from './openAiCredentialService';
 
-type AppearanceSettings = Omit<AppSettings, 'providers' | 'generationEnabled'>;
+type AppearanceSettings = Omit<AppSettings, 'providers' | 'credentials' | 'generationEnabled'>;
 
 const themes: AppearanceSettings['theme'][] = ['system', 'light', 'dark'];
 const contrastModes: AppearanceSettings['contrastMode'][] = ['normal', 'high'];
@@ -11,7 +11,12 @@ const colorVisionModes: AppearanceSettings['colorVisionMode'][] = ['default', 'p
 const textSizes: AppearanceSettings['textSize'][] = ['small', 'normal', 'large', 'extra-large'];
 const densities: AppearanceSettings['density'][] = ['compact', 'normal', 'comfortable'];
 
-class SettingsStore {
+export class SettingsStore {
+	constructor(
+		private readonly config = serverConfig,
+		private readonly credentials: Pick<OpenAiCredentialService, 'metadata' | 'providerSummary'> = openAiCredentialService,
+	) {}
+
 	private readonly defaultAppearance: AppearanceSettings = {
 		orbTheme: 'amber',
 		theme: 'system',
@@ -37,10 +42,20 @@ class SettingsStore {
 	}
 
 	private withProviderStatus(appearance: AppearanceSettings): AppSettings {
-		const status = providerCheckStore.summary(serverConfig);
+		const status = this.credentials.providerSummary(this.config);
+		const managedCredential = this.credentials.metadata(this.config);
+		const persistedOpenAiStatus = [status.text, status.speech].some(provider => (
+			provider.adapter === 'OpenAI' && provider.status !== 'NOT CONFIGURED'
+		));
 		return {
 			...appearance,
 			providers: {text: status.text, speech: status.speech},
+			credentials: {
+				openAi: {
+					configured: managedCredential.configured || persistedOpenAiStatus,
+					...(managedCredential.displayHint ? {displayHint: managedCredential.displayHint} : {}),
+				},
+			},
 			generationEnabled: status.generationEnabled,
 		};
 	}

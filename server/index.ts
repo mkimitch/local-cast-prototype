@@ -1,7 +1,8 @@
 import type {Server} from 'node:http';
 import {createApp} from './app';
-import {providerSummaryForConfig, serverConfig} from './config';
+import {serverConfig} from './config';
 import {closeDatabase} from './database/index';
+import {openAiCredentialService} from './services/openAiCredentialService';
 
 if (serverConfig.processRole !== 'app') {
 	throw new Error('LOCALCAST_PROCESS_ROLE must be app for the application entrypoint');
@@ -37,7 +38,7 @@ process.once('SIGTERM', () => void shutdown('SIGTERM'));
 process.once('SIGINT', () => void shutdown('SIGINT'));
 
 server = app.listen(serverConfig.port, serverConfig.host, () => {
-	const providers = providerSummaryForConfig(serverConfig);
+	const providers = openAiCredentialService.providerSummary(serverConfig);
 	console.log(`LocalCast listening on http://${serverConfig.host}:${serverConfig.port}`);
 	console.log(`Text provider: ${providers.text.status}; speech provider: ${providers.speech.status}`);
 });

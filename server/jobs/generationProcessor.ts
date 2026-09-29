@@ -4,12 +4,13 @@ import {OpenAiCompatibleTextProvider} from '../providers/openAiCompatible';
 import {assertPiperConfiguration, PiperSpeechProvider} from '../providers/piper';
 import {episodeStore} from '../services/episodeStore';
 import {synchronizeRequestSources} from '../services/episodePreparation';
-import {providerCheckStore} from '../services/providerCheckStore';
+import {providerCheckStore, type ProviderCapability, type ProviderCheckStore} from '../services/providerCheckStore';
 import {GenerationError} from './types';
 import type {GenerationJob} from './types';
 import type {GenerationJobStore} from './generationJobStore';
 import type {EpisodeEvidence, GeneratedEpisodeScript, GeneratedSection, PublishedAudio} from '../episodes/types';
-import type {ProviderCheckStore} from '../services/providerCheckStore';
+import {openAiCredentialStore} from '../credentials/index';
+import {configWithResolvedOpenAiCredential, type OpenAiCredentialStore} from '../credentials/openAiCredentialStore';
 
 export const recordSpeechProviderSuccess = (
 	audio: Pick<PublishedAudio, 'liveRequestPerformed'>,
@@ -117,7 +118,7 @@ class ConfiguredGenerationProcessor implements GenerationProcessor {
 	}
 }
 
-export const createGenerationProcessor = (config: ServerConfig, jobs: GenerationJobStore): GenerationProcessor => {
+const configuredGenerationProcessor = (config: ServerConfig, jobs: GenerationJobStore): GenerationProcessor | undefined => {
 	let text: TextGenerationProvider | undefined;
 	let textProviderName: 'OpenAI' | 'Ollama' | 'LM Studio' | undefined;
 	let textModel: string | undefined;
@@ -148,9 +149,75 @@ export const createGenerationProcessor = (config: ServerConfig, jobs: Generation
 	}
 
 	if (!text || !speech || !textProviderName || !textModel) {
-		providerCheckStore.recordNotConfigured(config);
-		return new UnconfiguredGenerationProcessor();
+		return undefined;
 	}
-	providerCheckStore.recordContract(config);
 	return new ConfiguredGenerationProcessor(config, jobs, text, speech, textProviderName, textModel);
+};
+
+type ProviderConfigurationChecks = Pick<ProviderCheckStore, 'recordContract' | 'recordNotConfigured'>;
+
+const configuredCapabilities = (config: ServerConfig): ProviderCapability[] => {
+	const capabilities: ProviderCapability[] = [];
+	if ((config.textProvider === 'openai' && config.openAiApiKey)
+		|| (config.textProvider === 'ollama' && config.ollamaBaseUrl && config.ollamaTextModel)
+		|| (config.textProvider === 'lm_studio' && config.lmStudioBaseUrl && config.lmStudioTextModel)) {
+		capabilities.push('text');
+	}
+	if (config.speechProvider === 'openai' && config.openAiApiKey) capabilities.push('speech');
+	if (config.speechProvider === 'piper' && config.piperExecutable && config.piperModelPath) {
+		try {
+			assertPiperConfiguration(config.piperExecutable, config.piperModelPath);
+			capabilities.push('speech');
+		} catch {
+			// Unsafe or unavailable Piper assets remain categorically not configured.
+		}
+	}
+	return capabilities;
+};
+
+const refreshProviderConfiguration = (config: ServerConfig, checks: ProviderConfigurationChecks): void => {
+	const configured = configuredCapabilities(config);
+	const unavailable = (['text', 'speech'] as const).filter(capability => !configured.includes(capability));
+	checks.recordContract(config, configured);
+	checks.recordNotConfigured(config, unavailable);
+};
+
+class RuntimeCredentialGenerationProcessor implements GenerationProcessor {
+	constructor(
+		private readonly config: ServerConfig,
+		private readonly jobs: GenerationJobStore,
+		private readonly credentials: Pick<OpenAiCredentialStore, 'resolve'>,
+		private readonly checks: ProviderConfigurationChecks,
+	) {}
+
+	async process(job: GenerationJob, workerId: string, signal: AbortSignal): Promise<void> {
+		let effective: ServerConfig;
+		try {
+			effective = configWithResolvedOpenAiCredential(this.config, this.credentials);
+		} catch {
+			refreshProviderConfiguration({...this.config, openAiApiKey: undefined}, this.checks);
+			throw new GenerationError('PROVIDER_CREDENTIAL_UNAVAILABLE', 'The stored provider credential is unavailable', false);
+		}
+		const processor = configuredGenerationProcessor(effective, this.jobs);
+		if (!processor) {
+			refreshProviderConfiguration(effective, this.checks);
+			return new UnconfiguredGenerationProcessor().process();
+		}
+		return processor.process(job, workerId, signal);
+	}
+}
+
+export const createGenerationProcessor = (
+	config: ServerConfig,
+	jobs: GenerationJobStore,
+	credentials: Pick<OpenAiCredentialStore, 'resolve'> = openAiCredentialStore,
+	checks: ProviderConfigurationChecks = providerCheckStore,
+): GenerationProcessor => {
+	try {
+		const effective = configWithResolvedOpenAiCredential(config, credentials);
+		refreshProviderConfiguration(effective, checks);
+	} catch {
+		refreshProviderConfiguration({...config, openAiApiKey: undefined}, checks);
+	}
+	return new RuntimeCredentialGenerationProcessor(config, jobs, credentials, checks);
 };

@@ -5,7 +5,7 @@ import {generationJobStore} from '../jobs/index';
 import {IdempotencyConflictError, JobStateError} from '../jobs/generationJobStore';
 import {briefingStore} from '../services/briefingStore';
 import {episodeStore} from '../services/episodeStore';
-import {providerCheckStore} from '../services/providerCheckStore';
+import {openAiCredentialService} from '../services/openAiCredentialService';
 import {parseBriefingRunRequest, parseIdempotencyKey} from '../validation';
 
 export const briefingRunsRouter = Router();
@@ -42,7 +42,7 @@ briefingRunsRouter.get('/briefing-runs', (_req, res) => {
 });
 
 briefingRunsRouter.post('/briefing-runs', (req, res) => {
-	const providerStatus = providerCheckStore.summary(serverConfig);
+	const providerStatus = openAiCredentialService.providerSummary(serverConfig);
 	if (!providerStatus.generationEnabled) {
 		res.status(503).json({code: 'PROVIDER_NOT_CONFIGURED', error: 'Text and speech providers are not configured'});
 		return;

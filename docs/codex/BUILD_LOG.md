@@ -1080,3 +1080,49 @@ No provider, external network endpoint, Docker/Compose/Caddy resource, productio
 | immutable baseline security review | COMPLETE — 14 confirmed findings reconciled; repaired controls and four explicit residual designs/operations retained |
 | `npm prune --offline --ignore-scripts --no-save` then `npm ls --depth=0` | PASS — removed 35 stale untracked Gemini/transitive install residues; declared dependency tree is clean and package/lock hashes are unchanged |
 | dependency, lockfile, sensitive-output/artifact, non-goal, scope, and `git diff --check` scans | PASS — no drift, protected value, runtime artifact, backup, or whitespace error |
+
+## 2026-09-23 — Daily Driver 1A OpenAI credential-management checkpoint
+
+This bounded product change adds trusted-operator OpenAI key replacement and explicit connection testing under Settings. It uses an atomic mode-`0600` file in a mode-`0700` `.credentials` directory beside SQLite on the existing data volume. Managed credentials take precedence over the unchanged worker-only environment fallback and are resolved for each new generation job and claimed chat turn, so no restart is required. The browser receives only configured state and an optional final-four hint; complete values are absent from responses, logs, provider-status rows, browser persistence, build canaries, and backups.
+
+The connection test makes only bounded authenticated fixed-origin model-metadata retrievals for configured OpenAI capabilities and writes through the existing provider-status lifecycle. It does not generate content or run automatically. All test requests were synthetic; no live OpenAI call, production credential/data access, Compose/Docker/Caddy action, fixture-retirement work, dependency change, migration, or deployment occurred.
+
+| Command or gate | Result |
+| --- | --- |
+| `npm run lint` | PASS — TypeScript no-emit check |
+| focused credential/provider/runtime unit suites | PASS — 59 tests |
+| focused credential route integration suite | PASS — 2 tests |
+| `npm run test` | PASS — 263 tests in 18 files |
+| `npm run test:integration` | PASS — 96 tests in 14 files |
+| `npm run build` | PASS — web and five server entry bundles; existing Vite chunk-size warning only |
+| focused Settings Playwright flow | PASS — accessible modal/focus/autocomplete/replacement/redaction workflow |
+| `npm run test:e2e` | PASS — 21 Playwright/axe tests; final artifact contains no failed test |
+| temporary visual inspection | PASS — focused credential modal rendered correctly with no browser console message |
+| `npm run smoke:api` | PASS — credential-free API and worker smoke |
+| first `npm run smoke:production` | REPAIRED — legacy field-name ban conflicted with the intentional transient secret form; the replacement guard continues to reject secret/deployment canaries |
+| final `npm run smoke:production` | PASS — production same-origin smoke |
+
+The canonical backup deliberately excludes `.credentials/openai-api-key`; restore requires credential re-entry. Deployment needs only the new LocalCast image through the existing workflow. No one-time volume, environment, Compose, or Caddy change is required.
+
+## 2026-09-29 — Daily Driver 1A exact-tree validation and checkpoint
+
+The September 23 implementation was recovered as an intentional dirty feature tree. A fresh review found no unrelated source, deployment, migration, dependency, Caddy, fixture-retirement, or secret material. The previous validation artifacts were treated as historical only. This entry supersedes their completion claims with results from the exact final tree.
+
+The first fresh browser gate exposed a keyboard regression: disabling the empty required submit button removed it from the dialog's focus order. The button now remains focusable while native `required`/`minLength` validation blocks invalid submission, and the credential live-status assertion is scoped to its labelled region. Independent read-only review then found and repaired capability-global status deletion for mixed local/OpenAI configurations, acceptance of owner-executable credential files, and missing generic `.credentials` Git/build-context exclusions. Additional regressions directly cover typed cancellation, exact API bounds, strict-body rejection, and network/malformed/oversized verification responses. All three reviewers passed the repaired tree.
+
+| Command or gate | Result |
+| --- | --- |
+| `npm run lint` | PASS — TypeScript no-emit check |
+| focused credential/provider/runtime unit suites | PASS — 87 tests in 6 files |
+| focused credential route integration suite | PASS — 7 tests |
+| `npm run test` | PASS — 273 tests in 18 files |
+| `npm run test:integration -- --reporter=dot` | PASS — 101 tests in 14 files; expected injected generation-failure records only |
+| `npm run build` | PASS — Vite transformed 2,156 modules and built five server entry bundles; existing chunk-size warning only |
+| focused Settings Playwright flow | PASS — 1/1 after keyboard, cancellation, focus, redaction, and scoped-status repairs |
+| final `npm run test:e2e` | PASS — 21 Playwright/axe tests in 5.5 minutes |
+| fresh visual inspection | PASS — desktop plus 320px/200%-text captures; dialog remained bounded and scrollable with an empty secret input |
+| `npm run smoke:api` | PASS — API and worker smoke checks |
+| `npm run smoke:production` | PASS — production same-origin and built-bundle checks |
+| `git diff --check`, conflict-marker, scope, ignore, and secret scans | PASS — no whitespace/conflict issue, unrelated path, real credential, or unprotected nested credential directory |
+
+All provider interactions were deterministic fixtures on loopback. No live OpenAI request, production credential/data access, Docker/Compose/Caddy action, running-container change, deployment, fixture-retirement work, schema migration, dependency/lockfile change, or production-data mutation occurred. The canonical backup remains credential-free and the known unrelated `PUBLISHED_EPISODE_INVALID` fixture condition remains untouched.

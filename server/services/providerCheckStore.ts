@@ -4,10 +4,14 @@ import type {ProviderDescriptor, ProviderStatus, ProviderSummary, ServerConfig} 
 import {providerDescriptorForConfig, providerSummaryForConfig} from '../config';
 import {db} from '../database/index';
 
-type Capability = 'text' | 'speech';
+export type ProviderCapability = 'text' | 'speech';
+
+interface ProviderSummaryOptions {
+	allowAppOpenAiStatusProjection?: boolean;
+}
 
 type CheckRow = {
-	capability: Capability;
+	capability: ProviderCapability;
 	adapter: string;
 	model: string;
 	voice: string | null;
@@ -23,10 +27,10 @@ export class ProviderCheckStore {
 		private readonly now: () => string = () => new Date().toISOString(),
 	) {}
 
-	summary(config: ServerConfig): {text: ProviderSummary; speech: ProviderSummary; generationEnabled: boolean} {
+	summary(config: ServerConfig, options: ProviderSummaryOptions = {}): {text: ProviderSummary; speech: ProviderSummary; generationEnabled: boolean} {
 		const base = providerSummaryForConfig(config);
-		const text = this.summaryFor('text', config, base.text);
-		const speech = this.summaryFor('speech', config, base.speech);
+		const text = this.summaryFor('text', config, base.text, options);
+		const speech = this.summaryFor('speech', config, base.speech, options);
 		return {
 			text,
 			speech,
@@ -35,33 +39,47 @@ export class ProviderCheckStore {
 		};
 	}
 
-	recordContract(config: ServerConfig): void {
-		for (const capability of ['text', 'speech'] as const) {
+	recordContract(config: ServerConfig, capabilities: readonly ProviderCapability[] = ['text', 'speech']): void {
+		for (const capability of capabilities) {
 			if (providerDescriptorForConfig(capability, config)) {
 				this.write(capability, config, 'CONTRACT TESTED ONLY', 'Deterministic adapter contract passed; live verification is pending');
 			}
 		}
 	}
 
-	recordNotConfigured(config: ServerConfig): void {
-		for (const capability of ['text', 'speech'] as const) {
+	recordNotConfigured(_config: ServerConfig, capabilities: readonly ProviderCapability[] = ['text', 'speech']): void {
+		for (const capability of capabilities) {
 			this.database.prepare('DELETE FROM provider_checks WHERE capability = ?').run(capability);
 		}
 	}
 
-	recordLive(capability: Capability, config: ServerConfig): void {
+	recordLive(capability: ProviderCapability, config: ServerConfig): void {
 		this.write(capability, config, 'LIVE VERIFIED', 'A minimal live request succeeded', this.now());
 	}
 
-	recordFailure(capability: Capability, config: ServerConfig, reason: string): void {
+	recordFailure(capability: ProviderCapability, config: ServerConfig, reason: string): void {
 		this.write(capability, config, 'CONTRACT TESTED ONLY', reason);
 	}
 
-	private summaryFor(capability: Capability, config: ServerConfig, fallback: ProviderSummary): ProviderSummary {
+	private summaryFor(capability: ProviderCapability, config: ServerConfig, fallback: ProviderSummary, options: ProviderSummaryOptions): ProviderSummary {
 		const descriptor = providerDescriptorForConfig(capability, config);
-		if (!descriptor) return fallback;
 		const row = this.database.prepare('SELECT * FROM provider_checks WHERE capability = ?').get(capability) as CheckRow | undefined;
+		if (!descriptor) {
+			if (!options.allowAppOpenAiStatusProjection || !row || config.processRole !== 'app' || row.adapter !== 'OpenAI') return fallback;
+			const expectedModel = capability === 'text' && config.textProvider === 'openai'
+				? config.openAiTextModel
+				: capability === 'speech' && config.speechProvider === 'openai'
+					? config.openAiSpeechModel
+					: undefined;
+			const expectedVoice = capability === 'speech' ? config.openAiSpeechVoice : undefined;
+			if (!expectedModel || row.model !== expectedModel || (row.voice || undefined) !== expectedVoice) return fallback;
+			return this.projectRow(row);
+		}
 		if (!row || row.configuration_fingerprint !== this.fingerprint(descriptor)) return fallback;
+		return this.projectRow(row);
+	}
+
+	private projectRow(row: CheckRow): ProviderSummary {
 		return {
 			adapter: row.adapter,
 			model: row.model,
@@ -72,7 +90,7 @@ export class ProviderCheckStore {
 		};
 	}
 
-	private write(capability: Capability, config: ServerConfig, status: ProviderStatus, reason: string, verifiedAt?: string): void {
+	private write(capability: ProviderCapability, config: ServerConfig, status: ProviderStatus, reason: string, verifiedAt?: string): void {
 		const descriptor = providerDescriptorForConfig(capability, config);
 		if (!descriptor) return;
 		this.database.prepare(`

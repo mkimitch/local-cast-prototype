@@ -111,5 +111,18 @@ test.describe('Slice 6C accessibility coverage', () => {
 		await expect(page.getByText(/any client admitted to the application origin is treated as an authorized operator/i)).toBeVisible();
 		await expect(page.getByText(/versioned backups contain that user content and media in plaintext/i)).toBeVisible();
 		await expect(page.getByText(/backups exclude provider credentials, configured endpoints, environment files, and the podcast bearer token/i)).toBeVisible();
+
+		await page.getByRole('button', {name: 'Replace API key'}).click();
+		const dialog = page.getByRole('dialog', {name: 'Replace OpenAI API key'});
+		expect((await new AxeBuilder({page}).include('.confirm-dialog').analyze()).violations).toEqual([]);
+		await page.setViewportSize({width: 320, height: 450});
+		await page.locator('html').evaluate(element => { element.style.fontSize = '200%'; });
+		const bounds = await dialog.boundingBox();
+		expect(bounds).not.toBeNull();
+		expect(bounds!.x).toBeGreaterThanOrEqual(0);
+		expect(bounds!.y).toBeGreaterThanOrEqual(0);
+		expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(320);
+		expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(450);
+		await expect(dialog).toHaveCSS('overflow-y', 'auto');
 	});
 });

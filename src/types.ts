@@ -211,6 +211,12 @@ export interface ProviderSummary {
   verifiedAt?: string;
 }
 
+export interface OpenAiConnectionTestResult {
+  verified: true;
+  verifiedAt: string;
+  capabilities: Array<'text' | 'speech'>;
+}
+
 export interface PodcastStatus {
   configured: boolean;
   publicBaseUrl?: string;
@@ -228,6 +234,12 @@ export interface AppSettings {
   providers: {
     text: ProviderSummary;
     speech: ProviderSummary;
+  };
+  credentials: {
+    openAi: {
+      configured: boolean;
+      displayHint?: string;
+    };
   };
   generationEnabled: boolean;
 }

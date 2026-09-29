@@ -1,3 +1,4 @@
+import {createHash} from 'node:crypto';
 import path from 'node:path';
 import {z} from 'zod';
 
@@ -76,6 +77,7 @@ export interface ServerConfig {
 	port: number;
 	databasePath: string;
 	mediaPath: string;
+	credentialDirectory: string;
 	webDistPath: string;
 	installationId?: string;
 	trustedOrigins: string[];
@@ -220,6 +222,9 @@ export const parseServerConfig = (environment: NodeJS.ProcessEnv): ServerConfig 
 	const mediaPath = env.MEDIA_PATH || 'data/media';
 	const resolvedDatabasePath = databasePath === ':memory:' ? databasePath : absolutePath(databasePath);
 	const resolvedMediaPath = absolutePath(mediaPath);
+	const credentialDirectory = databasePath === ':memory:'
+		? path.join(resolvedMediaPath, '.credentials')
+		: path.join(path.dirname(resolvedDatabasePath), '.credentials');
 	const publicBaseUrl = env.PUBLIC_BASE_URL
 		? normalizeHttpOrigin(env.PUBLIC_BASE_URL, 'PUBLIC_BASE_URL', runtimeMode === 'production')
 		: undefined;
@@ -333,6 +338,7 @@ export const parseServerConfig = (environment: NodeJS.ProcessEnv): ServerConfig 
 		port: env.PORT,
 		databasePath: resolvedDatabasePath,
 		mediaPath: resolvedMediaPath,
+		credentialDirectory,
 		webDistPath: absolutePath(env.LOCALCAST_WEB_DIST_PATH || 'dist'),
 		installationId: env.LOCALCAST_INSTALLATION_ID,
 		trustedOrigins,
@@ -387,11 +393,12 @@ export interface ProviderDescriptor {
 export const providerDescriptorForConfig = (capability: 'text' | 'speech', config: ServerConfig): ProviderDescriptor | undefined => {
 	if (capability === 'text') {
 		if (config.textProvider === 'openai') {
-			if (config.processRole === 'worker' && !config.openAiApiKey) return undefined;
+			if (!config.openAiApiKey) return undefined;
+			const credentialFingerprint = createHash('sha256').update(config.openAiApiKey).digest('hex');
 			return {
 				adapter: 'OpenAI',
 				model: config.openAiTextModel,
-				configurationFingerprintMaterial: `openai|text|${config.openAiTextModel}|${config.openAiReasoningEffort}`,
+				configurationFingerprintMaterial: `openai|text|${config.openAiTextModel}|${config.openAiReasoningEffort}|${credentialFingerprint}`,
 			};
 		}
 		if (config.textProvider === 'ollama' && config.ollamaBaseUrl && config.ollamaTextModel) return {
@@ -408,12 +415,13 @@ export const providerDescriptorForConfig = (capability: 'text' | 'speech', confi
 	}
 
 	if (config.speechProvider === 'openai') {
-		if (config.processRole === 'worker' && !config.openAiApiKey) return undefined;
+		if (!config.openAiApiKey) return undefined;
+		const credentialFingerprint = createHash('sha256').update(config.openAiApiKey).digest('hex');
 		return {
 			adapter: 'OpenAI',
 			model: config.openAiSpeechModel,
 			voice: config.openAiSpeechVoice,
-			configurationFingerprintMaterial: `openai|speech|${config.openAiSpeechModel}|${config.openAiSpeechVoice}|${config.openAiSpeechFormat}`,
+			configurationFingerprintMaterial: `openai|speech|${config.openAiSpeechModel}|${config.openAiSpeechVoice}|${config.openAiSpeechFormat}|${credentialFingerprint}`,
 		};
 	}
 	if (config.speechProvider === 'piper' && config.piperExecutable && config.piperModelPath) return {

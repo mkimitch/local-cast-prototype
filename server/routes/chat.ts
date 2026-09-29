@@ -10,7 +10,7 @@ import {
 	ChatStateError,
 	ChatTurnInProgressError,
 } from '../services/chatStore';
-import {providerCheckStore} from '../services/providerCheckStore';
+import {openAiCredentialService} from '../services/openAiCredentialService';
 import {parseChatQuestionRequest, parseIdempotencyKey} from '../validation';
 
 interface ChatRouterDependencies {
@@ -36,7 +36,7 @@ const sendEpisodeError = (error: unknown, res: Response): boolean => {
 
 export const createChatRouter = (dependencies: ChatRouterDependencies = {
 	chats: chatStore,
-	isTextProviderConfigured: () => providerCheckStore.summary(serverConfig).text.status !== 'NOT CONFIGURED',
+	isTextProviderConfigured: () => openAiCredentialService.providerSummary(serverConfig).text.status !== 'NOT CONFIGURED',
 }) => {
 	const router = Router();
 	router.use('/briefing-runs/:runId/chat-turns', (_req, res, next) => {

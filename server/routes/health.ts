@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import {serverConfig} from '../config';
 import {db} from '../database/index';
 import {inspectDatabaseHealth} from '../database/connection';
-import {providerCheckStore} from '../services/providerCheckStore';
+import {openAiCredentialService} from '../services/openAiCredentialService';
 
 export const healthRouter = Router();
 
@@ -16,7 +16,7 @@ healthRouter.get('/health', (_req, res) => {
 			service: 'local-cast-api',
 			timestamp: new Date().toISOString(),
 			runtimeMode: serverConfig.runtimeMode,
-			providers: providerCheckStore.summary(serverConfig),
+			providers: openAiCredentialService.providerSummary(serverConfig),
 			database,
 			mediaWritable: true,
 		});

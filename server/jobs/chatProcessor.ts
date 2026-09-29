@@ -4,6 +4,8 @@ import {chatStore, type ChatStore} from '../services/chatStore';
 import {approvedChatModel, type ChatProviderStageIdentity, type ClaimedChatTurn} from '../chat/types';
 import {assertOpenAiEvidenceAuthorized} from './generationProcessor';
 import {GenerationError} from './types';
+import {openAiCredentialStore} from '../credentials/index';
+import type {OpenAiCredentialStore} from '../credentials/openAiCredentialStore';
 
 export interface ChatProcessor {
 	process(turn: ClaimedChatTurn, workerId: string, signal: AbortSignal): Promise<void>;
@@ -79,9 +81,22 @@ export class OpenAiChatProcessor implements ChatProcessor {
 	}
 }
 
-export const createChatProcessor = (config: ServerConfig, chats: ChatStore = chatStore): ChatProcessor => {
-	if (config.textProvider === 'openai' && config.openAiApiKey) {
-		return new OpenAiChatProcessor(config, chats, config.openAiApiKey);
-	}
-	return new UnconfiguredChatProcessor();
+export const createChatProcessor = (
+	config: ServerConfig,
+	chats: ChatStore = chatStore,
+	credentials: Pick<OpenAiCredentialStore, 'resolve'> = openAiCredentialStore,
+): ChatProcessor => {
+	if (config.textProvider !== 'openai') return new UnconfiguredChatProcessor();
+	return {
+		process: async (turn, workerId, signal) => {
+			let apiKey: string | undefined;
+			try {
+				apiKey = credentials.resolve(config.openAiApiKey);
+			} catch {
+				throw new GenerationError('PROVIDER_CREDENTIAL_UNAVAILABLE', 'The stored provider credential is unavailable', false);
+			}
+			if (!apiKey) return new UnconfiguredChatProcessor().process();
+			return new OpenAiChatProcessor(config, chats, apiKey).process(turn, workerId, signal);
+		},
+	};
 };

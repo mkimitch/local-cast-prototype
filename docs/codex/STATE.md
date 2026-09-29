@@ -1,14 +1,44 @@
 # LocalCast build state
 
-Last updated: 2026-08-23
+Last updated: 2026-09-29
 Branch: `codex/localcast-prototype`
 Pre-bootstrap HEAD: `910485b77ead63450660b0b97544889960e45e3f`
 Slice 0 base HEAD: `e720d5818ab15efccfa143c94d6514c0c9a2baad`
-Current base checkpoint: Slice 6C at `fc34c2dd291d9c976e420da0e88606214d2e4cc5`
-Current checkpoint: **Slice 6D deterministic security/privacy checkpoint**
-Implementation slice: **6D — DETERMINISTIC SECURITY, PRIVACY, AND FAILURE INJECTION COMPLETE 2026-08-23**
-Next action: **Separately authorize the smallest operational topology/runtime gate; A11Y-01 remains independently operator-attested**
-Overall state: **SLICE 5 COMPLETE; SLICE 6A–6D DETERMINISTIC CHECKPOINTS COMPLETE; OPERATIONAL/DESIGN AND A11Y-01 GATES OPEN**
+Current base checkpoint: Slice 6D security hardening at `176d30a6e18d6da18ef92ae38ab0655673c663d1`
+Current checkpoint: **Daily Driver 1A OpenAI credential management**
+Implementation slice: **DD1A — OPENAI CREDENTIAL REPLACEMENT COMPLETE 2026-09-29**
+Next action: **Deploy the new application image through the separately authorized deployment workflow; no credential, Compose, volume, environment, or Caddy migration is required**
+Overall state: **SLICE 5 COMPLETE; SLICE 6A–6D DETERMINISTIC CHECKPOINTS COMPLETE; DAILY DRIVER 1A COMPLETE; OPERATIONAL SLICE 6 AND A11Y-01 GATES REMAIN OPEN**
+
+## Daily Driver 1A OpenAI credential management result — 2026-09-29
+
+The Settings provider area now accepts an explicit complete OpenAI API-key replacement in a labelled modal password form, clears the plaintext field after every submission outcome, returns focus to the initiating control, and exposes success/failure through accessible status/alert semantics. Ordinary settings responses expose only configured state and, for a managed key, `••••` plus the final four characters. The app never returns or prefills the complete value.
+
+The managed credential is an atomic mode-`0600` regular file at `.credentials/openai-api-key` beside the SQLite database, inside the existing shared persisted data volume; its directory is mode `0700`. Reads fail closed for symbolic links, multiple links, broad modes, changed identity, invalid values, and oversized data. Precedence is managed installation file, existing worker-only `OPENAI_API_KEY`, then unconfigured. Startup does not copy the environment credential. Generation resolves the effective key at each job and chat at each claimed turn, so new work sees a replacement without app/worker/container restart. OpenAI provider-status fingerprints include a one-way credential fingerprint, so replacement cannot inherit prior live evidence.
+
+The explicit connection test makes bounded authenticated `GET /v1/models/{model}` requests against the fixed official OpenAI origin for the currently selected OpenAI text/speech capabilities. It performs no content generation or LocalCast content mutation, classifies invalid/revoked, permission/account, rate/quota, provider/network, unavailable-model, and unexpected-response failures without consuming provider bodies, and uses the existing provider-status store. Only successful authenticated retrieval records `LIVE VERIFIED`. This checkpoint made no live OpenAI request.
+
+The canonical backup remains intentionally credential-free: the sibling `.credentials` directory is outside its database/media allowlist, and a canary test proves exclusion. A restored installation must re-enter the managed OpenAI key or explicitly resupply the compatible worker environment credential. The implementation uses the existing data volume and runtime user; there is no new schema migration, dependency, volume, Compose variable, Caddy change, fixture-retirement change, or production-data mutation.
+
+### Daily Driver 1A verification
+
+| Command | Result |
+| --- | --- |
+| `npm run lint` | PASS — TypeScript no-emit check |
+| focused credential/provider/runtime unit suites | PASS — 87 tests in 6 files, including private modes/link rejection, precedence, mixed-provider runtime refresh, connection classification, status invalidation, and backup exclusion |
+| focused settings-credential integration suite | PASS — 7 tests, including no-store/no-echo/log redaction, masked-placeholder rejection, exact 20/512-character bounds, and strict-body rejection |
+| `npm run test` | PASS — 273 tests in 18 unit files |
+| `npm run test:integration` | PASS — 101 tests in 14 integration files with isolated loopback listeners |
+| `npm run build` | PASS — Vite built 2,156 modules plus app, worker, storage-init, backup, and restore bundles; existing chunk-size warning only |
+| first `npm run test:e2e` | REPAIRED — the empty required secret field left the disabled submit action unreachable by keyboard focus |
+| focused Settings Playwright flow | REPAIRED then PASS — the native-validating submit remains focusable; its live-status assertion is scoped to the OpenAI credential region; keyboard-opened modal, initial secret-input focus, `autocomplete=new-password`, replacement, plaintext removal, masked metadata, focus restoration, and browser/settings-state redaction pass |
+| final `npm run test:e2e` | PASS — 21/21 Playwright/axe tests in 5.5 minutes; retained keyboard, privacy, focus, and reflow coverage passes |
+| visual browser inspection | PASS — fresh `/tmp/localcast-dd1a-settings-desktop.png` and `/tmp/localcast-dd1a-settings-320px-200pct.png` captures show the empty focused modal without a visible desktop defect; the narrow dialog remains bounded and scrollable |
+| `npm run smoke:api` | PASS — credential-free API and worker smoke |
+| `npm run smoke:production` | PASS — production same-origin smoke and bundle guard |
+| independent read-only reviews | PASS after repair — capability-scoped mixed-provider status, exact private file modes, generic Git/build-context credential exclusion, cancellation/boundary/failure-classification evidence, and documentation were re-reviewed with no remaining material feature issue |
+
+All automated provider tests used synthetic credentials and fixture responses. The full browser run used only disposable local storage and loopback processes. No production credential was read, written, printed, or tested. The September 29 gate validates the exact final source tree and supersedes the earlier September 23 pre-final validation claims. Review repairs prevent mixed local/OpenAI status loss, reject credential-file execute/special bits, exclude nested `.credentials` directories from Git and Docker contexts, and directly test cancellation, input boundaries, and network/malformed/oversized verification failures.
 
 ## Slice 6D deterministic security/privacy result — 2026-08-23
 

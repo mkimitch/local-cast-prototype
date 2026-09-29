@@ -15,9 +15,10 @@ describe('provider verification status', () => {
 		databases.push(database);
 		const checks = new ProviderCheckStore(database, () => '2026-08-05T12:34:56.000Z');
 		const config = testConfig({
-			processRole: 'app',
+			processRole: 'worker',
 			textProvider: 'openai',
 			speechProvider: 'openai',
+			openAiApiKey: 'credential-canary',
 			allowFakeProviders: false,
 		});
 
@@ -27,6 +28,12 @@ describe('provider verification status', () => {
 			speech: {status: 'CONFIGURED UNVERIFIED'},
 		});
 		checks.recordContract(config);
+		const appConfig = {...config, processRole: 'app' as const, openAiApiKey: undefined};
+		expect(checks.summary(appConfig, {allowAppOpenAiStatusProjection: true})).toMatchObject({
+			generationEnabled: true,
+			text: {status: 'CONTRACT TESTED ONLY'},
+			speech: {status: 'CONTRACT TESTED ONLY'},
+		});
 		expect(checks.summary(config)).toMatchObject({
 			generationEnabled: true,
 			text: {status: 'CONTRACT TESTED ONLY'},
@@ -37,6 +44,11 @@ describe('provider verification status', () => {
 		expect(checks.summary(config)).toMatchObject({
 			text: {status: 'LIVE VERIFIED', verifiedAt: '2026-08-05T12:34:56.000Z'},
 			speech: {status: 'LIVE VERIFIED', verifiedAt: '2026-08-05T12:34:56.000Z'},
+		});
+		const replacedCredential = {...config, openAiApiKey: 'replacement-credential-canary'};
+		expect(checks.summary(replacedCredential)).toMatchObject({
+			text: {status: 'CONFIGURED UNVERIFIED'},
+			speech: {status: 'CONFIGURED UNVERIFIED'},
 		});
 		checks.recordContract(config);
 		expect(checks.summary(config)).toMatchObject({

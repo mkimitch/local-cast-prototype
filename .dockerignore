@@ -5,6 +5,7 @@
 !.env.example
 .secrets
 .operator
+**/.credentials
 node_modules
 dist
 dist-server

@@ -1,7 +1,7 @@
 # LocalCast autonomous build plan
 
-Status: Slice 4 remains green; Slice 5 is complete 2026-08-21; Slice 6A, 6B, 6C, and deterministic 6D checkpoints are complete
-Current slice: **6 — 6A PROVIDER PARITY, 6B BACKUP/RESTORE, AND 6C ACCESSIBILITY COMPLETE; REMAINING GATES OPEN**
+Status: Slice 4 remains green; Slice 5 is complete 2026-08-21; Slice 6A–6D deterministic checkpoints and Daily Driver 1A are complete 2026-09-29
+Current slice: **DAILY DRIVER 1A OPENAI CREDENTIAL MANAGEMENT COMPLETE; REMAINING OPERATIONAL SLICE 6 GATES OPEN**
 Execution policy: one vertical slice, one green checkpoint commit
 
 ## How to use this plan
@@ -341,6 +341,12 @@ This bounded checkpoint adds semantic destructive confirmations, route-heading f
 This bounded checkpoint closes the source-testable gaps in mixed-provider disclosure, HTTP security headers and parser ordering, provider/Piper bounds, media validation amplification, generation lease expiry, storage path/link safety, backup publication/FTS/relationship validation, exact cleanup scope, cloud-metadata SSRF denial, browser first-party-only loading, honest trusted-LAN/backup copy, and non-goal dependency/import regression. All fixtures are synthetic and all network listeners are loopback test processes; no provider, production data, Docker, Compose, Caddy, image, backup evidence, or external system was accessed or changed.
 
 This checkpoint intentionally does not close `A11Y-01`, operational `DEP-02`/`DEP-03`/`ARC-07` evidence, live provider checks, real capacity/read-only/corruption drills, or non-cooperative Compose shutdown. Durable generation pre-dispatch ambiguity fencing, deterministic pre-existing audio byte identity, and crash-atomic two-target restore publication require separately authorized designs; no migration or topology change is introduced here. Slice 6 as a whole therefore remains open.
+
+## Daily Driver 1A — OpenAI credential replacement — COMPLETE 2026-09-29
+
+This bounded product checkpoint adds a dedicated Settings surface for replacing and explicitly testing the OpenAI API key. It stores the managed credential in a private file in the existing persisted data volume, resolves it ahead of the compatible worker environment fallback for each new generation job and chat turn, and projects only configured state plus an optional final-four hint. The fixed-origin authenticated connection test performs model metadata retrieval only and updates the existing provider-status lifecycle; it never runs automatically or mutates LocalCast content.
+
+Deterministic evidence covers atomic mode-`0600` persistence, unsafe-file rejection, precedence without environment copying, app/worker runtime refresh without restart, response/log/status/browser redaction, bounded error classification, provider-status fingerprint invalidation, backup exclusion, keyboard dialog focus/restoration, live-region feedback, and full retained gates. No production credential, provider endpoint, deployment, Compose/Caddy state, database schema, dependency, fixture-retirement item, or user content is changed by this checkpoint.
 
 ## First post-prototype audio milestone — deferred two-host format
 

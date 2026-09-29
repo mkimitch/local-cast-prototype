@@ -154,8 +154,8 @@ describe('server environment contract', () => {
 		});
 		expect(providerSummaryForConfig(appConfig)).toMatchObject({
 			generationEnabled: false,
-			text: {adapter: 'OpenAI', status: 'CONFIGURED UNVERIFIED', model: 'gpt-5.4-mini'},
-			speech: {adapter: 'OpenAI', status: 'CONFIGURED UNVERIFIED', model: 'gpt-4o-mini-tts', voice: 'marin'},
+			text: {status: 'NOT CONFIGURED'},
+			speech: {status: 'NOT CONFIGURED'},
 		});
 	});
 

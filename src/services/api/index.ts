@@ -1,4 +1,4 @@
-import type {AppSettings, BriefingRun, ChatTurn, EpisodeMode, MaterialSearchResult, Note, PodcastStatus, Source, SourceItem, Station} from '../../types';
+import type {AppSettings, BriefingRun, ChatTurn, EpisodeMode, MaterialSearchResult, Note, OpenAiConnectionTestResult, PodcastStatus, Source, SourceItem, Station} from '../../types';
 
 export interface SourceService {
   getSources(): Promise<Source[]>;
@@ -34,6 +34,8 @@ export interface StationService {
 export interface ProviderService {
   getSettings(): Promise<AppSettings>;
   saveSettings(settings: AppSettings): Promise<void>;
+  replaceOpenAiApiKey(apiKey: string): Promise<void>;
+  testOpenAiConnection(): Promise<OpenAiConnectionTestResult>;
   onSettingsChanged(callback: (settings: AppSettings) => void): () => void;
 }
 

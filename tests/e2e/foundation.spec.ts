@@ -18,12 +18,85 @@ test('production UI is same-origin, honest, and manually driven', async ({page})
 	await expect(page.getByRole('heading', {name: 'Provider Status'})).toBeVisible();
 	await expect(page.getByText('NOT CONFIGURED', {exact: true})).toHaveCount(2);
 	await expect(page.locator('input[type="password"]')).toHaveCount(0);
-	await expect(page.getByText(/credentials and endpoints are configured only on the LocalCast server/i)).toBeVisible();
+	await expect(page.getByText(/provider credentials remain server-side/i)).toBeVisible();
 	await expect(page.getByText(/complete frozen transcript, and all frozen supporting evidence snapshots/i)).toBeVisible();
 	await expect(page.getByText(/supported answer can use two external requests/i)).toBeVisible();
 	await expect(page.getByText(/provider-side response storage is disabled through store: false/i)).toBeVisible();
 	await expect(page.getByText(/LocalCast still keeps the ordered chat history in SQLite/i)).toBeVisible();
 	await expect(page.getByText(/pinned to.*gpt-5\.4-mini-2026-03-17/i)).toBeVisible();
+
+	const browserCredential = 'sk-localcast-browser-credential-1234';
+	const replaceCredential = page.getByRole('button', {name: 'Replace API key'});
+	await replaceCredential.focus();
+	await page.keyboard.press('Enter');
+	let credentialDialog = page.getByRole('dialog', {name: 'Replace OpenAI API key'});
+	await expect(credentialDialog.getByLabel('Complete new API key')).toBeFocused();
+	await expect(credentialDialog.getByLabel('Complete new API key')).toHaveAttribute('autocomplete', 'new-password');
+	await credentialDialog.getByLabel('Complete new API key').fill(browserCredential);
+	await page.keyboard.press('Escape');
+	await expect(credentialDialog).toHaveCount(0);
+	await expect(replaceCredential).toBeFocused();
+	await page.keyboard.press('Enter');
+	credentialDialog = page.getByRole('dialog', {name: 'Replace OpenAI API key'});
+	const credentialInput = credentialDialog.getByLabel('Complete new API key');
+	await expect(credentialInput).toHaveValue('');
+	await page.keyboard.press('Tab');
+	await expect(credentialDialog.getByRole('button', {name: 'Cancel'})).toBeFocused();
+	await page.keyboard.press('Tab');
+	await expect(credentialDialog.getByRole('button', {name: 'Replace API key'})).toBeFocused();
+	await page.keyboard.press('Tab');
+	await expect(credentialInput).toBeFocused();
+
+	let releaseRejectedReplacement!: () => void;
+	const rejectedReplacement = new Promise<void>(resolve => { releaseRejectedReplacement = resolve; });
+	await page.route('**/api/settings/provider-credentials/openai', async route => {
+		await rejectedReplacement;
+		await route.fulfill({status: 503, contentType: 'application/json', body: JSON.stringify({error: 'Synthetic credential rejection.'})});
+	});
+	await credentialInput.fill(browserCredential);
+	await credentialDialog.getByRole('button', {name: 'Replace API key'}).click();
+	await expect(credentialInput).toHaveValue('');
+	await expect(credentialInput).toHaveAttribute('readonly', '');
+	await credentialInput.focus();
+	await page.keyboard.press('Tab');
+	await expect(credentialInput).toBeFocused();
+	releaseRejectedReplacement();
+	await expect(credentialDialog.getByRole('alert')).toHaveText('Synthetic credential rejection.');
+	await expect(credentialInput).toBeFocused();
+	await expect(credentialInput).not.toHaveAttribute('readonly', '');
+	await page.unroute('**/api/settings/provider-credentials/openai');
+	await credentialDialog.getByLabel('Complete new API key').fill(browserCredential);
+	await credentialDialog.getByRole('button', {name: 'Replace API key'}).click();
+	await expect(credentialDialog).toHaveCount(0);
+	await expect(replaceCredential).toBeFocused();
+	await expect(page.getByText(/OpenAI API key replaced/i)).toBeVisible();
+	await expect(page.getByText(/••••1234/)).toBeVisible();
+	await expect(page.locator('input[type="password"]')).toHaveCount(0);
+	await expect(page.getByText(browserCredential)).toHaveCount(0);
+	const browserState = await page.evaluate(async () => ({
+		local: JSON.stringify(localStorage),
+		session: JSON.stringify(sessionStorage),
+		settings: JSON.stringify(await fetch('/api/settings').then(response => response.json())),
+		documentText: document.body.textContent,
+	}));
+	expect(JSON.stringify(browserState)).not.toContain(browserCredential);
+
+	await page.route('**/api/settings/provider-credentials/openai/test', route => route.fulfill({
+		status: 200,
+		contentType: 'application/json',
+		body: JSON.stringify({verified: true, verifiedAt: '2026-09-23T12:00:00.000Z', capabilities: ['text', 'speech']}),
+	}));
+	await page.getByRole('button', {name: 'Test connection'}).click();
+	await expect(page.getByRole('region', {name: 'OpenAI API key'}).getByRole('status')).toContainText('OpenAI connection verified for text and speech.');
+	await page.unroute('**/api/settings/provider-credentials/openai/test');
+	await page.route('**/api/settings/provider-credentials/openai/test', route => route.fulfill({
+		status: 429,
+		contentType: 'application/json',
+		body: JSON.stringify({code: 'OPENAI_RATE_LIMIT_OR_QUOTA', error: 'OpenAI reported a rate-limit, quota, or account-capacity problem.'}),
+	}));
+	await page.getByRole('button', {name: 'Test connection'}).click();
+	await expect(page.getByRole('alert')).toContainText('rate-limit, quota, or account-capacity problem');
+	await page.unroute('**/api/settings/provider-credentials/openai/test');
 
 	await page.getByRole('link', {name: 'Sources'}).click();
 	await page.getByRole('button', {name: 'Add RSS or Atom feed'}).click();

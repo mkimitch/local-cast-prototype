@@ -1,4 +1,4 @@
-import type {AppSettings} from '../../types';
+import type {AppSettings, OpenAiConnectionTestResult} from '../../types';
 import type {ProviderService} from './index';
 import {apiRequest} from './httpClient';
 
@@ -25,6 +25,17 @@ export class ApiProviderService implements ProviderService {
     });
 
     this.listeners.forEach(listener => listener(savedSettings));
+  }
+
+  async replaceOpenAiApiKey(apiKey: string): Promise<void> {
+    await apiRequest<{credential: {configured: boolean; displayHint?: string}}>('/settings/provider-credentials/openai', {
+      method: 'PUT',
+      body: JSON.stringify({apiKey}),
+    });
+  }
+
+  async testOpenAiConnection(): Promise<OpenAiConnectionTestResult> {
+    return apiRequest<OpenAiConnectionTestResult>('/settings/provider-credentials/openai/test', {method: 'POST'});
   }
 
   onSettingsChanged(callback: (settings: AppSettings) => void): () => void {

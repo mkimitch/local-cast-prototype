@@ -1,14 +1,19 @@
-import { useEffect, useState } from 'react';
-import { Save, Server, Palette, Eye, Type, Layout, Moon, Sun, Monitor } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Save, Server, Palette, Eye, Type, Layout, Moon, Sun, Monitor, KeyRound, RefreshCw } from 'lucide-react';
 import { providerService } from '../../services';
 import { AppSettings } from '../../types';
 import { ORB_THEMES, OrbThemeName } from '../audio/OrbVisualizer';
 import PodcastSetup from './PodcastSetup';
+import SecretCredentialDialog from '../../components/layout/SecretCredentialDialog';
 
 export default function SettingsView() {
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string>();
+  const [credentialDialogOpen, setCredentialDialogOpen] = useState(false);
+  const [isTestingConnection, setIsTestingConnection] = useState(false);
+  const [providerFeedback, setProviderFeedback] = useState<{kind: 'status' | 'alert'; message: string}>();
+  const replaceCredentialButton = useRef<HTMLButtonElement>(null);
 
   const loadSettings = async () => {
     setError(undefined);
@@ -38,6 +43,42 @@ export default function SettingsView() {
   const updateSetting = (newSettings: AppSettings) => {
     setSettings(newSettings);
     void handleSave(newSettings);
+  };
+
+  const closeCredentialDialog = () => {
+    setCredentialDialogOpen(false);
+    window.setTimeout(() => replaceCredentialButton.current?.focus(), 0);
+  };
+
+  const replaceOpenAiApiKey = async (apiKey: string) => {
+    await providerService.replaceOpenAiApiKey(apiKey);
+    setProviderFeedback({kind: 'status', message: 'OpenAI API key replaced. LocalCast will use it for new provider work.'});
+    closeCredentialDialog();
+    void providerService.getSettings()
+      .then(setSettings)
+      .catch(() => setProviderFeedback({
+        kind: 'alert',
+        message: 'OpenAI API key was replaced, but LocalCast could not refresh provider status. Reload Settings to try again.',
+      }));
+  };
+
+  const testOpenAiConnection = async () => {
+    setIsTestingConnection(true);
+    setProviderFeedback(undefined);
+    try {
+      const result = await providerService.testOpenAiConnection();
+      setSettings(await providerService.getSettings());
+      const labels = result.capabilities.map(capability => capability === 'text' ? 'text' : 'speech').join(' and ');
+      setProviderFeedback({kind: 'status', message: `OpenAI connection verified for ${labels}.`});
+    } catch (failure) {
+      setSettings(await providerService.getSettings().catch(() => settings));
+      setProviderFeedback({
+        kind: 'alert',
+        message: failure instanceof Error ? failure.message : 'LocalCast could not verify the OpenAI connection.',
+      });
+    } finally {
+      setIsTestingConnection(false);
+    }
   };
 
   if (!settings) {
@@ -77,6 +118,15 @@ export default function SettingsView() {
       </div>
 
       {error && <p className="empty-state" role="alert">{error}</p>}
+
+      {credentialDialogOpen && (
+        <SecretCredentialDialog
+          title="Replace OpenAI API key"
+          description="This replaces the installation credential for future OpenAI requests from LocalCast. It does not change completed episodes."
+          onCancel={closeCredentialDialog}
+          onReplace={replaceOpenAiApiKey}
+        />
+      )}
 
       <PodcastSetup />
 
@@ -190,10 +240,10 @@ export default function SettingsView() {
         </div>
         <div className="card__body settings-stack">
           <p className="field-help">
-            Provider credentials and endpoints are configured only on the LocalCast server. They are never entered or stored in this browser.
+            Provider credentials remain server-side. A replacement key is submitted once to this trusted-LAN LocalCast origin, stored in installation-private local storage, and never returned to or retained by the browser.
           </p>
           <p className="field-help">
-            LocalCast is a single-user service for a trusted LAN: any client admitted to the application origin is treated as an authorized operator. Supplied sources, transcripts, citations, chat history, and published audio are retained in local SQLite and media storage. Versioned backups contain that user content and media in plaintext, so protect and encrypt their destination at the host level. Backups exclude provider credentials, configured endpoints, environment files, and the podcast bearer token.
+            LocalCast is a single-user service for a trusted LAN: any client admitted to the application origin is treated as an authorized operator. Supplied sources, transcripts, citations, chat history, and published audio are retained in local SQLite and media storage. Versioned backups contain that user content and media in plaintext, so protect and encrypt their destination at the host level. Backups exclude provider credentials, configured endpoints, environment files, and the podcast bearer token. The installation credential directory is also excluded; re-enter provider credentials after restore.
           </p>
           <p className="field-help">
             On explicit generation, the selected server-side text provider receives station direction and supplied evidence, while the selected speech provider receives the final narration. OpenAI follow-up chat sends the question, the episode&apos;s complete frozen transcript, and all frozen supporting evidence snapshots used to construct grounding. A supported answer can use two external requests (draft plus semantic-support validation); an evidence-insufficient refusal ordinarily uses one. OpenAI provider-side response storage is disabled through <code>store: false</code>; LocalCast still keeps the ordered chat history in SQLite. LocalCast enables no provider tools, search, browsing, URL retrieval, file search, or general-knowledge fallback. Generated voices and audio are AI-generated.
@@ -204,6 +254,45 @@ export default function SettingsView() {
           <p className="field-help">
             At standard rates recorded on 2026-08-07, the conservative supported-answer planning estimate is $0.223521 per attempt and $0.447042 with the single permitted explicit retry. Pricing is neither immutable nor enforced by LocalCast, actual usage may be lower, and LocalCast does not enforce an account-global budget; account and project spend limits remain an operator responsibility.
           </p>
+          <section className="card card--padded" aria-labelledby="openai-credential-title">
+            <div className="form-card-header">
+              <div>
+                <h3 id="openai-credential-title" className="form-card-title"><KeyRound size={16} aria-hidden="true" /> OpenAI API key</h3>
+                <p className="field-help">
+                  {settings.credentials.openAi.configured
+                    ? `Configured${settings.credentials.openAi.displayHint ? ` · ${settings.credentials.openAi.displayHint}` : ' by deployment'}`
+                    : 'Not configured'}
+                </p>
+              </div>
+              <span className={`badge ${settings.credentials.openAi.configured ? 'badge--success' : 'badge--warning'}`}>
+                {settings.credentials.openAi.configured ? 'Configured' : 'Not configured'}
+              </span>
+            </div>
+            <p className="field-help">A LocalCast-managed key takes precedence over the existing deployment environment key. The complete stored value is never returned.</p>
+            <div className="form-actions">
+              <button
+                ref={replaceCredentialButton}
+                type="button"
+                className="button button--secondary"
+                onClick={() => { setProviderFeedback(undefined); setCredentialDialogOpen(true); }}
+              >
+                <KeyRound size={16} aria-hidden="true" /> Replace API key
+              </button>
+              <button
+                type="button"
+                className="button button--primary"
+                onClick={() => void testOpenAiConnection()}
+                disabled={!settings.credentials.openAi.configured || isTestingConnection}
+              >
+                <RefreshCw size={16} aria-hidden="true" /> {isTestingConnection ? 'Testing…' : 'Test connection'}
+              </button>
+            </div>
+            {providerFeedback && (
+              <p className="inline-notice" role={providerFeedback.kind} aria-live={providerFeedback.kind === 'status' ? 'polite' : undefined}>
+                {providerFeedback.message}
+              </p>
+            )}
+          </section>
           <dl className="content-grid content-grid--two">
             {(['text', 'speech'] as const).map(kind => {
               const provider = settings.providers[kind];

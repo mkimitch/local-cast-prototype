@@ -189,7 +189,7 @@ try {
 	const frontendFiles = fs.readdirSync(path.join(repoRoot, 'dist', 'assets')).filter(name => name.endsWith('.js') || name.endsWith('.css'));
 	const frontendBundle = frontendFiles.map(name => fs.readFileSync(path.join(repoRoot, 'dist', 'assets', name), 'utf8')).join('\n');
 	assert(!/MockBriefingService|MockProviderService|VITE_SERVICE_MODE.?mock|Google AI Studio|fonts\.googleapis\.com/i.test(frontendBundle), 'production browser bundle must contain no mock fallback or third-party font scaffold');
-	assert(!/apiKey|ttsConfig|aiConfig/.test(frontendBundle), 'production browser bundle must contain no provider-key fields');
+	assert(!/OPENAI_API_KEY|ttsConfig|aiConfig|credential-canary|secret-canary/.test(frontendBundle), 'production browser bundle must contain no deployment credential, legacy secret configuration, or secret canary');
 	const serverFiles = fs.readdirSync(path.join(repoRoot, 'dist-server'));
 	assert(!serverFiles.some(name => name.endsWith('.map')), 'production server artifact must not ship source maps');
 	const serverBundle = serverFiles.filter(name => name.endsWith('.js')).map(name => fs.readFileSync(path.join(repoRoot, 'dist-server', name), 'utf8')).join('\n');

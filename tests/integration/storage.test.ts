@@ -24,6 +24,7 @@ const productionConfig = (root: string, installationId = 'localcast-test-install
 	port: 8787,
 	databasePath: path.join(root, 'data', 'localcast.sqlite'),
 	mediaPath: path.join(root, 'media'),
+	credentialDirectory: path.join(root, 'data', '.credentials'),
 	webDistPath: path.join(root, 'dist'),
 	installationId,
 	trustedOrigins: ['https://localcast.example.test'],

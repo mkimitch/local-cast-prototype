@@ -10,7 +10,7 @@ The current checkpoint includes the completed Slice 5 grounded-chat product and 
 - SQLite and media use separate persistent directories.
 - The API only enqueues work; one worker claims at most one generation job at a time.
 - Episode creation and feed synchronization occur only after explicit user actions.
-- Browser code always uses the relative `/api` endpoint and never accepts provider credentials.
+- Browser code always uses the relative `/api` endpoint. The Settings credential form submits a complete replacement key once to the same-origin API, clears it immediately, and never receives a stored credential back.
 - Production has no mock fallback. Provider status is honest (`NOT CONFIGURED`, `CONFIGURED UNVERIFIED`, `CONTRACT TESTED ONLY`, or `LIVE VERIFIED`), and generation remains disabled without sufficient status evidence.
 - Deterministic text/speech fakes are available only with explicit `test` runtime gates.
 
@@ -89,6 +89,18 @@ Before an authorized deployment, copy `.env.example` to an untracked `.env` and 
 
 Production requires absolute `DATABASE_PATH` and `MEDIA_PATH` values in distinct directories. Startup fails on missing, partial, mismatched, unreadable, unwritable, corrupt, or newer-version storage. It never seeds demo rows or silently recreates a missing initialized database.
 
+### OpenAI credential management
+
+Settings → Provider Status can replace the OpenAI API key and run an explicit connection test. A UI-managed key is stored at `.credentials/openai-api-key` beside the SQLite database in the existing LocalCast data volume. LocalCast creates the directory as mode `0700`, atomically replaces the key file at mode `0600`, never returns the complete value, and resolves credentials in this order:
+
+1. the installation credential written through LocalCast;
+2. the existing worker `OPENAI_API_KEY` environment value;
+3. unconfigured.
+
+The environment value is never copied into the installation store merely by starting LocalCast. An environment-only installation continues to generate normally, but the app cannot read that worker-only fallback; replace it once through Settings before using the UI connection test. After that replacement, app and worker read the shared protected file for new work without a container restart. No new volume or environment variable is required because the credential directory lives in the existing data volume.
+
+The connection test makes bounded authenticated model-metadata requests only for selected OpenAI capabilities. It does not generate text or audio and does not mutate LocalCast content. Successful requests update the existing provider-check records; failures retain only a safe category.
+
 ## Environment contract
 
 Important server-only variables are:
@@ -104,7 +116,7 @@ Important server-only variables are:
 | `TEXT_PROVIDER` / `SPEECH_PROVIDER` | Explicit server-side adapter selection; supported production values are `openai`, `ollama`, or `lm_studio` for text and `openai` or `piper` for speech. |
 | `LOCALCAST_ALLOW_FAKE_PROVIDERS` | Must be false outside tests. Production rejects true. |
 
-`RSS_SYNC_ON_START` and `RSS_SYNC_INTERVAL_MINUTES` are rejected when enabled. Provider keys, configured endpoints, executable paths, and voices remain server-only. LocalCast never sends them to browser APIs or bundles.
+`RSS_SYNC_ON_START` and `RSS_SYNC_INTERVAL_MINUTES` are rejected when enabled. Stored provider keys, configured endpoints, executable paths, and voices remain server-only. The dedicated Settings replacement form sends a newly entered key once to the same-origin server, which never returns a stored key through browser APIs or bundles.
 
 ## Persistence and jobs
 
@@ -128,7 +140,7 @@ npm run backup:create -- --database /absolute/data/localcast.sqlite --media /abs
 npm run backup:restore -- --backup /private/backups/localcast-YYYYMMDD --data-target /new/empty/data --media-target /new/empty/media
 ```
 
-Backups are private, checksum-bound, versioned artifacts. They contain SQLite records and published media in plaintext, including supplied source bodies, transcripts, citations, and chat history. Store them in an operator-controlled `0700` location and apply host-level encryption, retention, and deletion policy appropriate to that content. Backup artifacts deliberately exclude provider credentials, configured provider endpoints, environment files, and the podcast bearer token. A restored installation therefore requires the operator to supply current server configuration and a podcast token separately. Restore accepts only new or empty targets and fails closed on malformed, linked, oversized, corrupt, inconsistent, or active-work artifacts.
+Backups are private, checksum-bound, versioned artifacts. They contain SQLite records and published media in plaintext, including supplied source bodies, transcripts, citations, and chat history. Store them in an operator-controlled `0700` location and apply host-level encryption, retention, and deletion policy appropriate to that content. Backup artifacts deliberately exclude the `.credentials` installation directory, provider credentials, configured provider endpoints, environment files, and the podcast bearer token. A restored installation therefore requires the operator to re-enter provider credentials (or re-supply the deployment environment value), supply current server configuration, and supply a podcast token separately. Restore accepts only new or empty targets and fails closed on malformed, linked, oversized, corrupt, inconsistent, or active-work artifacts.
 
 ## Current limitations
 
