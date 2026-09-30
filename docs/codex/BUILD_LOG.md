@@ -1126,3 +1126,28 @@ The first fresh browser gate exposed a keyboard regression: disabling the empty 
 | `git diff --check`, conflict-marker, scope, ignore, and secret scans | PASS — no whitespace/conflict issue, unrelated path, real credential, or unprotected nested credential directory |
 
 All provider interactions were deterministic fixtures on loopback. No live OpenAI request, production credential/data access, Docker/Compose/Caddy action, running-container change, deployment, fixture-retirement work, schema migration, dependency/lockfile change, or production-data mutation occurred. The canonical backup remains credential-free and the known unrelated `PUBLISHED_EPISODE_INVALID` fixture condition remains untouched.
+
+## 2026-09-30 — Station evidence-selection control repair
+
+The live `Morning Signal` form reproduced the reported appearance: station checkboxes inherited the Settings theme-card rule that clipped inputs to `1px × 1px`, while station labels omitted the `data-selected` attribute used to style theme cards. Label click and Space changed controlled state, proving the state handler was active, but the native control was not practically pointer-operable and selected/unselected rows appeared identical. No form-state overwrite, disabled fieldset, pointer-event suppression, overlay, identifier collision, parser, or persistence failure was found.
+
+The repair gives station selections a dedicated native-checkbox/explicit-label presentation with visible checked, focus, selected-card, and disabled states. Inactive or invalid-URL feeds explain their unavailable state; selected unavailable feeds remain enabled for removal. Browser and integration regressions cover control and label click, Space, multiple notes/feeds, mixed category persistence, reload/edit restoration, exact deselection, accessible labels, and legitimate disabled reasons.
+
+| Command or gate | Result |
+| --- | --- |
+| `npm run lint -- --pretty false` | PASS |
+| focused station-generation integration suite | PASS — 7/7 |
+| `npm run test` | PASS — 273/273 |
+| sandboxed full integration attempt | ENVIRONMENT-BLOCKED — only loopback `EPERM` startup failures |
+| authorized `npm run test:integration -- --reporter=dot` | PASS — 102/102 |
+| `npm run build` | PASS — production web and five server bundles; existing chunk-size warning only |
+| focused station-selection Playwright | PASS — 1/1 |
+| first full Playwright/axe run | REPAIRED — 21/22; restored existing inactive-source accessible-name cue |
+| affected Playwright rerun | PASS — 3/3 |
+| final `npm run test:e2e` | PASS — 22/22 in 5.5 minutes |
+| desktop visual/DOM/console inspection | PASS — three visible checked inputs, explained disabled feed, `18px × 18px` control, one label, selected state, no console errors |
+| sandboxed smoke attempts | ENVIRONMENT-BLOCKED — loopback `EPERM` before assertions |
+| authorized `npm run smoke:api` | PASS |
+| authorized `npm run smoke:production` | PASS |
+
+`INVALID_CITATIONS` remains fail-closed and unchanged. Its validation path checks generated snapshot IDs and supporting excerpts against frozen episode evidence; it does not share the CSS/form presentation root cause. No schema migration, dependency/lockfile change, provider request, production station mutation, Docker/Compose/Caddy action, deployment, or citation/support-validation change occurred.

@@ -129,6 +129,45 @@ describe('notes, stations, and immutable generation evidence', () => {
 		expect((db.prepare('SELECT COUNT(*) AS count FROM briefing_runs').get() as {count: number}).count).toBe(2);
 	});
 
+	it('persists multiple mixed station selections and removes only deselected inputs', () => {
+		const db = database();
+		let id = 0;
+		const sources = new SourceStore(db, () => '2026-09-30T12:00:00.000Z', () => `source-${++id}`);
+		const stations = new StationStore(db, () => '2026-09-30T12:00:00.000Z', () => `station-${++id}`);
+		const firstNote = stations.createNote({title: 'First note', body: adequateBody});
+		const secondNote = stations.createNote({title: 'Second note', body: adequateBody});
+		const firstSource = sources.addSource({type: 'rss', name: 'First feed', url: 'https://first.example.test/feed.xml', isActive: true});
+		const secondSource = sources.addSource({type: 'rss', name: 'Second feed', url: 'https://second.example.test/feed.xml', isActive: true});
+		const station = stations.createStation({
+			name: 'Mixed evidence station',
+			topicInstruction: 'Use every selected supplied input.',
+			defaultMode: 'brief',
+			noteIds: [firstNote.id, secondNote.id],
+			sourceIds: [firstSource.id, secondSource.id],
+		});
+
+		expect(stations.getStation(station.id)).toMatchObject({
+			noteIds: [firstNote.id, secondNote.id],
+			sourceIds: [firstSource.id, secondSource.id],
+		});
+
+		stations.updateStation(station.id, {
+			name: station.name,
+			topicInstruction: station.topicInstruction,
+			defaultMode: station.defaultMode,
+			noteIds: [secondNote.id],
+			sourceIds: [secondSource.id],
+		});
+
+		expect(stations.getStation(station.id)).toMatchObject({
+			revision: 2,
+			noteIds: [secondNote.id],
+			sourceIds: [secondSource.id],
+		});
+		expect(db.prepare('SELECT note_id FROM station_notes WHERE station_id = ?').all(station.id)).toEqual([{note_id: secondNote.id}]);
+		expect(db.prepare('SELECT source_id FROM station_sources WHERE station_id = ?').all(station.id)).toEqual([{source_id: secondSource.id}]);
+	});
+
 	it('clears optional source metadata and revisions stations when a selected source is deleted', () => {
 		const db = database();
 		let id = 0;

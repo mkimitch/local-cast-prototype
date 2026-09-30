@@ -1,14 +1,44 @@
 # LocalCast build state
 
-Last updated: 2026-09-29
+Last updated: 2026-09-30
 Branch: `codex/localcast-prototype`
 Pre-bootstrap HEAD: `910485b77ead63450660b0b97544889960e45e3f`
 Slice 0 base HEAD: `e720d5818ab15efccfa143c94d6514c0c9a2baad`
 Current base checkpoint: Slice 6D security hardening at `176d30a6e18d6da18ef92ae38ab0655673c663d1`
-Current checkpoint: **Daily Driver 1A OpenAI credential management**
-Implementation slice: **DD1A — OPENAI CREDENTIAL REPLACEMENT COMPLETE 2026-09-29**
+Current checkpoint: **Station evidence-selection control repair**
+Implementation slice: **STATION EVIDENCE SELECTION — COMPLETE 2026-09-30**
 Next action: **Deploy the new application image through the separately authorized deployment workflow; no credential, Compose, volume, environment, or Caddy migration is required**
-Overall state: **SLICE 5 COMPLETE; SLICE 6A–6D DETERMINISTIC CHECKPOINTS COMPLETE; DAILY DRIVER 1A COMPLETE; OPERATIONAL SLICE 6 AND A11Y-01 GATES REMAIN OPEN**
+Overall state: **SLICE 5 COMPLETE; SLICE 6A–6D DETERMINISTIC CHECKPOINTS COMPLETE; DAILY DRIVER 1A AND STATION EVIDENCE-SELECTION REPAIR COMPLETE; OPERATIONAL SLICE 6 AND A11Y-01 GATES REMAIN OPEN**
+
+## Station evidence-selection control repair — 2026-09-30
+
+The live `Morning Signal` reproduction showed that label click and Space changed the controlled checkbox state, but the station form reused the Settings theme-card `.choice-card` CSS. That rule absolutely positioned every station checkbox at `1px × 1px` and clipped it. Settings supplies `data-selected`, but the station rows did not, so checked and unchecked rows rendered identically. The result looked inert even while React state changed; the control itself was not practically pointer-operable and keyboard focus was not visible. No disabled fieldset, pointer-event rule, overlay, source-ID collision, form-state overwrite, payload parser, or join persistence defect was present.
+
+Station note/feed choices now use a dedicated explicit-label/native-checkbox pattern. Controls render at `18px × 18px`, card selection and focus are visible, labels toggle their associated control, and Space operates focused controls. Inactive and invalid-URL unselected feeds are disabled with an associated reason; a previously selected unavailable feed stays enabled so it can be deselected. The controlled `noteIds` and `sourceIds` arrays remain independent, and the unchanged API/store transaction persists both join sets together.
+
+The `INVALID_CITATIONS` generation failure is independent on the evidence inspected. Station toggling and persistence occur in the browser/API/station join path, while `server/episodes/validation.ts` emits that error only when generated citation snapshot IDs/excerpts do not validate against frozen evidence. This repair does not weaken or alter citation/support validation. The live reproduction proved station state could already toggle before the repair, and deterministic persistence tests remained green.
+
+### Station evidence-selection verification
+
+| Command or check | Result |
+| --- | --- |
+| live read-only reproduction against `Morning Signal` | PASS — page identity `LocalCast`; note and feed label click plus Space changed checked state; checkbox box measured `1px × 1px`, clipped; selected card attribute absent; no console errors; no save occurred |
+| `npm run lint -- --pretty false` | PASS — TypeScript no-emit check |
+| focused `tests/integration/station-generation.test.ts` | PASS — 7/7, including mixed multi-note/multi-feed persistence and exact deselection joins |
+| focused station-selection Playwright test | PASS — 1/1 |
+| affected generation/station Playwright tests | PASS — 3/3 after preserving the inactive accessible-name cue |
+| `npm run test` | PASS — 273 tests in 18 unit files |
+| first sandboxed `npm run test:integration -- --reporter=dot` | ENVIRONMENT-BLOCKED — loopback fixture listeners received only `listen EPERM 127.0.0.1`; no product assertion evidence was accepted |
+| authorized `npm run test:integration -- --reporter=dot` | PASS — 102 tests in 14 integration files |
+| `npm run build` | PASS — Vite built 2,156 modules and all five server entry bundles; existing chunk-size warning only |
+| first full `npm run test:e2e` | REPAIRED — 21/22 passed; retained inactive-source test expected the existing `(inactive)` accessible-name cue |
+| final `npm run test:e2e` | PASS — 22/22 Playwright/axe tests in 5.5 minutes |
+| visual browser inspection | PASS — desktop fixed-state capture shows three visibly checked `Morning Signal`-named inputs plus an explained disabled feed; checkbox box measured `18px × 18px`, one associated label, selected attribute `true`, and no console errors |
+| first sandboxed smoke attempts | ENVIRONMENT-BLOCKED — API and production listeners received `listen EPERM 127.0.0.1` before assertions |
+| authorized `npm run smoke:api` | PASS — API and worker smoke checks |
+| authorized `npm run smoke:production` | PASS — production same-origin smoke checks |
+
+All automated data used temporary databases/media and loopback fixtures. No live provider request, production station save, production database/media access, deployment, Docker/Compose/Caddy action, schema migration, dependency/lockfile change, or citation-validation change occurred.
 
 ## Daily Driver 1A OpenAI credential management result — 2026-09-29
 

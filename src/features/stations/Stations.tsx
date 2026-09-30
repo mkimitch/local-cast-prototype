@@ -232,28 +232,58 @@ export default function StationsView() {
             </div>
             <fieldset className="field">
               <legend className="form-label">Pasted notes</legend>
-              {(notes.data || []).map(note => (
-                <label key={note.id} className="choice-card">
-                  <input type="checkbox" checked={stationForm.noteIds.includes(note.id)} onChange={() => toggleSelection('noteIds', note.id)} />
-                  <span>{note.title}</span>
-                </label>
-              ))}
+              <div className="station-choice-list">
+                {(notes.data || []).map((note, index) => {
+                  const controlId = `station-note-${index}`;
+                  const selected = stationForm.noteIds.includes(note.id);
+                  return (
+                    <label key={note.id} className="station-choice" htmlFor={controlId} data-selected={selected ? 'true' : 'false'}>
+                      <input id={controlId} type="checkbox" checked={selected} onChange={() => toggleSelection('noteIds', note.id)} />
+                      <span className="station-choice__label">{note.title}</span>
+                    </label>
+                  );
+                })}
+              </div>
               {notes.data?.length === 0 && <p className="field-help">Save a note first.</p>}
             </fieldset>
             {(sources.data || []).length > 0 && (
               <fieldset className="field">
                 <legend className="form-label">RSS/Atom sources</legend>
-                {(sources.data || []).map(source => (
-                  <label key={source.id} className="choice-card">
-                    <input
-                      type="checkbox"
-                      checked={stationForm.sourceIds.includes(source.id)}
-                      onChange={() => toggleSelection('sourceIds', source.id)}
-                      disabled={(!source.isActive || source.feedUrlInvalid) && !stationForm.sourceIds.includes(source.id)}
-                    />
-                    <span>{source.name}{!source.isActive ? ' (inactive)' : source.feedUrlInvalid ? ' (URL requires replacement)' : ''}</span>
-                  </label>
-                ))}
+                <div className="station-choice-list">
+                  {(sources.data || []).map((source, index) => {
+                    const controlId = `station-source-${index}`;
+                    const reasonId = `${controlId}-reason`;
+                    const selected = stationForm.sourceIds.includes(source.id);
+                    const unavailableReason = !source.isActive
+                      ? 'Unavailable because this feed is inactive.'
+                      : source.feedUrlInvalid
+                        ? 'Unavailable until its feed URL is replaced.'
+                        : undefined;
+                    const disabled = Boolean(unavailableReason) && !selected;
+                    return (
+                      <label
+                        key={source.id}
+                        className="station-choice"
+                        htmlFor={controlId}
+                        data-selected={selected ? 'true' : 'false'}
+                        data-disabled={disabled ? 'true' : 'false'}
+                      >
+                        <input
+                          id={controlId}
+                          type="checkbox"
+                          checked={selected}
+                          onChange={() => toggleSelection('sourceIds', source.id)}
+                          disabled={disabled}
+                          aria-describedby={unavailableReason ? reasonId : undefined}
+                        />
+                        <span className="station-choice__label">
+                          {source.name}{!source.isActive ? ' (inactive)' : source.feedUrlInvalid ? ' (URL requires replacement)' : ''}
+                        </span>
+                        {unavailableReason && <span id={reasonId} className="station-choice__reason">{unavailableReason}</span>}
+                      </label>
+                    );
+                  })}
+                </div>
                 <p className="field-help">Only selected active feeds are synchronized when you explicitly generate. Linked article pages are never fetched.</p>
               </fieldset>
             )}

@@ -1,7 +1,7 @@
 # LocalCast autonomous build plan
 
-Status: Slice 4 remains green; Slice 5 is complete 2026-08-21; Slice 6A–6D deterministic checkpoints and Daily Driver 1A are complete 2026-09-29
-Current slice: **DAILY DRIVER 1A OPENAI CREDENTIAL MANAGEMENT COMPLETE; REMAINING OPERATIONAL SLICE 6 GATES OPEN**
+Status: Slice 4 remains green; Slice 5 is complete 2026-08-21; Slice 6A–6D deterministic checkpoints, Daily Driver 1A, and the station evidence-selection repair are complete 2026-09-30
+Current slice: **STATION EVIDENCE-SELECTION REPAIR COMPLETE; REMAINING OPERATIONAL SLICE 6 GATES OPEN**
 Execution policy: one vertical slice, one green checkpoint commit
 
 ## How to use this plan
@@ -347,6 +347,12 @@ This checkpoint intentionally does not close `A11Y-01`, operational `DEP-02`/`DE
 This bounded product checkpoint adds a dedicated Settings surface for replacing and explicitly testing the OpenAI API key. It stores the managed credential in a private file in the existing persisted data volume, resolves it ahead of the compatible worker environment fallback for each new generation job and chat turn, and projects only configured state plus an optional final-four hint. The fixed-origin authenticated connection test performs model metadata retrieval only and updates the existing provider-status lifecycle; it never runs automatically or mutates LocalCast content.
 
 Deterministic evidence covers atomic mode-`0600` persistence, unsafe-file rejection, precedence without environment copying, app/worker runtime refresh without restart, response/log/status/browser redaction, bounded error classification, provider-status fingerprint invalidation, backup exclusion, keyboard dialog focus/restoration, live-region feedback, and full retained gates. No production credential, provider endpoint, deployment, Compose/Caddy state, database schema, dependency, fixture-retirement item, or user content is changed by this checkpoint.
+
+## Station evidence-selection repair — COMPLETE 2026-09-30
+
+This bounded maintenance checkpoint restores visible native checkboxes and explicit label associations for pasted-note and RSS/Atom station selections. It preserves controlled React state and the existing transactional station join persistence, adds an obvious selected-card state and visible focus treatment, and explains why an inactive or invalid-URL feed is unavailable. A previously selected unavailable feed remains enabled so the operator can remove it.
+
+Deterministic browser evidence covers control click, text-label click, Space activation, multiple notes, multiple active feeds, mixed selections, save/reload/edit restoration, category-preserving deselection, disabled-state reasoning, and accessible labels. Integration evidence covers exact mixed join persistence and removal. No schema migration, dependency, provider request, production data mutation, deployment, Compose/Caddy action, or citation-validation change is part of this repair.
 
 ## First post-prototype audio milestone — deferred two-host format
 
