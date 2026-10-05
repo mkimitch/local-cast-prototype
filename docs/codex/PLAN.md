@@ -1,7 +1,7 @@
 # LocalCast autonomous build plan
 
-Status: Slice 4 remains green; Slice 5 is complete 2026-08-21; Slice 6A–6D deterministic checkpoints, Daily Driver 1A, and the station evidence-selection repair are complete 2026-09-30
-Current slice: **STATION EVIDENCE-SELECTION REPAIR COMPLETE; REMAINING OPERATIONAL SLICE 6 GATES OPEN**
+Status: Slice 4 remains green; Slice 5 is complete 2026-08-21; Slice 6A–6D deterministic checkpoints, Daily Driver 1A, the station evidence-selection repair, and the provider-status restart repair are complete 2026-10-05
+Current slice: **PROVIDER-STATUS RESTART REPAIR COMPLETE; REMAINING OPERATIONAL SLICE 6 GATES OPEN**
 Execution policy: one vertical slice, one green checkpoint commit
 
 ## How to use this plan
@@ -353,6 +353,12 @@ Deterministic evidence covers atomic mode-`0600` persistence, unsafe-file reject
 This bounded maintenance checkpoint restores visible native checkboxes and explicit label associations for pasted-note and RSS/Atom station selections. It preserves controlled React state and the existing transactional station join persistence, adds an obvious selected-card state and visible focus treatment, and explains why an inactive or invalid-URL feed is unavailable. A previously selected unavailable feed remains enabled so the operator can remove it.
 
 Deterministic browser evidence covers control click, text-label click, Space activation, multiple notes, multiple active feeds, mixed selections, save/reload/edit restoration, category-preserving deselection, disabled-state reasoning, and accessible labels. Integration evidence covers exact mixed join persistence and removal. No schema migration, dependency, provider request, production data mutation, deployment, Compose/Caddy action, or citation-validation change is part of this repair.
+
+## Provider-status restart repair — COMPLETE 2026-10-05
+
+This bounded maintenance checkpoint replaces startup's last-writer-wins provider-status write with evidence precedence. App status loading remains read-only. Worker startup still runs deterministic configuration reconciliation, but its conditional upsert preserves a same-descriptor `LIVE VERIFIED` or contract-only row and overwrites only absent, stale, or categorically weaker state. Explicit live success/failure and existing missing-credential deletion remain authoritative.
+
+Deterministic regressions reproduce the deployment failure as persisted OpenAI text/speech `LIVE VERIFIED` rows followed by repeated real worker-construction reconciliation, with exact row equality and zero network calls. Additional coverage proves app-startup preservation, credential replacement/fingerprint mismatch, missing/unsafe credential invalidation, model/voice/local configuration invalidation, contract/failure-reason idempotence, successful explicit promotion, and capability-scoped Ollama, LM Studio, Piper, and mixed-provider behavior. No schema, dependency, station, health-route, citation, fixture, Compose/Caddy, volume, credential, provider-request, production-data, build-image, or deployment change is part of this repair.
 
 ## First post-prototype audio milestone — deferred two-host format
 

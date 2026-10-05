@@ -24,6 +24,108 @@ const errorCode = async (action: () => Promise<unknown>): Promise<string | undef
 };
 
 describe('runtime OpenAI credential resolution', () => {
+	it('preserves applicable live verification when app startup reads provider status', () => {
+		const root = fs.mkdtempSync(path.join(os.tmpdir(), 'localcast-app-status-startup-'));
+		const database = createTestDatabase();
+		try {
+			const checks = new ProviderCheckStore(database, () => '2026-10-05T12:00:00.000Z');
+			const credentials = new OpenAiCredentialStore(path.join(root, '.credentials'));
+			const apiKey = 'sk-app-startup-status-credential-1234';
+			credentials.replace(apiKey);
+			const config = testConfig({
+				processRole: 'app',
+				textProvider: 'openai',
+				speechProvider: 'openai',
+				openAiApiKey: undefined,
+				allowFakeProviders: false,
+			});
+			const effective = {...config, openAiApiKey: apiKey};
+			checks.recordLive('text', effective);
+			checks.recordLive('speech', effective);
+			const persisted = database.prepare('SELECT * FROM provider_checks ORDER BY capability').all();
+			const verify = vi.fn();
+
+			const service = new OpenAiCredentialService(credentials, checks, verify);
+			expect(service.providerSummary(config)).toMatchObject({
+				text: {status: 'LIVE VERIFIED'},
+				speech: {status: 'LIVE VERIFIED'},
+			});
+			expect(database.prepare('SELECT * FROM provider_checks ORDER BY capability').all()).toEqual(persisted);
+			expect(verify).not.toHaveBeenCalled();
+		} finally {
+			database.close();
+			fs.rmSync(root, {recursive: true, force: true});
+		}
+	});
+
+	it('preserves applicable live verification across repeated worker startup reconciliation', () => {
+		const root = fs.mkdtempSync(path.join(os.tmpdir(), 'localcast-worker-status-startup-'));
+		const database = createTestDatabase();
+		const fetchSpy = vi.spyOn(globalThis, 'fetch');
+		try {
+			const checks = new ProviderCheckStore(database, () => '2026-10-05T12:00:00.000Z');
+			const credentials = new OpenAiCredentialStore(path.join(root, '.credentials'));
+			const apiKey = 'sk-worker-startup-status-credential-1234';
+			credentials.replace(apiKey);
+			const config = testConfig({
+				processRole: 'worker',
+				textProvider: 'openai',
+				speechProvider: 'openai',
+				openAiApiKey: undefined,
+				allowFakeProviders: false,
+			});
+			const effective = {...config, openAiApiKey: apiKey};
+			checks.recordLive('text', effective);
+			checks.recordLive('speech', effective);
+			const persisted = database.prepare('SELECT * FROM provider_checks ORDER BY capability').all();
+
+			createGenerationProcessor(config, {} as GenerationJobStore, credentials, checks);
+			createGenerationProcessor(config, {} as GenerationJobStore, credentials, checks);
+
+			expect(checks.summary(effective)).toMatchObject({
+				text: {status: 'LIVE VERIFIED'},
+				speech: {status: 'LIVE VERIFIED'},
+			});
+			expect(database.prepare('SELECT * FROM provider_checks ORDER BY capability').all()).toEqual(persisted);
+			expect(fetchSpy).not.toHaveBeenCalled();
+		} finally {
+			fetchSpy.mockRestore();
+			database.close();
+			fs.rmSync(root, {recursive: true, force: true});
+		}
+	});
+
+	it.each([
+		['missing', () => undefined],
+		['unsafe', () => { throw new Error('synthetic unsafe credential store'); }],
+	] as const)('invalidates live verification when the worker credential is %s at startup', (_state, resolve) => {
+		const database = createTestDatabase();
+		try {
+			const checks = new ProviderCheckStore(database, () => '2026-10-05T12:00:00.000Z');
+			const config = testConfig({
+				processRole: 'worker',
+				textProvider: 'openai',
+				speechProvider: 'openai',
+				openAiApiKey: undefined,
+				allowFakeProviders: false,
+			});
+			const previouslyEffective = {...config, openAiApiKey: 'sk-previous-worker-status-credential-1234'};
+			checks.recordLive('text', previouslyEffective);
+			checks.recordLive('speech', previouslyEffective);
+
+			createGenerationProcessor(config, {} as GenerationJobStore, {resolve}, checks);
+
+			expect(checks.summary(config)).toMatchObject({
+				generationEnabled: false,
+				text: {status: 'NOT CONFIGURED'},
+				speech: {status: 'NOT CONFIGURED'},
+			});
+			expect(database.prepare('SELECT * FROM provider_checks').all()).toEqual([]);
+		} finally {
+			database.close();
+		}
+	});
+
 	it('lets generation use a newly stored key without recreating the processor', async () => {
 		const values = [undefined, undefined, 'sk-runtime-generation-credential-1234'];
 		const credentials = {resolve: vi.fn(() => values.shift())};

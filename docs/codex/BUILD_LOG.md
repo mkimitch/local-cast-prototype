@@ -1151,3 +1151,26 @@ The repair gives station selections a dedicated native-checkbox/explicit-label p
 | authorized `npm run smoke:production` | PASS |
 
 `INVALID_CITATIONS` remains fail-closed and unchanged. Its validation path checks generated snapshot IDs and supporting excerpts against frozen episode evidence; it does not share the CSS/form presentation root cause. No schema migration, dependency/lockfile change, provider request, production station mutation, Docker/Compose/Caddy action, deployment, or citation/support-validation change occurred.
+
+## 2026-10-05 — Provider-status restart preservation repair
+
+The stopped station-fix deployment exposed a pre-existing Daily Driver 1A lifecycle defect: `createGenerationProcessor` performs worker-startup provider reconciliation, and `recordContract` previously used an unconditional capability upsert. Even when the credential and complete descriptor fingerprint matched, this later deterministic check overwrote `LIVE VERIFIED`, its reason, and `verified_at` with `CONTRACT TESTED ONLY`. App startup only read the summary; commit `992db30` did not cause the defect.
+
+Contract reconciliation now uses one conditional SQLite upsert. Same-descriptor live or contract evidence is left byte-for-byte unchanged, including safe reason and timestamps. Credential/provider/model/reasoning/voice/format/local-configuration mismatches still replace stale evidence with contract-only state, missing or unsafe worker credentials still remove affected rows, explicit authenticated success still promotes, and explicit live failure still downgrades. Ollama, LM Studio, Piper, and mixed pairs remain capability-scoped. The configured-unverified reason now accurately refers to provider configuration rather than a worker session.
+
+| Command or gate | Result |
+| --- | --- |
+| focused provider/config/credential/runtime unit suites | PASS — 72/72 |
+| `npm run lint` | PASS — TypeScript no-emit check |
+| `npm run test` before the final missing/unsafe cases | PASS — 278/278 |
+| final `npm run test` | PASS — 280/280 in 18 files |
+| sandboxed `npm run test:integration -- --reporter=dot` | ENVIRONMENT-BLOCKED — 77 assertions passed; all 25 failures were loopback `listen EPERM 127.0.0.1` |
+| authorized `npm run test:integration -- --reporter=dot` | PASS — 102/102 |
+| `npm run build` | PASS — Vite transformed 2,156 modules and built five server bundles; existing chunk-size warning only |
+| `npm run test:e2e` | PASS — 22/22 Playwright/axe tests in 5.6 minutes |
+| `npm run smoke:api` | PASS — isolated API/worker smoke |
+| `npm run smoke:production` | PASS — isolated production same-origin smoke |
+| three independent read-only reviews | PASS after one wording repair — no remaining correctness, test, security, privacy, schema, topology, dependency, or scope finding |
+| final scope, conflict-marker, source/bundle secret, dependency/schema, and `git diff --check` scans | PASS — exactly ten expected source/test/ledger paths; no secret, conflict marker, lockfile, migration, deployment, station, health, citation, fixture, or whitespace drift |
+
+All automated provider evidence used synthetic credentials, temporary storage, and deterministic/loopback fixtures. Startup regressions assert zero provider fetches. No live OpenAI/local/Piper request, real credential access/replacement/test, production data/runtime/image access, station mutation, Docker/Compose/Caddy/volume action, deployment, migration, storage-init, deferred-fixture change, health-route change, or citation-validation change occurred. The operator-reported production DD1A runtime and its already-downgraded `CONTRACT TESTED ONLY` state remain untouched; fresh `LIVE VERIFIED` must come later from an explicit authorized Test connection.

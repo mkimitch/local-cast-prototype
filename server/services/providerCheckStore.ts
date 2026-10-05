@@ -42,7 +42,7 @@ export class ProviderCheckStore {
 	recordContract(config: ServerConfig, capabilities: readonly ProviderCapability[] = ['text', 'speech']): void {
 		for (const capability of capabilities) {
 			if (providerDescriptorForConfig(capability, config)) {
-				this.write(capability, config, 'CONTRACT TESTED ONLY', 'Deterministic adapter contract passed; live verification is pending');
+				this.writeContract(capability, config);
 			}
 		}
 	}
@@ -88,6 +88,39 @@ export class ProviderCheckStore {
 			reason: row.reason,
 			verifiedAt: row.verified_at || undefined,
 		};
+	}
+
+	private writeContract(capability: ProviderCapability, config: ServerConfig): void {
+		const descriptor = providerDescriptorForConfig(capability, config);
+		if (!descriptor) return;
+		this.database.prepare(`
+			INSERT INTO provider_checks (
+				capability, adapter, model, voice, configuration_fingerprint,
+				status, reason, verified_at, updated_at
+			) VALUES (?, ?, ?, ?, ?, 'CONTRACT TESTED ONLY', ?, NULL, ?)
+			ON CONFLICT(capability) DO UPDATE SET
+				adapter = excluded.adapter,
+				model = excluded.model,
+				voice = excluded.voice,
+				configuration_fingerprint = excluded.configuration_fingerprint,
+				status = excluded.status,
+				reason = excluded.reason,
+				verified_at = excluded.verified_at,
+				updated_at = excluded.updated_at
+			WHERE provider_checks.adapter IS NOT excluded.adapter
+				OR provider_checks.model IS NOT excluded.model
+				OR provider_checks.voice IS NOT excluded.voice
+				OR provider_checks.configuration_fingerprint IS NOT excluded.configuration_fingerprint
+				OR provider_checks.status NOT IN ('CONTRACT TESTED ONLY', 'LIVE VERIFIED')
+		`).run(
+			capability,
+			descriptor.adapter,
+			descriptor.model,
+			descriptor.voice ?? null,
+			this.fingerprint(descriptor),
+			'Deterministic adapter contract passed; live verification is pending',
+			this.now(),
+		);
 	}
 
 	private write(capability: ProviderCapability, config: ServerConfig, status: ProviderStatus, reason: string, verifiedAt?: string): void {

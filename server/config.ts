@@ -442,7 +442,7 @@ export const providerSummaryForConfig = (config: ServerConfig): {text: ProviderS
 			model: textDescriptor.model,
 			...(textDescriptor.voice === undefined ? {} : {voice: textDescriptor.voice}),
 			status: 'CONFIGURED UNVERIFIED',
-			reason: 'Configured; deterministic contract or live verification has not been recorded for this worker session',
+			reason: 'Configured; deterministic contract or live verification has not been recorded for this provider configuration',
 		}
 		: config.textProvider === 'fake' && fakeEnabled
 			? {adapter: 'Deterministic test text', status: 'CONTRACT TESTED ONLY', reason: 'Enabled only for isolated tests'}
@@ -453,7 +453,7 @@ export const providerSummaryForConfig = (config: ServerConfig): {text: ProviderS
 			model: speechDescriptor.model,
 			...(speechDescriptor.voice === undefined ? {} : {voice: speechDescriptor.voice}),
 			status: 'CONFIGURED UNVERIFIED',
-			reason: 'Configured; deterministic contract or live verification has not been recorded for this worker session',
+			reason: 'Configured; deterministic contract or live verification has not been recorded for this provider configuration',
 		}
 		: config.speechProvider === 'fake' && fakeEnabled
 			? {adapter: 'Deterministic test speech', status: 'CONTRACT TESTED ONLY', reason: 'Enabled only for isolated tests'}

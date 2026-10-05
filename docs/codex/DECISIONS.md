@@ -254,6 +254,8 @@ Slice 1 uses the fixed official OpenAI API origin with `gpt-5.4-mini`, low reaso
 
 Only the worker receives the compatibility environment variable `OPENAI_API_KEY`. It is not inherited by `ffprobe`, copied into the image, returned by APIs, or exposed to browser code. D-044 adds an installation-private managed credential available to the app and worker without changing this environment boundary. A worker boot downgrades configured capabilities to `CONTRACT TESTED ONLY`; only successful calls or the explicit authenticated D-044 connection test set `LIVE VERIFIED`. Missing credentials record `NOT CONFIGURED` and disable enqueueing.
 
+The worker-session downgrade clause is superseded by D-045. Applicable live evidence now survives process restart; credential/configuration invalidation and explicit live failures remain authoritative.
+
 OpenAI speech uses `gpt-4o-mini-tts`, voice `marin`, MP3 output, and speed `1.05`. Each reusable media filename is bound to a SHA-256 rendering fingerprint over narration and speech settings, so a recovered attempt cannot pair regenerated text with older audio. Temporary names are unique, stale internal temp files are cleaned, ffprobe requires MP3 format plus positive duration, and completed media is published only with byte length and checksum.
 
 ## D-028 — The approved single-host pipeline remains the prototype baseline
@@ -318,6 +320,8 @@ Status: **ACCEPTED**
 Date: 2026-08-06
 
 Reusing a previously validated MP3 is successful job recovery, not a live provider request. Speech becomes `LIVE VERIFIED` in a worker session only when that session actually completes an authenticated speech request. Cached reuse may preserve already validated media but leaves provider status at its honest configured/contract state.
+
+D-045 supersedes only the worker-session lifetime in this decision. Cached media still cannot create or promote live evidence, while already applicable live evidence is no longer erased by startup contract reconciliation.
 
 ## D-035 — Follow-up chat is a durable, worker-owned, fail-closed projection
 
@@ -424,6 +428,17 @@ Daily Driver 1 stores a user-replaced OpenAI API key at `.credentials/openai-api
 Precedence is managed installation file, then the existing worker-only `OPENAI_API_KEY`, then unconfigured. Startup never copies the environment fallback into the managed store. Generation resolves the effective credential when each job begins and chat resolves it for each claimed turn, so a replacement is available to new work without process or container restart. Provider-status fingerprints bind OpenAI status to a one-way credential fingerprint so replacement invalidates prior live evidence. The explicit test retrieves metadata for each configured OpenAI model through the authenticated fixed-origin Models API, performs no content generation, classifies only safe categorical failures, and records success/failure through the existing provider-status store. An environment-only credential is displayed as configured through worker status, but must first be replaced in LocalCast before the app can test it; this preserves the worker-only environment boundary.
 
 The canonical version-1 backup remains allowlisted and intentionally excludes `.credentials`, just as it excludes environment credentials and the podcast token. Restore therefore requires the managed OpenAI key to be entered again. No new dependency, database migration, Compose variable, volume, Caddy change, or generalized dynamic-configuration framework is introduced.
+
+## D-045 — Applicable provider evidence survives process restart
+
+Status: **ACCEPTED**
+Date: 2026-10-05
+
+Provider status is evidence-bound, not process-session-bound. A deterministic contract check is weaker than an authenticated successful provider operation. Startup reconciliation therefore preserves an existing `LIVE VERIFIED` row when its capability, adapter, model, voice, and configuration fingerprint still match the current descriptor. The same reconciliation is idempotent for an applicable `CONTRACT TESTED ONLY` row and does not erase its more specific safe failure reason or evidence timestamp merely because the deterministic check ran later.
+
+Fingerprint applicability remains strict. OpenAI text binds the credential fingerprint, model, and reasoning configuration; OpenAI speech binds the credential fingerprint, model, voice, and format. Local text binds adapter endpoint/model and Piper binds executable/model path. Credential replacement, missing or unsafe credential resolution, provider/model/voice/format/reasoning changes, and local configuration changes therefore invalidate stale live evidence through the existing contract or not-configured paths. Explicit authenticated success still promotes to `LIVE VERIFIED`, while an explicit live failure still downgrades to `CONTRACT TESTED ONLY` with its safe reason.
+
+The contract reconciliation is one conditional SQLite upsert so concurrent or repeated startup cannot overwrite a matching stronger row between a read and write. It adds no schema, dependency, migration, provider request, or deployment-topology change. The app may continue projecting worker evidence for the documented worker-only environment fallback; missing or unsafe managed credentials fail closed, and worker reconciliation removes stale rows when no effective credential is available.
 
 ## Open operator decisions
 

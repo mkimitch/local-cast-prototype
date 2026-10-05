@@ -173,8 +173,18 @@ describe('server environment contract', () => {
 
 		expect(config.ollamaBaseUrl).toBe('http://127.0.0.1:11434/v1');
 		expect(status).toMatchObject({
-			text: {adapter: 'Ollama', model: 'llama-local', status: 'CONFIGURED UNVERIFIED'},
-			speech: {adapter: 'Piper', model: 'voice.onnx', status: 'CONFIGURED UNVERIFIED'},
+			text: {
+				adapter: 'Ollama',
+				model: 'llama-local',
+				status: 'CONFIGURED UNVERIFIED',
+				reason: 'Configured; deterministic contract or live verification has not been recorded for this provider configuration',
+			},
+			speech: {
+				adapter: 'Piper',
+				model: 'voice.onnx',
+				status: 'CONFIGURED UNVERIFIED',
+				reason: 'Configured; deterministic contract or live verification has not been recorded for this provider configuration',
+			},
 			generationEnabled: false,
 		});
 		expect(JSON.stringify(status)).not.toContain('127.0.0.1');

@@ -1,14 +1,38 @@
 # LocalCast build state
 
-Last updated: 2026-09-30
+Last updated: 2026-10-05
 Branch: `codex/localcast-prototype`
 Pre-bootstrap HEAD: `910485b77ead63450660b0b97544889960e45e3f`
 Slice 0 base HEAD: `e720d5818ab15efccfa143c94d6514c0c9a2baad`
 Current base checkpoint: Slice 6D security hardening at `176d30a6e18d6da18ef92ae38ab0655673c663d1`
-Current checkpoint: **Station evidence-selection control repair**
-Implementation slice: **STATION EVIDENCE SELECTION — COMPLETE 2026-09-30**
-Next action: **Deploy the new application image through the separately authorized deployment workflow; no credential, Compose, volume, environment, or Caddy migration is required**
-Overall state: **SLICE 5 COMPLETE; SLICE 6A–6D DETERMINISTIC CHECKPOINTS COMPLETE; DAILY DRIVER 1A AND STATION EVIDENCE-SELECTION REPAIR COMPLETE; OPERATIONAL SLICE 6 AND A11Y-01 GATES REMAIN OPEN**
+Current checkpoint: **Provider-status restart preservation repair**
+Implementation slice: **PROVIDER STATUS LIFECYCLE — COMPLETE 2026-10-05**
+Next action: **A separately authorized deployment may build the new HEAD containing both the station-selection and provider-status repairs; no migration or topology change is required**
+Overall state: **SLICE 5 COMPLETE; SLICE 6A–6D DETERMINISTIC CHECKPOINTS COMPLETE; DAILY DRIVER 1A, STATION EVIDENCE-SELECTION, AND PROVIDER-STATUS REPAIRS COMPLETE; OPERATIONAL SLICE 6 AND A11Y-01 GATES REMAIN OPEN**
+
+## Provider-status restart preservation repair — 2026-10-05
+
+The deployment reproduction identified an existing Daily Driver 1A lifecycle defect, independent of the station UI change. Worker construction resolves the effective credential and calls `refreshProviderConfiguration`; that function calls `recordContract` for configured capabilities. The prior `recordContract` used the same unconditional upsert as explicit live writes, so every worker start replaced same-fingerprint `LIVE VERIFIED` rows with `CONTRACT TESTED ONLY`, cleared `verified_at`, and replaced the live reason. App startup only reads the provider summary and did not perform the downgrade.
+
+Contract reconciliation now uses an atomic conditional upsert. It preserves applicable `LIVE VERIFIED` as stronger evidence and keeps unchanged contract/failure evidence idempotent. A descriptor mismatch still writes contract-only state and clears stale live evidence; unavailable credentials still delete the affected status rows. OpenAI fingerprints continue binding credential/model/reasoning or credential/model/voice/format, while local descriptors bind Ollama/LM Studio endpoint+model and Piper executable+model. Explicit Test connection and real successful operations still promote applicable capabilities; explicit live failures still downgrade them.
+
+Focused tests persist live OpenAI text and speech rows, invoke the real worker-construction path twice, compare the complete rows including reason and timestamps, and assert no fetch. Companion tests cover app startup, same-fingerprint contract reconciliation, changed credentials/fingerprints/models/voice/local configuration, missing and unsafe credentials, local and mixed pairs, explicit connection promotion, and preserved failure reasons. Three independent read-only reviews found no remaining code, test, security, privacy, schema, or scope issue after the text/speech fallback reason was made configuration-based.
+
+### Provider-status restart verification
+
+| Command or check | Result |
+| --- | --- |
+| focused provider/config/credential/runtime unit suites | PASS — 72/72 |
+| `npm run lint` | PASS — TypeScript no-emit check |
+| `npm run test` | PASS — 280/280 in 18 files |
+| first sandboxed `npm run test:integration -- --reporter=dot` | ENVIRONMENT-BLOCKED — 77 assertions passed; all 25 failures were loopback `listen EPERM 127.0.0.1` |
+| authorized `npm run test:integration -- --reporter=dot` | PASS — 102/102 |
+| `npm run build` | PASS — production web and five server bundles; existing chunk-size warning only |
+| `npm run test:e2e` | PASS — 22/22 Playwright/axe tests in 5.6 minutes |
+| `npm run smoke:api` | PASS — isolated API and worker smoke |
+| `npm run smoke:production` | PASS — isolated production same-origin smoke |
+
+No live provider request, credential read/replacement/test, production database/media/container/image access, station/source mutation, Docker/Compose/Caddy action, deployment, migration, storage-init, fixture change, health-route change, or citation-validation change occurred. Production remains unmodified by this checkpoint and, per the operator-provided state, remains on the existing DD1A image with persisted `CONTRACT TESTED ONLY`; this repair does not manufacture replacement live evidence.
 
 ## Station evidence-selection control repair — 2026-09-30
 
