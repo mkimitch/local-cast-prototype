@@ -16,6 +16,10 @@ const subprocessEnvironment = {
 	LC_ALL: 'C',
 } as const;
 
+const providerFailure = (code: string, safeMessage: string, retryable: boolean): GenerationError => (
+	new GenerationError(code, safeMessage, retryable, 'failure')
+);
+
 export interface PiperProviderOptions {
 	runPiper?: (executable: string, modelPath: string, text: string, destination: string, signal: AbortSignal) => Promise<void>;
 	normalize?: (ffmpegPath: string, input: string, output: string, signal: AbortSignal) => Promise<void>;
@@ -31,10 +35,10 @@ const assertRegularFile = (filePath: string, label: string, executable = false):
 	try {
 		stat = fs.lstatSync(filePath);
 	} catch {
-		throw new GenerationError('PIPER_NOT_CONFIGURED', `The configured Piper ${label} is unavailable`, false);
+		throw providerFailure('PIPER_NOT_CONFIGURED', `The configured Piper ${label} is unavailable`, false);
 	}
 	if (!stat.isFile() || stat.isSymbolicLink() || (executable && (stat.mode & 0o111) === 0)) {
-		throw new GenerationError('PIPER_NOT_CONFIGURED', `The configured Piper ${label} is unsafe`, false);
+		throw providerFailure('PIPER_NOT_CONFIGURED', `The configured Piper ${label} is unsafe`, false);
 	}
 };
 
@@ -71,10 +75,10 @@ const assertBoundedPiperOutput = (destination: string, maximumBytes: number): vo
 	try {
 		stat = fs.lstatSync(destination);
 	} catch {
-		throw new GenerationError('PIPER_INVALID_OUTPUT', 'The configured Piper provider produced invalid audio output', true);
+		throw providerFailure('PIPER_INVALID_OUTPUT', 'The configured Piper provider produced invalid audio output', true);
 	}
 	if (!stat.isFile() || stat.isSymbolicLink() || stat.nlink !== 1 || stat.size <= 0 || stat.size > maximumBytes) {
-		throw new GenerationError('PIPER_INVALID_OUTPUT', 'The configured Piper provider produced invalid audio output', true);
+		throw providerFailure('PIPER_INVALID_OUTPUT', 'The configured Piper provider produced invalid audio output', true);
 	}
 };
 
@@ -145,8 +149,8 @@ const runBoundedPiper = async (
 		assertBoundedPiperOutput(destination, maximumBytes);
 	} catch (error) {
 		if (externalSignal.aborted) throw new DOMException('Worker stopped', 'AbortError');
-		if (timedOut) throw new GenerationError('PIPER_TIMEOUT', 'The configured Piper provider timed out', true);
-		if (invalidOutput) throw new GenerationError('PIPER_INVALID_OUTPUT', 'The configured Piper provider exceeded its output boundary', true);
+		if (timedOut) throw providerFailure('PIPER_TIMEOUT', 'The configured Piper provider timed out', true);
+		if (invalidOutput) throw providerFailure('PIPER_INVALID_OUTPUT', 'The configured Piper provider exceeded its output boundary', true);
 		throw error;
 	} finally {
 		clearTimeout(timeout);
@@ -190,7 +194,7 @@ export class PiperSpeechProvider {
 		fencePublication: () => void = () => undefined,
 	): Promise<PublishedAudio> {
 		if (!this.config.piperExecutable || !this.config.piperModelPath) {
-			throw new GenerationError('PIPER_NOT_CONFIGURED', 'Piper executable and model paths are required', false);
+			throw providerFailure('PIPER_NOT_CONFIGURED', 'Piper executable and model paths are required', false);
 		}
 		assertPiperConfiguration(this.config.piperExecutable, this.config.piperModelPath);
 		const script = typeof input === 'string' ? compatibilityScript(input) : input;
@@ -250,7 +254,7 @@ export class PiperSpeechProvider {
 		} catch (error) {
 			if (error instanceof GenerationError) throw error;
 			if (signal.aborted || error instanceof DOMException && error.name === 'AbortError') throw new DOMException('Worker stopped', 'AbortError');
-			throw new GenerationError('PIPER_RENDER_FAILED', 'The configured Piper provider could not render audio safely', true);
+			throw providerFailure('PIPER_RENDER_FAILED', 'The configured Piper provider could not render audio safely', true);
 		} finally {
 			for (const temporary of temporaryFiles) {
 				try { fs.unlinkSync(temporary); } catch { /* only unique temporary files are removed */ }

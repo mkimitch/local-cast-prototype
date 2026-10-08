@@ -1,7 +1,8 @@
 import {afterEach, describe, expect, it} from 'vitest';
 import type Database from 'better-sqlite3';
 import {ProviderCheckStore} from '../../server/services/providerCheckStore';
-import {recordSpeechProviderSuccess} from '../../server/jobs/generationProcessor';
+import {recordSpeechProviderFailure, recordSpeechProviderSuccess, recordTextProviderFailure} from '../../server/jobs/generationProcessor';
+import {GenerationError} from '../../server/jobs/types';
 import {createTestDatabase, testConfig} from '../helpers/database';
 
 const databases: Database.Database[] = [];
@@ -200,5 +201,47 @@ describe('provider verification status', () => {
 		expect(checks.summary(config).speech).toMatchObject({status: 'CONTRACT TESTED ONLY', verifiedAt: undefined});
 		recordSpeechProviderSuccess({liveRequestPerformed: true}, config, checks);
 		expect(checks.summary(config).speech).toMatchObject({status: 'LIVE VERIFIED', verifiedAt: '2026-08-06T13:00:00.000Z'});
+	});
+
+	it('preserves applicable verification for local persistence and media failures', () => {
+		const database = createTestDatabase();
+		databases.push(database);
+		const checks = new ProviderCheckStore(database, () => '2026-10-08T12:00:00.000Z');
+		const config = testConfig({
+			textProvider: 'openai',
+			speechProvider: 'openai',
+			openAiApiKey: 'credential-canary',
+			allowFakeProviders: false,
+		});
+		checks.recordLive('text', config);
+		checks.recordLive('speech', config);
+		const liveRows = database.prepare('SELECT * FROM provider_checks ORDER BY capability').all();
+
+		recordTextProviderFailure(new GenerationError('EPISODE_PERSISTENCE_FAILED', 'The episode could not be persisted', true), config, checks);
+		recordSpeechProviderFailure(new GenerationError('AUDIO_WRITE_FAILED', 'The generated speech could not be written safely', true), config, checks);
+
+		expect(database.prepare('SELECT * FROM provider_checks ORDER BY capability').all()).toEqual(liveRows);
+	});
+
+	it('still records capability failures for both provider types', () => {
+		const database = createTestDatabase();
+		databases.push(database);
+		const checks = new ProviderCheckStore(database, () => '2026-10-08T12:00:00.000Z');
+		const config = testConfig({
+			textProvider: 'openai',
+			speechProvider: 'openai',
+			openAiApiKey: 'credential-canary',
+			allowFakeProviders: false,
+		});
+		checks.recordLive('text', config);
+		checks.recordLive('speech', config);
+
+		recordTextProviderFailure(new GenerationError('OPENAI_AUTHENTICATION_FAILED', 'The credential was rejected', false, 'failure'), config, checks);
+		recordSpeechProviderFailure(new GenerationError('OPENAI_TTS_NETWORK_FAILURE', 'The speech provider could not be reached', true, 'failure'), config, checks);
+
+		expect(checks.summary(config)).toMatchObject({
+			text: {status: 'CONTRACT TESTED ONLY', reason: 'Live request failed: OPENAI_AUTHENTICATION_FAILED'},
+			speech: {status: 'CONTRACT TESTED ONLY', reason: 'Live request failed: OPENAI_TTS_NETWORK_FAILURE'},
+		});
 	});
 });

@@ -440,6 +440,17 @@ Fingerprint applicability remains strict. OpenAI text binds the credential finge
 
 The contract reconciliation is one conditional SQLite upsert so concurrent or repeated startup cannot overwrite a matching stronger row between a read and write. It adds no schema, dependency, migration, provider request, or deployment-topology change. The app may continue projecting worker evidence for the documented worker-only environment fallback; missing or unsafe managed credentials fail closed, and worker reconciliation removes stale rows when no effective credential is available.
 
+## D-046 — Provider evidence changes only for provider-capability outcomes
+
+Status: **ACCEPTED**
+Date: 2026-10-08
+
+Generation failures carry an explicit provider-status impact. Authentication, authorization, model/configuration rejection, provider HTTP/network/timeout failure, malformed or unusable provider protocol output, and invalid fresh provider audio are provider-capability failures and may downgrade applicable live evidence through the existing lifecycle. Citation membership/uniqueness, excerpt membership, semantic support, LocalCast input policy, persistence, media write/assembly, and publication failures are downstream LocalCast outcomes and do not erase still-applicable provider verification. The default impact is preservation so an unclassified local error cannot accidentally destroy stronger evidence; adapters must opt genuine provider failures into the failure impact.
+
+This classification does not promote status. A successful complete generation or explicit authenticated Test connection retains the established promotion behavior, while credential/provider/model/voice/configuration fingerprints and unavailable credentials retain the strict invalidation rules from D-044 and D-045. Startup and tests make no provider call merely to reconcile status.
+
+The episode citation invariant remains strict: within one factual segment a `snapshotId` may appear at most once. Generation prompts and supported structured schemas state the rule, but local validation remains authoritative. Duplicate arrays are rejected rather than rewritten because choosing or merging excerpts could alter support semantics; the same snapshot may still support separate atomic factual segments.
+
 ## Open operator decisions
 
 These are genuine inputs that cannot be inferred safely. They do not block documentation bootstrap. A slice must stop before it needs an unresolved value.

@@ -117,6 +117,7 @@ describe('OpenAI-compatible local text provider contract', () => {
 		let caught: unknown;
 		try { await rejected.generateEpisode(request, evidence, new AbortController().signal); } catch (error) { caught = error; }
 		expect(caught).toMatchObject({code: 'OLLAMA_REQUEST_REJECTED', retryable: true});
+		expect(caught).toMatchObject({providerStatusImpact: 'failure'});
 		expect(JSON.stringify(caught)).not.toMatch(/endpoint-canary|private\/path/);
 
 		const hanging = new OpenAiCompatibleTextProvider('LM Studio', 'http://lmstudio.test/v1', 'local-model', {

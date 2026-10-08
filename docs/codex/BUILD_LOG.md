@@ -1174,3 +1174,25 @@ Contract reconciliation now uses one conditional SQLite upsert. Same-descriptor 
 | final scope, conflict-marker, source/bundle secret, dependency/schema, and `git diff --check` scans | PASS — exactly ten expected source/test/ledger paths; no secret, conflict marker, lockfile, migration, deployment, station, health, citation, fixture, or whitespace drift |
 
 All automated provider evidence used synthetic credentials, temporary storage, and deterministic/loopback fixtures. Startup regressions assert zero provider fetches. No live OpenAI/local/Piper request, real credential access/replacement/test, production data/runtime/image access, station mutation, Docker/Compose/Caddy/volume action, deployment, migration, storage-init, deferred-fixture change, health-route change, or citation-validation change occurred. The operator-reported production DD1A runtime and its already-downgraded `CONTRACT TESTED ONLY` state remain untouched; fresh `LIVE VERIFIED` must come later from an explicit authorized Test connection.
+
+## 2026-10-08 — Generation citation-contract and provider-failure-classification repair
+
+The October 7 production artifact showed a valid, unique evidence snapshot and a successful OpenAI draft response containing a repeated `snapshotId` within one factual segment. The validator correctly failed closed, but the generation prompt/schema did not state the uniqueness rule explicitly, its safe message incorrectly implied only duplicate-only arrays were rejected, and the processor's generic catch treated every typed downstream LocalCast failure as a live provider failure.
+
+OpenAI and OpenAI-compatible generation prompts now specify per-segment unique snapshot IDs, one strongest verbatim excerpt per source, distinct IDs for independent sources, atomic segment splitting for separate facts/excerpts from the same source, and permitted cross-segment reuse. The strict OpenAI schema contains equivalent descriptions. The validator continues to reject `[A,A]`, `[A,A,B]`, and same-ID/different-excerpt arrays without output rewriting. Generation errors now explicitly distinguish provider-capability failure from status-preserving downstream failure. Authentication, permission, provider/model rejection, HTTP/network/timeout, malformed/unusable provider output, and invalid fresh provider audio remain failure-classified; citation/excerpt/support validation and local persistence/media/publication errors preserve applicable live evidence.
+
+| Command or gate | Result |
+| --- | --- |
+| initial focused test command without explicit runtime mode | REPAIRED — TypeScript passed, but five suites stopped at config import because the calling shell supplied an invalid `LOCALCAST_RUNTIME_MODE`; rerun used the repository's explicit test mode |
+| final focused citation/provider/status/credential/Piper suites | PASS — 109/109 in 6 files |
+| `npm run lint` | PASS — TypeScript no-emit check |
+| `npm run test` | PASS — 294/294 in 18 files |
+| first sandboxed `npm run test:integration -- --reporter=dot` | ENVIRONMENT-BLOCKED — 77 assertions passed; all 25 failures were loopback `listen EPERM 127.0.0.1` |
+| authorized `npm run test:integration -- --reporter=dot` | PASS — 102/102 in 14 files |
+| `npm run build` | PASS — Vite transformed 2,156 modules and built five server entry bundles; existing chunk-size warning only |
+| Playwright/axe | NOT AFFECTED — no browser component, markup, styling, routing, or accessibility behavior changed |
+| first sandboxed API and production smoke attempts | ENVIRONMENT-BLOCKED — loopback `listen EPERM 127.0.0.1` before assertions |
+| authorized `npm run smoke:api` | PASS — isolated API and worker smoke |
+| authorized `npm run smoke:production` | PASS — isolated production same-origin smoke |
+
+The two logical checkpoints are separated into citation-contract and provider-status commits. No schema migration, dependency/lockfile, evidence construction, station selection, credential storage, restart-preservation, health route, TTS/media-publication semantics, fixture, Compose/Caddy/volume, production data, failed job, provider status, credential, live request, build image, deployment, or push was involved.

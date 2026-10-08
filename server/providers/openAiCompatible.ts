@@ -7,6 +7,10 @@ import {GenerationError} from '../jobs/types';
 const responseLimitBytes = 256 * 1024;
 const requestTimeoutMs = 90_000;
 
+const providerFailure = (code: string, safeMessage: string, retryable: boolean): GenerationError => (
+	new GenerationError(code, safeMessage, retryable, 'failure')
+);
+
 const citationSchema = z.object({
 	snapshotId: z.string().min(1).max(240),
 	excerpt: z.string().min(5).max(600),
@@ -63,7 +67,7 @@ const createRequestSignal = (external: AbortSignal, timeoutMs: number): {signal:
 };
 
 const readBoundedBytes = async (response: Response, limit: number, code: string): Promise<Uint8Array> => {
-	if (!response.body) throw new GenerationError(`${code}_EMPTY_RESPONSE`, 'The configured local text provider returned an empty response', true);
+	if (!response.body) throw providerFailure(`${code}_EMPTY_RESPONSE`, 'The configured local text provider returned an empty response', true);
 	const reader = response.body.getReader();
 	const chunks: Uint8Array[] = [];
 	let length = 0;
@@ -73,7 +77,7 @@ const readBoundedBytes = async (response: Response, limit: number, code: string)
 		length += next.value.byteLength;
 		if (length > limit) {
 			await reader.cancel();
-			throw new GenerationError(`${code}_RESPONSE_TOO_LARGE`, 'The configured local text provider response exceeded the safe size limit', false);
+			throw providerFailure(`${code}_RESPONSE_TOO_LARGE`, 'The configured local text provider response exceeded the safe size limit', false);
 		}
 		chunks.push(next.value);
 	}
@@ -89,7 +93,7 @@ const readBoundedBytes = async (response: Response, limit: number, code: string)
 const outputText = (payload: ChatCompletionsPayload, code: string): string => {
 	const content = payload.choices?.[0]?.message?.content;
 	if (typeof content !== 'string' || !content.trim()) {
-		throw new GenerationError(`${code}_INVALID_RESPONSE`, 'The configured local text provider returned invalid structured output', false);
+		throw providerFailure(`${code}_INVALID_RESPONSE`, 'The configured local text provider returned invalid structured output', false);
 	}
 	return content;
 };
@@ -152,7 +156,7 @@ export class OpenAiCompatibleTextProvider {
 		try {
 			parsedDraft = draftSchema.parse(JSON.parse(draft));
 		} catch {
-			throw new GenerationError(`${this.code}_INVALID_RESPONSE`, 'The configured local text provider returned invalid structured output', false);
+			throw providerFailure(`${this.code}_INVALID_RESPONSE`, 'The configured local text provider returned invalid structured output', false);
 		}
 
 		const evidenceById = new Map(evidence.map(item => [item.id, item]));
@@ -202,7 +206,7 @@ export class OpenAiCompatibleTextProvider {
 		}, ...sections];
 		const script = assertGeneratedEpisode(request, evidence, publishedSections);
 		const claims = sections.flatMap(section => section.segments).filter(segment => segment.kind === 'factual');
-		if (claims.length === 0) throw new GenerationError(`${this.code}_INVALID_RESPONSE`, 'The configured local text provider returned no factual claims', false);
+		if (claims.length === 0) throw providerFailure(`${this.code}_INVALID_RESPONSE`, 'The configured local text provider returned no factual claims', false);
 		const supportContent = JSON.stringify({claims: claims.map(claim => ({
 			claimId: claim.id,
 			claim: claim.text,
@@ -224,7 +228,7 @@ export class OpenAiCompatibleTextProvider {
 		try {
 			parsedSupport = supportSchema.parse(JSON.parse(support));
 		} catch {
-			throw new GenerationError(`${this.code}_INVALID_SUPPORT_RESPONSE`, 'The configured local text provider returned invalid support validation', false);
+			throw providerFailure(`${this.code}_INVALID_SUPPORT_RESPONSE`, 'The configured local text provider returned invalid support validation', false);
 		}
 		const results = new Map(parsedSupport.results.map(result => [result.claimId, result.status]));
 		if (results.size !== claims.length || parsedSupport.results.length !== claims.length || claims.some(claim => results.get(claim.id) !== 'supported')) {
@@ -263,21 +267,21 @@ export class OpenAiCompatibleTextProvider {
 				signal: request.signal,
 			});
 			if (!response.ok) {
-				throw new GenerationError(`${this.code}_REQUEST_REJECTED`, 'The configured local text provider rejected the request', response.status >= 500 || response.status === 429);
+				throw providerFailure(`${this.code}_REQUEST_REJECTED`, 'The configured local text provider rejected the request', response.status >= 500 || response.status === 429);
 			}
 			const bytes = await readBoundedBytes(response, this.options.responseLimitBytes ?? responseLimitBytes, this.code);
 			let payload: ChatCompletionsPayload;
 			try {
 				payload = JSON.parse(new TextDecoder().decode(bytes)) as ChatCompletionsPayload;
 			} catch {
-				throw new GenerationError(`${this.code}_INVALID_RESPONSE`, 'The configured local text provider returned malformed structured output', false);
+				throw providerFailure(`${this.code}_INVALID_RESPONSE`, 'The configured local text provider returned malformed structured output', false);
 			}
 			return outputText(payload, this.code);
 		} catch (error) {
 			if (error instanceof GenerationError) throw error;
 			if (externalSignal.aborted) throw new DOMException('Worker stopped', 'AbortError');
-			if (request.timedOut()) throw new GenerationError(`${this.code}_TIMEOUT`, 'The configured local text provider timed out', true);
-			throw new GenerationError(`${this.code}_NETWORK_FAILURE`, 'The configured local text provider could not be reached', true);
+			if (request.timedOut()) throw providerFailure(`${this.code}_TIMEOUT`, 'The configured local text provider timed out', true);
+			throw providerFailure(`${this.code}_NETWORK_FAILURE`, 'The configured local text provider could not be reached', true);
 		} finally {
 			request.cleanup();
 		}

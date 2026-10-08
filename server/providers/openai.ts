@@ -35,6 +35,10 @@ const speechResponseLimit = 15 * 1024 * 1024;
 const textTimeoutMs = 90_000;
 const speechTimeoutMs = 120_000;
 
+const providerFailure = (code: string, safeMessage: string, retryable: boolean): GenerationError => (
+	new GenerationError(code, safeMessage, retryable, 'failure')
+);
+
 const citationSchema = z.object({
 	snapshotId: z.string().min(1).max(240),
 	excerpt: z.string().min(5).max(600),
@@ -389,16 +393,16 @@ const createRequestSignal = (external: AbortSignal, timeoutMs: number): {signal:
 
 const safeHttpFailure = (status: number, capability: 'text' | 'speech'): GenerationError => {
 	const label = capability === 'text' ? 'text provider' : 'speech provider';
-	if (status === 401) return new GenerationError('OPENAI_AUTHENTICATION_FAILED', `The configured OpenAI ${label} credential was rejected`, false);
-	if (status === 403) return new GenerationError('OPENAI_PERMISSION_DENIED', `The configured OpenAI ${label} request is not permitted`, false);
-	if (status === 404) return new GenerationError('OPENAI_MODEL_NOT_AVAILABLE', `The configured OpenAI ${label} model is not available`, false);
-	if (status === 429) return new GenerationError('OPENAI_RATE_LIMIT_OR_QUOTA', `The configured OpenAI ${label} is rate limited or has insufficient quota`, true);
-	if (status >= 500) return new GenerationError('OPENAI_SERVICE_UNAVAILABLE', `The configured OpenAI ${label} is temporarily unavailable`, true);
-	return new GenerationError('OPENAI_REQUEST_REJECTED', `The configured OpenAI ${label} rejected the request`, false);
+	if (status === 401) return providerFailure('OPENAI_AUTHENTICATION_FAILED', `The configured OpenAI ${label} credential was rejected`, false);
+	if (status === 403) return providerFailure('OPENAI_PERMISSION_DENIED', `The configured OpenAI ${label} request is not permitted`, false);
+	if (status === 404) return providerFailure('OPENAI_MODEL_NOT_AVAILABLE', `The configured OpenAI ${label} model is not available`, false);
+	if (status === 429) return providerFailure('OPENAI_RATE_LIMIT_OR_QUOTA', `The configured OpenAI ${label} is rate limited or has insufficient quota`, true);
+	if (status >= 500) return providerFailure('OPENAI_SERVICE_UNAVAILABLE', `The configured OpenAI ${label} is temporarily unavailable`, true);
+	return providerFailure('OPENAI_REQUEST_REJECTED', `The configured OpenAI ${label} rejected the request`, false);
 };
 
 const readBoundedBytes = async (response: Response, limit: number): Promise<Uint8Array> => {
-	if (!response.body) throw new GenerationError('OPENAI_EMPTY_RESPONSE', 'The configured OpenAI provider returned an empty response', true);
+	if (!response.body) throw providerFailure('OPENAI_EMPTY_RESPONSE', 'The configured OpenAI provider returned an empty response', true);
 	const reader = response.body.getReader();
 	const chunks: Uint8Array[] = [];
 	let length = 0;
@@ -408,7 +412,7 @@ const readBoundedBytes = async (response: Response, limit: number): Promise<Uint
 		length += next.value.byteLength;
 		if (length > limit) {
 			await reader.cancel();
-			throw new GenerationError('OPENAI_RESPONSE_TOO_LARGE', 'The configured OpenAI provider response exceeded the safe size limit', false);
+			throw providerFailure('OPENAI_RESPONSE_TOO_LARGE', 'The configured OpenAI provider response exceeded the safe size limit', false);
 		}
 		chunks.push(next.value);
 	}
@@ -422,11 +426,11 @@ const readBoundedBytes = async (response: Response, limit: number): Promise<Uint
 };
 
 const extractOutputText = (payload: OpenAiResponsePayload): string => {
-	if (payload.status !== 'completed') throw new GenerationError('OPENAI_INCOMPLETE_RESPONSE', 'The configured OpenAI text provider did not complete its response', true);
+	if (payload.status !== 'completed') throw providerFailure('OPENAI_INCOMPLETE_RESPONSE', 'The configured OpenAI text provider did not complete its response', true);
 	const texts = payload.output?.flatMap(item => item.type === 'message'
 		? item.content?.filter(content => content.type === 'output_text' && typeof content.text === 'string').map(content => content.text!) || []
 		: []) || [];
-	if (texts.length !== 1 || !texts[0]?.trim()) throw new GenerationError('OPENAI_INVALID_RESPONSE', 'The configured OpenAI text provider returned invalid structured output', false);
+	if (texts.length !== 1 || !texts[0]?.trim()) throw providerFailure('OPENAI_INVALID_RESPONSE', 'The configured OpenAI text provider returned invalid structured output', false);
 	return texts[0];
 };
 
@@ -504,7 +508,7 @@ const requestSerializedJson = async (
 		} catch {
 			await recordResponse({});
 			await finalize('invalid_response');
-			throw new GenerationError('OPENAI_INVALID_RESPONSE', 'The configured OpenAI text provider returned malformed structured output', false);
+			throw providerFailure('OPENAI_INVALID_RESPONSE', 'The configured OpenAI text provider returned malformed structured output', false);
 		}
 		const usage = extractSafeUsage(payload);
 		await recordResponse(usage);
@@ -521,8 +525,8 @@ const requestSerializedJson = async (
 		}
 		if (error instanceof GenerationError) throw error;
 		if (externalSignal.aborted) throw new DOMException('Worker stopped', 'AbortError');
-		if (requestSignal.timedOut()) throw new GenerationError('OPENAI_TIMEOUT', 'The configured OpenAI text provider timed out', true);
-		throw new GenerationError('OPENAI_NETWORK_FAILURE', 'The configured OpenAI text provider could not be reached', true);
+		if (requestSignal.timedOut()) throw providerFailure('OPENAI_TIMEOUT', 'The configured OpenAI text provider timed out', true);
+		throw providerFailure('OPENAI_NETWORK_FAILURE', 'The configured OpenAI text provider could not be reached', true);
 	} finally {
 		requestSignal.cleanup();
 	}
@@ -619,7 +623,7 @@ export class OpenAiTextProvider {
 			draft = draftSchema.parse(JSON.parse(extractOutputText(draftResponse.payload)) as unknown);
 		} catch (error) {
 			if (error instanceof GenerationError) throw error;
-			throw new GenerationError('OPENAI_INVALID_RESPONSE', 'The configured OpenAI text provider returned invalid structured output', false);
+			throw providerFailure('OPENAI_INVALID_RESPONSE', 'The configured OpenAI text provider returned invalid structured output', false);
 		}
 
 		const evidenceById = new Map(evidence.map(item => [item.id, item]));
@@ -672,7 +676,7 @@ export class OpenAiTextProvider {
 		assertGeneratedEpisode(request, evidence, publishedSections);
 
 		const factualClaims = sections.flatMap(section => section.segments).filter(segment => segment.kind === 'factual');
-		if (factualClaims.length === 0) throw new GenerationError('OPENAI_INVALID_RESPONSE', 'The configured OpenAI text provider returned no factual claims', false);
+		if (factualClaims.length === 0) throw providerFailure('OPENAI_INVALID_RESPONSE', 'The configured OpenAI text provider returned no factual claims', false);
 		const supportUserContent = JSON.stringify({claims: factualClaims.map(claim => ({
 			claimId: claim.id,
 			claim: claim.text,
@@ -709,7 +713,7 @@ export class OpenAiTextProvider {
 			support = supportSchema.parse(JSON.parse(extractOutputText(supportResponse.payload)) as unknown);
 		} catch (error) {
 			if (error instanceof GenerationError) throw error;
-			throw new GenerationError('OPENAI_INVALID_SUPPORT_RESPONSE', 'The configured OpenAI support validation returned invalid structured output', false);
+			throw providerFailure('OPENAI_INVALID_SUPPORT_RESPONSE', 'The configured OpenAI support validation returned invalid structured output', false);
 		}
 		const resultById = new Map(support.results.map(result => [result.claimId, result.status]));
 		if (resultById.size !== factualClaims.length || support.results.length !== factualClaims.length || factualClaims.some(claim => resultById.get(claim.id) !== 'supported')) {
@@ -1048,7 +1052,14 @@ export class OpenAiSpeechProvider {
 				const part = path.join(this.config.mediaPath, `.${storageFilename}.${operationId}.part-${index}.tmp`);
 				temporaryParts.push(part);
 				await this.renderChunk(chunk, part, signal);
-				await probe(this.config.ffprobePath, part, signal);
+				try {
+					await probe(this.config.ffprobePath, part, signal);
+				} catch (error) {
+					if (error instanceof GenerationError && error.code === 'INVALID_MP3') {
+						throw providerFailure(error.code, error.safeMessage, error.retryable);
+					}
+					throw error;
+				}
 			}
 			combinedTemporary = path.join(this.config.mediaPath, `.${storageFilename}.${operationId}.tmp`);
 			if (temporaryParts.length === 1) {
@@ -1109,15 +1120,15 @@ export class OpenAiSpeechProvider {
 			if (!response.ok) throw safeHttpFailure(response.status, 'speech');
 			const contentType = response.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase();
 			if (!contentType || !['audio/mpeg', 'audio/mp3', 'application/octet-stream'].includes(contentType)) {
-				throw new GenerationError('INVALID_MP3', 'The speech provider did not return MP3 audio', true);
+				throw providerFailure('INVALID_MP3', 'The speech provider did not return MP3 audio', true);
 			}
 			bytes = await readBoundedBytes(response, speechResponseLimit);
-			if (bytes.byteLength < 1_000) throw new GenerationError('INVALID_MP3', 'The speech provider returned an empty or invalid MP3', true);
+			if (bytes.byteLength < 1_000) throw providerFailure('INVALID_MP3', 'The speech provider returned an empty or invalid MP3', true);
 		} catch (error) {
 			if (error instanceof GenerationError) throw error;
 			if (signal.aborted) throw new DOMException('Worker stopped', 'AbortError');
-			if (requestSignal.timedOut()) throw new GenerationError('OPENAI_TTS_TIMEOUT', 'The configured OpenAI speech provider timed out', true);
-			throw new GenerationError('OPENAI_TTS_NETWORK_FAILURE', 'The configured OpenAI speech provider could not be reached', true);
+			if (requestSignal.timedOut()) throw providerFailure('OPENAI_TTS_TIMEOUT', 'The configured OpenAI speech provider timed out', true);
+			throw providerFailure('OPENAI_TTS_NETWORK_FAILURE', 'The configured OpenAI speech provider could not be reached', true);
 		} finally {
 			requestSignal.cleanup();
 		}

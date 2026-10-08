@@ -1,14 +1,37 @@
 # LocalCast build state
 
-Last updated: 2026-10-05
+Last updated: 2026-10-08
 Branch: `codex/localcast-prototype`
 Pre-bootstrap HEAD: `910485b77ead63450660b0b97544889960e45e3f`
 Slice 0 base HEAD: `e720d5818ab15efccfa143c94d6514c0c9a2baad`
 Current base checkpoint: Slice 6D security hardening at `176d30a6e18d6da18ef92ae38ab0655673c663d1`
-Current checkpoint: **Provider-status restart preservation repair**
-Implementation slice: **PROVIDER STATUS LIFECYCLE — COMPLETE 2026-10-05**
-Next action: **A separately authorized deployment may build the new HEAD containing both the station-selection and provider-status repairs; no migration or topology change is required**
-Overall state: **SLICE 5 COMPLETE; SLICE 6A–6D DETERMINISTIC CHECKPOINTS COMPLETE; DAILY DRIVER 1A, STATION EVIDENCE-SELECTION, AND PROVIDER-STATUS REPAIRS COMPLETE; OPERATIONAL SLICE 6 AND A11Y-01 GATES REMAIN OPEN**
+Current checkpoint: **Generation citation-contract and provider-failure-classification repair**
+Implementation slice: **GENERATION VALIDATION / PROVIDER STATUS — COMPLETE 2026-10-08**
+Next action: **A separately authorized deployment may build the new HEAD; production must remain at its persisted provider state until the operator explicitly performs any live verification or generation**
+Overall state: **SLICE 5 COMPLETE; SLICE 6A–6D DETERMINISTIC CHECKPOINTS COMPLETE; DAILY DRIVER 1A, STATION EVIDENCE-SELECTION, PROVIDER-RESTART, AND GENERATION VALIDATION/STATUS REPAIRS COMPLETE; OPERATIONAL SLICE 6 AND A11Y-01 GATES REMAIN OPEN**
+
+## Generation citation-contract and provider-failure-classification repair — 2026-10-08
+
+The October 7 `Morning Signal` failure was a successful OpenAI draft response followed by LocalCast's correct per-segment duplicate-citation rejection. The evidence snapshot and parser were not defective. OpenAI and OpenAI-compatible generation prompts now state that each `snapshotId` may appear at most once within a factual segment, direct the model to use one strongest verbatim excerpt per source, require distinct IDs for independent sources, and require atomic segment splitting when separate facts need separate excerpts from the same snapshot. The strict OpenAI schema carries equivalent descriptions. The validator still rejects `[A, A]`, `[A, A, B]`, and same-ID/different-excerpt arrays without deduplication; `[A, B]` and reuse of `A` in separate factual segments remain valid. The safe message now accurately says that a source citation was repeated within one factual segment.
+
+The generation processor previously treated every caught `GenerationError` as a provider failure. Provider errors now carry an explicit status impact. Authentication, permission, model/configuration, HTTP, network, timeout, malformed/unusable provider protocol, and invalid fresh provider audio remain failure-classified. Citation/excerpt/support validation, input-policy, local persistence, media write/assembly/publication, and other LocalCast downstream failures preserve applicable verification. Repeated local validation failures therefore cannot erase matching `LIVE VERIFIED` evidence, while credential/configuration fingerprint invalidation and real provider failures retain their prior authority. No process startup path makes a live request or manufactures live evidence.
+
+### Generation validation/status verification
+
+| Command or check | Result |
+| --- | --- |
+| `npm run lint` | PASS — TypeScript no-emit check |
+| focused citation/provider/status/credential/Piper suites | PASS — 109/109 in 6 files |
+| `npm run test` | PASS — 294/294 in 18 files |
+| first sandboxed `npm run test:integration -- --reporter=dot` | ENVIRONMENT-BLOCKED — 77 assertions passed; all 25 failures were loopback `listen EPERM 127.0.0.1` |
+| authorized `npm run test:integration -- --reporter=dot` | PASS — 102/102 in 14 files |
+| `npm run build` | PASS — production web and five server bundles; existing chunk-size warning only |
+| Playwright/axe | NOT AFFECTED — no browser component, markup, style, route, or accessibility behavior changed |
+| first sandboxed API/production smoke attempts | ENVIRONMENT-BLOCKED — loopback `listen EPERM 127.0.0.1` before assertions |
+| authorized `npm run smoke:api` | PASS — isolated API and worker smoke |
+| authorized `npm run smoke:production` | PASS — isolated production same-origin smoke |
+
+All provider interactions were deterministic fixture responses. No live provider request, failed-job retry, production database/media/container/image access, credential/status/station/source/podcast/fixture mutation, deployment, Docker/Compose/Caddy/volume action, migration, storage-init, dependency, or lockfile change occurred.
 
 ## Provider-status restart preservation repair — 2026-10-05
 

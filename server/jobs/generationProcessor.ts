@@ -20,6 +20,26 @@ export const recordSpeechProviderSuccess = (
 	if (audio.liveRequestPerformed) checks.recordLive('speech', config);
 };
 
+export const recordTextProviderFailure = (
+	error: unknown,
+	config: ServerConfig,
+	checks: Pick<ProviderCheckStore, 'recordFailure'> = providerCheckStore,
+): void => {
+	if (error instanceof GenerationError && error.providerStatusImpact === 'failure') {
+		checks.recordFailure('text', config, `Live request failed: ${error.code}`);
+	}
+};
+
+export const recordSpeechProviderFailure = (
+	error: unknown,
+	config: ServerConfig,
+	checks: Pick<ProviderCheckStore, 'recordFailure'> = providerCheckStore,
+): void => {
+	if (error instanceof GenerationError && error.providerStatusImpact === 'failure') {
+		checks.recordFailure('speech', config, `Live request failed: ${error.code}`);
+	}
+};
+
 export interface GenerationProcessor {
 	process(job: GenerationJob, workerId: string, signal: AbortSignal): Promise<void>;
 }
@@ -68,6 +88,7 @@ class ConfiguredGenerationProcessor implements GenerationProcessor {
 		private readonly speech: SpeechGenerationProvider,
 		private readonly textProviderName: 'OpenAI' | 'Ollama' | 'LM Studio',
 		private readonly textModel: string,
+		private readonly checks: Pick<ProviderCheckStore, 'recordFailure' | 'recordLive'>,
 	) {}
 
 	async process(job: GenerationJob, workerId: string, signal: AbortSignal): Promise<void> {
@@ -88,9 +109,9 @@ class ConfiguredGenerationProcessor implements GenerationProcessor {
 			generated = await this.text.generateEpisode(request, evidence, signal, () => {
 				this.jobs.updatePhase(job.id, workerId, 'validating', this.config.leaseMs);
 			});
-			providerCheckStore.recordLive('text', this.config);
+			this.checks.recordLive('text', this.config);
 		} catch (error) {
-			if (error instanceof GenerationError) providerCheckStore.recordFailure('text', this.config, `Live request failed: ${error.code}`);
+			recordTextProviderFailure(error, this.config, this.checks);
 			throw error;
 		}
 
@@ -101,9 +122,9 @@ class ConfiguredGenerationProcessor implements GenerationProcessor {
 				this.jobs.renewLease(job.id, workerId, this.config.leaseMs);
 			});
 			this.jobs.renewLease(job.id, workerId, this.config.leaseMs);
-			recordSpeechProviderSuccess(audio, this.config);
+			recordSpeechProviderSuccess(audio, this.config, this.checks);
 		} catch (error) {
-			if (error instanceof GenerationError) providerCheckStore.recordFailure('speech', this.config, `Live request failed: ${error.code}`);
+			recordSpeechProviderFailure(error, this.config, this.checks);
 			throw error;
 		}
 
@@ -118,7 +139,13 @@ class ConfiguredGenerationProcessor implements GenerationProcessor {
 	}
 }
 
-const configuredGenerationProcessor = (config: ServerConfig, jobs: GenerationJobStore): GenerationProcessor | undefined => {
+type ProviderRuntimeChecks = Pick<ProviderCheckStore, 'recordContract' | 'recordFailure' | 'recordLive' | 'recordNotConfigured'>;
+
+const configuredGenerationProcessor = (
+	config: ServerConfig,
+	jobs: GenerationJobStore,
+	checks: ProviderRuntimeChecks,
+): GenerationProcessor | undefined => {
 	let text: TextGenerationProvider | undefined;
 	let textProviderName: 'OpenAI' | 'Ollama' | 'LM Studio' | undefined;
 	let textModel: string | undefined;
@@ -151,10 +178,10 @@ const configuredGenerationProcessor = (config: ServerConfig, jobs: GenerationJob
 	if (!text || !speech || !textProviderName || !textModel) {
 		return undefined;
 	}
-	return new ConfiguredGenerationProcessor(config, jobs, text, speech, textProviderName, textModel);
+	return new ConfiguredGenerationProcessor(config, jobs, text, speech, textProviderName, textModel, checks);
 };
 
-type ProviderConfigurationChecks = Pick<ProviderCheckStore, 'recordContract' | 'recordNotConfigured'>;
+type ProviderConfigurationChecks = Pick<ProviderRuntimeChecks, 'recordContract' | 'recordNotConfigured'>;
 
 const configuredCapabilities = (config: ServerConfig): ProviderCapability[] => {
 	const capabilities: ProviderCapability[] = [];
@@ -187,7 +214,7 @@ class RuntimeCredentialGenerationProcessor implements GenerationProcessor {
 		private readonly config: ServerConfig,
 		private readonly jobs: GenerationJobStore,
 		private readonly credentials: Pick<OpenAiCredentialStore, 'resolve'>,
-		private readonly checks: ProviderConfigurationChecks,
+		private readonly checks: ProviderRuntimeChecks,
 	) {}
 
 	async process(job: GenerationJob, workerId: string, signal: AbortSignal): Promise<void> {
@@ -198,7 +225,7 @@ class RuntimeCredentialGenerationProcessor implements GenerationProcessor {
 			refreshProviderConfiguration({...this.config, openAiApiKey: undefined}, this.checks);
 			throw new GenerationError('PROVIDER_CREDENTIAL_UNAVAILABLE', 'The stored provider credential is unavailable', false);
 		}
-		const processor = configuredGenerationProcessor(effective, this.jobs);
+		const processor = configuredGenerationProcessor(effective, this.jobs, this.checks);
 		if (!processor) {
 			refreshProviderConfiguration(effective, this.checks);
 			return new UnconfiguredGenerationProcessor().process();
@@ -211,7 +238,7 @@ export const createGenerationProcessor = (
 	config: ServerConfig,
 	jobs: GenerationJobStore,
 	credentials: Pick<OpenAiCredentialStore, 'resolve'> = openAiCredentialStore,
-	checks: ProviderConfigurationChecks = providerCheckStore,
+	checks: ProviderRuntimeChecks = providerCheckStore,
 ): GenerationProcessor => {
 	try {
 		const effective = configWithResolvedOpenAiCredential(config, credentials);

@@ -23,12 +23,14 @@ export type JobPhase = typeof jobPhases[number];
 export type ActiveJobPhase = typeof activeJobPhases[number];
 export type JobState = 'queued' | 'running' | 'complete' | 'failed';
 export type GenerationJobPayload = z.infer<typeof generationJobPayloadSchema>;
+export type ProviderStatusImpact = 'preserve' | 'failure';
 
 export class GenerationError extends Error {
 	constructor(
 		public readonly code: string,
 		public readonly safeMessage: string,
 		public readonly retryable: boolean,
+		public readonly providerStatusImpact: ProviderStatusImpact = 'preserve',
 	) {
 		super(safeMessage);
 		this.name = 'GenerationError';

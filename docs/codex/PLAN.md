@@ -1,6 +1,6 @@
 # LocalCast autonomous build plan
 
-Status: Slice 4 remains green; Slice 5 is complete 2026-08-21; Slice 6A–6D deterministic checkpoints, Daily Driver 1A, the station evidence-selection repair, and the provider-status restart repair are complete 2026-10-05
+Status: Slice 4 remains green; Slice 5 is complete 2026-08-21; Slice 6A–6D deterministic checkpoints, Daily Driver 1A, the station evidence-selection repair, the provider-status restart repair, and the generation validation/status repair are complete 2026-10-08
 Current slice: **PROVIDER-STATUS RESTART REPAIR COMPLETE; REMAINING OPERATIONAL SLICE 6 GATES OPEN**
 Execution policy: one vertical slice, one green checkpoint commit
 
@@ -359,6 +359,12 @@ Deterministic browser evidence covers control click, text-label click, Space act
 This bounded maintenance checkpoint replaces startup's last-writer-wins provider-status write with evidence precedence. App status loading remains read-only. Worker startup still runs deterministic configuration reconciliation, but its conditional upsert preserves a same-descriptor `LIVE VERIFIED` or contract-only row and overwrites only absent, stale, or categorically weaker state. Explicit live success/failure and existing missing-credential deletion remain authoritative.
 
 Deterministic regressions reproduce the deployment failure as persisted OpenAI text/speech `LIVE VERIFIED` rows followed by repeated real worker-construction reconciliation, with exact row equality and zero network calls. Additional coverage proves app-startup preservation, credential replacement/fingerprint mismatch, missing/unsafe credential invalidation, model/voice/local configuration invalidation, contract/failure-reason idempotence, successful explicit promotion, and capability-scoped Ollama, LM Studio, Piper, and mixed-provider behavior. No schema, dependency, station, health-route, citation, fixture, Compose/Caddy, volume, credential, provider-request, production-data, build-image, or deployment change is part of this repair.
+
+## Generation citation/status classification repair — COMPLETE 2026-10-08
+
+The generation contract now makes the existing per-factual-segment unique-`snapshotId` invariant explicit in OpenAI and OpenAI-compatible prompts and in the strict OpenAI schema. It directs one strongest verbatim excerpt per source, distinct IDs for independent sources, and atomic segment splitting instead of duplicate IDs. Validation remains fail-closed and does not deduplicate or weaken excerpt/support checks; the user-safe duplicate message now covers mixed duplicate arrays accurately.
+
+Generation errors now carry an explicit provider-status impact. Only provider/capability failures downgrade verification; citation/excerpt/support validation and local persistence/media/publication failures preserve still-applicable evidence. Deterministic tests cover repeated validation failures, excerpt membership, semantic support, local persistence/media failure, provider authentication/protocol failure, existing fingerprint invalidation, local/mixed provider behavior, and zero startup/live network use. No schema, dependency, station, evidence construction, credential storage, restart-preservation, health, TTS/publication behavior, fixture, Compose/Caddy, volume, production-data, or deployment change is part of this repair.
 
 ## First post-prototype audio milestone — deferred two-host format
 

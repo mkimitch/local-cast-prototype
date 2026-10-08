@@ -28,6 +28,8 @@ import {ChatStore} from '../../server/services/chatStore';
 import * as chatTypeExports from '../../server/chat/types';
 import * as chatStoreExports from '../../server/services/chatStore';
 import {insertGroundedEpisode} from '../helpers/chat';
+import {ProviderCheckStore} from '../../server/services/providerCheckStore';
+import {recordTextProviderFailure} from '../../server/jobs/generationProcessor';
 
 const temporaryRoots: string[] = [];
 const chatDatabases: Database.Database[] = [];
@@ -277,7 +279,142 @@ describe('OpenAI text provider contract', () => {
 		let caught: unknown;
 		try { await provider.generateEpisode(request, evidence, new AbortController().signal); } catch (error) { caught = error; }
 		expect(caught).toMatchObject({code, retryable});
+		expect(caught).toMatchObject({providerStatusImpact: 'failure'});
 		expect(JSON.stringify(caught)).not.toMatch(/secret-canary|source-canary|private\/path/);
+	});
+
+	it('preserves live verification across repeated local citation-validation failures', async () => {
+		const database = createTestDatabase();
+		chatDatabases.push(database);
+		const checks = new ProviderCheckStore(database, () => '2026-10-08T12:00:00.000Z');
+		const config = testConfig({
+			textProvider: 'openai',
+			speechProvider: 'openai',
+			openAiApiKey: 'credential-canary',
+			allowFakeProviders: false,
+		});
+		checks.recordLive('text', config);
+		const liveRow = database.prepare("SELECT * FROM provider_checks WHERE capability = 'text'").get();
+		const duplicateDraft = structuredClone(validDraft);
+		duplicateDraft.sections[0]!.segments[0]!.citations.push({...duplicateDraft.sections[0]!.segments[0]!.citations[0]!});
+		const provider = new OpenAiTextProvider('credential-canary', 'gpt-5.4-mini', {
+			fetchImpl: vi.fn<typeof fetch>(async () => jsonResponse(outputPayload(duplicateDraft))),
+			baseUrl: 'http://provider.test/v1',
+			allowTestBaseUrl: true,
+		});
+
+		for (let attempt = 0; attempt < 2; attempt += 1) {
+			let caught: unknown;
+			try {
+				await provider.generateEpisode(request, evidence, new AbortController().signal);
+			} catch (error) {
+				caught = error;
+			}
+			expect(caught).toMatchObject({code: 'INVALID_CITATIONS', providerStatusImpact: 'preserve'});
+			recordTextProviderFailure(caught, config, checks);
+		}
+
+		expect(database.prepare("SELECT * FROM provider_checks WHERE capability = 'text'").get()).toEqual(liveRow);
+	});
+
+	it('preserves live verification after local citation excerpt-membership rejection', async () => {
+		const database = createTestDatabase();
+		chatDatabases.push(database);
+		const checks = new ProviderCheckStore(database, () => '2026-10-08T12:00:00.000Z');
+		const config = testConfig({
+			textProvider: 'openai',
+			speechProvider: 'openai',
+			openAiApiKey: 'credential-canary',
+			allowFakeProviders: false,
+		});
+		checks.recordLive('text', config);
+		const liveRow = database.prepare("SELECT * FROM provider_checks WHERE capability = 'text'").get();
+		const invalidExcerptDraft = structuredClone(validDraft);
+		invalidExcerptDraft.sections[0]!.segments[0]!.citations[0]!.excerpt = 'This excerpt is not present in the immutable evidence snapshot.';
+		const provider = new OpenAiTextProvider('credential-canary', 'gpt-5.4-mini', {
+			fetchImpl: vi.fn<typeof fetch>(async () => jsonResponse(outputPayload(invalidExcerptDraft))),
+			baseUrl: 'http://provider.test/v1',
+			allowTestBaseUrl: true,
+		});
+		let caught: unknown;
+		try {
+			await provider.generateEpisode(request, evidence, new AbortController().signal);
+		} catch (error) {
+			caught = error;
+		}
+
+		expect(caught).toMatchObject({code: 'INVALID_CITATIONS', providerStatusImpact: 'preserve'});
+		recordTextProviderFailure(caught, config, checks);
+		expect(database.prepare("SELECT * FROM provider_checks WHERE capability = 'text'").get()).toEqual(liveRow);
+	});
+
+	it('preserves live verification after downstream semantic support rejection', async () => {
+		const database = createTestDatabase();
+		chatDatabases.push(database);
+		const checks = new ProviderCheckStore(database, () => '2026-10-08T12:00:00.000Z');
+		const config = testConfig({
+			textProvider: 'openai',
+			speechProvider: 'openai',
+			openAiApiKey: 'credential-canary',
+			allowFakeProviders: false,
+		});
+		checks.recordLive('text', config);
+		const liveRow = database.prepare("SELECT * FROM provider_checks WHERE capability = 'text'").get();
+		const provider = new OpenAiTextProvider('credential-canary', 'gpt-5.4-mini', {
+			fetchImpl: vi.fn<typeof fetch>()
+				.mockResolvedValueOnce(jsonResponse(outputPayload(validDraft)))
+				.mockResolvedValueOnce(jsonResponse(outputPayload({results: [{claimId: 'claim-run-live-0-0', status: 'unsupported'}]}))),
+			baseUrl: 'http://provider.test/v1',
+			allowTestBaseUrl: true,
+		});
+		let caught: unknown;
+		try {
+			await provider.generateEpisode(request, evidence, new AbortController().signal);
+		} catch (error) {
+			caught = error;
+		}
+
+		expect(caught).toMatchObject({code: 'UNSUPPORTED_GENERATED_CLAIM', providerStatusImpact: 'preserve'});
+		recordTextProviderFailure(caught, config, checks);
+		expect(database.prepare("SELECT * FROM provider_checks WHERE capability = 'text'").get()).toEqual(liveRow);
+	});
+
+	it('downgrades live verification for provider authentication and protocol failures', async () => {
+		const cases = [
+			{response: new Response('', {status: 401}), code: 'OPENAI_AUTHENTICATION_FAILED'},
+			{response: new Response('{not-json'), code: 'OPENAI_INVALID_RESPONSE'},
+		];
+		for (const item of cases) {
+			const database = createTestDatabase();
+			chatDatabases.push(database);
+			const checks = new ProviderCheckStore(database, () => '2026-10-08T12:00:00.000Z');
+			const config = testConfig({
+				textProvider: 'openai',
+				speechProvider: 'openai',
+				openAiApiKey: 'credential-canary',
+				allowFakeProviders: false,
+			});
+			checks.recordLive('text', config);
+			const provider = new OpenAiTextProvider('credential-canary', 'gpt-5.4-mini', {
+				fetchImpl: vi.fn<typeof fetch>(async () => item.response),
+				baseUrl: 'http://provider.test/v1',
+				allowTestBaseUrl: true,
+			});
+			let caught: unknown;
+			try {
+				await provider.generateEpisode(request, evidence, new AbortController().signal);
+			} catch (error) {
+				caught = error;
+			}
+
+			expect(caught).toMatchObject({code: item.code, providerStatusImpact: 'failure'});
+			recordTextProviderFailure(caught, config, checks);
+			expect(checks.summary(config).text).toMatchObject({
+				status: 'CONTRACT TESTED ONLY',
+				reason: `Live request failed: ${item.code}`,
+				verifiedAt: undefined,
+			});
+		}
 	});
 
 	it('rejects malformed and oversized bodies without fallback output', async () => {
@@ -1121,7 +1258,10 @@ describe('OpenAI speech provider contract', () => {
 			allowTestBaseUrl: true,
 			probe: async () => 65_000,
 		});
-		await expect(wrongType.render('run-wrong', 'Valid narration input for a negative provider contract test.', new AbortController().signal)).rejects.toMatchObject({code: 'INVALID_MP3'});
+		await expect(wrongType.render('run-wrong', 'Valid narration input for a negative provider contract test.', new AbortController().signal)).rejects.toMatchObject({
+			code: 'INVALID_MP3',
+			providerStatusImpact: 'failure',
+		});
 
 		const undecodable = new OpenAiSpeechProvider('credential-canary', testConfig({mediaPath: root}), {
 			fetchImpl: vi.fn<typeof fetch>(async () => new Response(new Uint8Array(2_048), {headers: {'content-type': 'audio/mpeg'}})),
@@ -1129,7 +1269,10 @@ describe('OpenAI speech provider contract', () => {
 			allowTestBaseUrl: true,
 			probe: async () => { throw new GenerationError('INVALID_MP3', 'The speech provider output was not a decodable MP3', true); },
 		});
-		await expect(undecodable.render('run-bad', 'Valid narration input for a negative provider contract test.', new AbortController().signal)).rejects.toMatchObject({code: 'INVALID_MP3'});
+		await expect(undecodable.render('run-bad', 'Valid narration input for a negative provider contract test.', new AbortController().signal)).rejects.toMatchObject({
+			code: 'INVALID_MP3',
+			providerStatusImpact: 'failure',
+		});
 		expect(fs.readdirSync(root)).toEqual([]);
 	});
 
