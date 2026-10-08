@@ -92,12 +92,13 @@ const episodeJsonSchema = {
 									type: 'array',
 									minItems: 1,
 									maxItems: 4,
+									description: 'Citations supporting this factual segment. Every snapshotId in this array must be distinct.',
 									items: {
 										type: 'object',
 										additionalProperties: false,
 										required: ['snapshotId', 'excerpt'],
 										properties: {
-											snapshotId: {type: 'string'},
+											snapshotId: {type: 'string', description: 'An exact supplied snapshot ID used at most once in this factual segment.'},
 											excerpt: {type: 'string'},
 										},
 									},
@@ -593,7 +594,9 @@ export class OpenAiTextProvider {
 						'Do not search, use tools, retrieve URLs, or introduce outside facts.',
 						`Return ${modePolicy.minimumOutputWords - disclosureWords} to ${modePolicy.maximumOutputWords - disclosureWords} factual spoken words. LocalCast adds a fixed ${disclosureWords}-word disclosure locally, making the published total ${modePolicy.minimumOutputWords} to ${modePolicy.maximumOutputWords} words. Aim for about ${modePolicy.targetOutputWords - disclosureWords} returned words and never pad beyond supportable material.`,
 						'Keep each segment atomic: one directly supportable factual point, expressed without compound or unrelated assertions.',
-						'Every factual segment must cite exact snapshot IDs and verbatim supporting excerpts.',
+						'Every factual segment must cite exact snapshot IDs and verbatim supporting excerpts. Within a single factual segment, each snapshotId may appear at most once.',
+						'For each cited snapshot, use the single most directly supporting verbatim excerpt. If multiple independent sources support the segment, cite distinct snapshot IDs.',
+						'If different facts require different excerpts from the same snapshot, split them into appropriately atomic factual segments instead of citing that snapshot more than once in one segment. The same snapshot may be reused in separate factual segments.',
 						'Do not create transitions, disclosure language, or factual section headings; LocalCast supplies those locally.',
 					].join(' '),
 				},
@@ -634,7 +637,7 @@ export class OpenAiTextProvider {
 				const citations = segment.citations;
 				if (citations.length === 0) throw new GenerationError('INVALID_CITATIONS', 'The generated transcript contained an uncited factual claim', false);
 				const uniqueIds = new Set(citations.map(citation => citation.snapshotId));
-				if (uniqueIds.size !== citations.length) throw new GenerationError('INVALID_CITATIONS', 'The generated transcript contained duplicate-only citations', false);
+				if (uniqueIds.size !== citations.length) throw new GenerationError('INVALID_CITATIONS', 'The generated transcript repeated a source citation within one factual segment', false);
 				for (const citation of citations) {
 					const source = evidenceById.get(citation.snapshotId);
 					if (!source || citation.excerpt !== citation.excerpt.trim() || !source.body.includes(citation.excerpt)) {

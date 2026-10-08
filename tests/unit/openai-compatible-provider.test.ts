@@ -76,7 +76,27 @@ describe('OpenAI-compatible local text provider contract', () => {
 			expect(JSON.stringify(call.body)).not.toContain('credential-canary');
 			expect(call.body).not.toHaveProperty('tools');
 		}
+		const messages = calls[0]!.body.messages as Array<{role: string; content: string}>;
+		const prompt = messages.find(message => message.role === 'system')!.content;
+		expect(prompt).toContain('Within a single factual segment, each snapshotId may appear at most once.');
+		expect(prompt).toContain('single most directly supporting verbatim excerpt');
+		expect(prompt).toContain('cite distinct snapshot IDs');
+		expect(prompt).toContain('split them into appropriately atomic factual segments');
+		expect(prompt).toContain('same snapshot may be reused in separate factual segments');
 		expect(code).toMatch(/OLLAMA|LM_STUDIO/);
+	});
+
+	it('rejects repeated snapshot IDs before support validation', async () => {
+		const duplicateDraft = structuredClone(draft);
+		duplicateDraft.sections[0]!.segments[0]!.citations.push({...duplicateDraft.sections[0]!.segments[0]!.citations[0]!});
+		const fetchImpl = vi.fn<typeof fetch>(async () => response(duplicateDraft));
+		const provider = new OpenAiCompatibleTextProvider('Ollama', 'http://ollama.test/v1', 'local-model', {fetchImpl});
+
+		await expect(provider.generateEpisode(request, evidence, new AbortController().signal)).rejects.toMatchObject({
+			code: 'INVALID_CITATIONS',
+			safeMessage: 'The generated transcript repeated a source citation within one factual segment',
+		});
+		expect(fetchImpl).toHaveBeenCalledTimes(1);
 	});
 
 	it('rejects oversized, malformed, rejected, timed-out, and cancelled responses with safe categorical errors', async () => {

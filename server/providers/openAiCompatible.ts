@@ -139,7 +139,9 @@ export class OpenAiCompatibleTextProvider {
 						'Do not search, use tools, retrieve URLs, or introduce outside facts.',
 						`Return ${policy.minimumOutputWords - disclosureWords} to ${policy.maximumOutputWords - disclosureWords} factual spoken words.`,
 						'Emit JSON object {"sections":[{"title":"...","type":"intro|news_summary|deep_dive|outro","segments":[{"kind":"factual","text":"...","citations":[{"snapshotId":"...","excerpt":"..."}]}]}]}.',
-						'Every factual segment must use exact snapshot IDs and verbatim supporting excerpts.',
+						'Every factual segment must use exact snapshot IDs and verbatim supporting excerpts. Within a single factual segment, each snapshotId may appear at most once.',
+						'For each cited snapshot, use the single most directly supporting verbatim excerpt. If multiple independent sources support the segment, cite distinct snapshot IDs.',
+						'If different facts require different excerpts from the same snapshot, split them into appropriately atomic factual segments instead of citing that snapshot more than once in one segment. The same snapshot may be reused in separate factual segments.',
 					].join(' '),
 				},
 				{role: 'user', content: userContent},
@@ -166,7 +168,10 @@ export class OpenAiCompatibleTextProvider {
 			type: section.type,
 			segments: section.segments.map((segment, segmentIndex) => {
 				const unique = new Set(segment.citations.map(citation => citation.snapshotId));
-				if (unique.size !== segment.citations.length || segment.citations.some(citation => {
+				if (unique.size !== segment.citations.length) {
+					throw new GenerationError('INVALID_CITATIONS', 'The generated transcript repeated a source citation within one factual segment', false);
+				}
+				if (segment.citations.some(citation => {
 					const source = evidenceById.get(citation.snapshotId);
 					return !source || citation.excerpt !== citation.excerpt.trim() || !source.body.includes(citation.excerpt);
 				})) {

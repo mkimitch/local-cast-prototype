@@ -45,7 +45,7 @@ export const assertGeneratedEpisode = (
 			}
 			const citationIds = new Set<string>();
 			for (const citation of segment.citations) {
-				if (citationIds.has(citation.snapshotId)) invalidEpisode('INVALID_CITATIONS', 'The generated transcript contained duplicate-only citations');
+				if (citationIds.has(citation.snapshotId)) invalidEpisode('INVALID_CITATIONS', 'The generated transcript repeated a source citation within one factual segment');
 				citationIds.add(citation.snapshotId);
 				const source = evidenceById.get(citation.snapshotId);
 				if (

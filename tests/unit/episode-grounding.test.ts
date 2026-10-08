@@ -50,17 +50,46 @@ describe('provider-independent episode grounding validator', () => {
 		expect(assertGeneratedEpisode(request, evidence, sections)).toMatchObject({version: 1});
 	});
 
+	it('permits the same snapshot in separate factual segments', () => {
+		const sections = validSections();
+		const facts = sections.flatMap(section => section.segments).filter(segment => segment.kind === 'factual');
+		expect(facts.length).toBeGreaterThan(1);
+		facts[1]!.citations = [{...facts[0]!.citations[0]!}];
+		expect(assertGeneratedEpisode(request, evidence, sections)).toMatchObject({version: 1});
+	});
+
 	it.each([
 		['original note ID', (sections: GeneratedSection[]) => { firstFact(sections).citations[0]!.snapshotId = 'note-original-id'; }],
 		['station ID', (sections: GeneratedSection[]) => { firstFact(sections).citations[0]!.snapshotId = request.stationId; }],
 		['absent excerpt', (sections: GeneratedSection[]) => { firstFact(sections).citations[0]!.excerpt = 'absent evidence excerpt'; }],
 		['wrong-snapshot excerpt', (sections: GeneratedSection[]) => { firstFact(sections).citations[0]!.snapshotId = evidence[1]!.id; }],
 		['empty citations', (sections: GeneratedSection[]) => { firstFact(sections).citations = []; }],
-		['duplicate-only citations', (sections: GeneratedSection[]) => { const citation = firstFact(sections).citations[0]!; firstFact(sections).citations.push({...citation}); }],
+		['repeated-only citations', (sections: GeneratedSection[]) => { const citation = firstFact(sections).citations[0]!; firstFact(sections).citations.push({...citation}); }],
+		['repeated citations mixed with a distinct source', (sections: GeneratedSection[]) => {
+			const citation = firstFact(sections).citations[0]!;
+			firstFact(sections).citations.push(
+				{...citation},
+				{snapshotId: evidence[1]!.id, excerpt: evidence[1]!.body.slice(0, 80).trim()},
+			);
+		}],
+		['same snapshot with different excerpts', (sections: GeneratedSection[]) => {
+			const citation = firstFact(sections).citations[0]!;
+			firstFact(sections).citations.push({snapshotId: citation.snapshotId, excerpt: evidence[0]!.body.slice(81, 161).trim()});
+		}],
 	] as const)('rejects %s', (_name, mutate) => {
 		const sections = clone(validSections());
 		mutate(sections);
 		expect(() => assertGeneratedEpisode(request, evidence, sections)).toThrow(expect.objectContaining({code: 'INVALID_CITATIONS'}));
+	});
+
+	it('reports repeated per-segment citations with accurate safe wording', () => {
+		const sections = clone(validSections());
+		const citation = firstFact(sections).citations[0]!;
+		firstFact(sections).citations.push({...citation});
+		expect(() => assertGeneratedEpisode(request, evidence, sections)).toThrow(expect.objectContaining({
+			code: 'INVALID_CITATIONS',
+			safeMessage: 'The generated transcript repeated a source citation within one factual segment',
+		}));
 	});
 
 	it('rejects unsupported facts, cited transitions, and non-host roles at publication', () => {
