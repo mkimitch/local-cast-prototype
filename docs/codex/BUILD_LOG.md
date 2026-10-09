@@ -1196,3 +1196,23 @@ OpenAI and OpenAI-compatible generation prompts now specify per-segment unique s
 | authorized `npm run smoke:production` | PASS — isolated production same-origin smoke |
 
 The two logical checkpoints are separated into citation-contract and provider-status commits. No schema migration, dependency/lockfile, evidence construction, station selection, credential storage, restart-preservation, health route, TTS/media-publication semantics, fixture, Compose/Caddy/volume, production data, failed job, provider status, credential, live request, build image, deployment, or push was involved.
+
+## 2026-10-08 — Recurring readiness investigation and diagnostic checkpoint
+
+Production stayed on `e8a1154` / image `sha256:4e4b8776d22780c3e485465a677b924ffd67bae648e3ceae4dc41b68c14db8d4`. App health returned 503, worker health passed, ordinary app read APIs returned 200, and a separate read-only/query-only SQLite audit passed schema 008, FTS5, quick-check and foreign keys. Media access, open descriptors, mounted inode identities and resource checks found no direct cause. The original long-lived connection cannot be inspected through a separate `docker exec` process, and the deployed catch emits no exception. Root cause remains unresolved. Final production check around `2026-10-09T03:04Z` still showed 503 and 51,936 failures, with original image/start times and zero restarts.
+
+Code-only checkpoint `8c3467c9a348608d39289eaa462f3d0af3608f6e` adds stage-aware sanitized diagnostics, exact recognized error codes, minute suppression and recovery logs. It changes no readiness assertion. The complete staged four-file patch passed `git apply --cached --check` against `e8a1154` using an alternate index under `/tmp`; the feature branch and existing commits were preserved. The investigation report and ledgers are committed separately so the code commit can be cherry-picked alone onto the deployed baseline.
+
+| Command/check | Result |
+| --- | --- |
+| initial `npm run lint` | REPAIRED — test provider summary omitted required adapter/reason fields; one fixture correction |
+| final `npm run lint` | PASS, exit 0 |
+| final `npm run test -- --reporter=dot` | PASS, exit 0 — 310/310, 19 files; includes 16 diagnostic cases |
+| `npm run test:integration -- --reporter=dot` and final run with health test path | PASS, exit 0 — 108/108, 15 files each; directory argument still selects full suite; includes six health HTTP cases |
+| `npm run build:server` | PASS, exit 0 — five local server bundles, no container image |
+| final `npm run smoke:api` | PASS, exit 0 — temporary API/worker services only |
+| final `npm run smoke:production` | PASS, exit 0 — isolated production-mode same-origin services only |
+| independent read-only review | PASS after completing recognized extended SQLite-code allowlist and five regression cases |
+| schema/dependency/topology/prior-feature diff and whitespace checks | PASS — only diagnostic code/tests and this documentation follow-up |
+
+Validation finished approximately `2026-10-09T03:07Z` (October 8 local). No browser change required Playwright/axe. No live provider request, production SQL write, credential read/replacement, source-selection/fixture change, process restart, production image build, deployment, or push occurred. See `HEALTH_DIAGNOSTICS.md` for the exact stage/connection analysis and separately authorized diagnostic-rollout recommendation.

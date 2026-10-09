@@ -366,6 +366,10 @@ The generation contract now makes the existing per-factual-segment unique-`snaps
 
 Generation errors now carry an explicit provider-status impact. Only provider/capability failures downgrade verification; citation/excerpt/support validation and local persistence/media/publication failures preserve still-applicable evidence. Deterministic tests cover repeated validation failures, excerpt membership, semantic support, local persistence/media failure, provider authentication/protocol failure, existing fingerprint invalidation, local/mixed provider behavior, and zero startup/live network use. No schema, dependency, station, evidence construction, credential storage, restart-preservation, health, TTS/publication behavior, fixture, Compose/Caddy, volume, production-data, or deployment change is part of this repair.
 
+## Health readiness diagnostics — VALIDATED 2026-10-08; CAUSE UNRESOLVED
+
+The recurring production `503 NOT_READY` remains a failed readiness signal. A separate read-only audit and ordinary APIs pass, but the deployed handler drops the exception, so no root cause is asserted. Diagnostic-only commit `8c3467c` adds bounded safe stage/code logs and recovery reporting without altering assertions or public response semantics. All 310 unit and 108 integration tests, TypeScript, server build and isolated smokes pass. Its patch applies to deployed `e8a1154` independently of pending feature fixes. A diagnostic rollout requires separate authorization explicitly acknowledging the failed health preflight, independent state/availability evidence, current protected snapshot and image rollback. See `HEALTH_DIAGNOSTICS.md`; no deployment or restart occurred.
+
 ## First post-prototype audio milestone — deferred two-host format
 
 This milestone begins only after the currently defined prototype and must preserve the green single-host path. `Sol` is a qualitative benchmark only: it is not assumed to be an API voice and must not be imitated or treated as a dependency.

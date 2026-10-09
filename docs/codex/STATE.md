@@ -5,10 +5,18 @@ Branch: `codex/localcast-prototype`
 Pre-bootstrap HEAD: `910485b77ead63450660b0b97544889960e45e3f`
 Slice 0 base HEAD: `e720d5818ab15efccfa143c94d6514c0c9a2baad`
 Current base checkpoint: Slice 6D security hardening at `176d30a6e18d6da18ef92ae38ab0655673c663d1`
-Current checkpoint: **Generation citation-contract and provider-failure-classification repair**
-Implementation slice: **GENERATION VALIDATION / PROVIDER STATUS — COMPLETE 2026-10-08**
-Next action: **A separately authorized deployment may build the new HEAD; production must remain at its persisted provider state until the operator explicitly performs any live verification or generation**
+Current checkpoint: **Health readiness diagnostics prepared; live exception remains unresolved**
+Implementation slice: **HEALTH OBSERVABILITY — VALIDATED 2026-10-08, NOT DEPLOYED**
+Next action: **A separately authorized diagnostic rollout may apply only `8c3467c` to deployed baseline `e8a1154`; existing production 503 is a failed preflight requiring an explicit diagnostic maintenance exception and independent evidence**
 Overall state: **SLICE 5 COMPLETE; SLICE 6A–6D DETERMINISTIC CHECKPOINTS COMPLETE; DAILY DRIVER 1A, STATION EVIDENCE-SELECTION, PROVIDER-RESTART, AND GENERATION VALIDATION/STATUS REPAIRS COMPLETE; OPERATIONAL SLICE 6 AND A11Y-01 GATES REMAIN OPEN**
+
+## Recurring NOT_READY investigation — 2026-10-08
+
+Read-only production inspection confirmed health 503 while ordinary read APIs returned 200, the worker remained healthy, a separate query-only connection passed schema 008/quick-check/FK/FTS, media access passed, and process/resource/file-identity checks showed no direct cause. The deployed handler discards its exception. At the final check around `2026-10-09T03:04Z`, app failing streak was 51,936, the original image/start times were unchanged, and restart counts were zero. Cause remains unresolved; a new read-only connection cannot prove the original app connection's audit succeeds.
+
+The isolated diagnostic code checkpoint is `8c3467c9a348608d39289eaa462f3d0af3608f6e`. It preserves checks/order/public responses and adds bounded, sanitized stage/code logs and recovery transitions. Its four-file patch applies directly to `e8a1154` without the pending citation/provider changes, proven in a disposable alternate Git index. Full evidence, connection lifecycle and the explicitly gated rollout recommendation are in [HEALTH_DIAGNOSTICS.md](HEALTH_DIAGNOSTICS.md).
+
+Validation completed October 8 local / October 9 UTC: `npm run lint` PASS; `npm run test -- --reporter=dot` PASS 310/310; `npm run test:integration -- --reporter=dot tests/integration/health-route.test.ts` PASS 108/108 (the package script's directory argument ran the full suite); `npm run build:server` PASS; `npm run smoke:api` and `npm run smoke:production` PASS with isolated loopback storage. The 16 diagnostic unit cases and six HTTP cases cover redaction, stage distinction, unchanged HTTP behavior, suppression/flapping, recovery and failing sinks. An initial missing-field test-fixture type error was corrected once; independent review's missing extended-code finding was corrected and re-reviewed. No schema/dependency/topology or prior feature behavior changed. No production writes, provider calls, restart, image build, or deployment occurred.
 
 ## Generation citation-contract and provider-failure-classification repair — 2026-10-08
 
