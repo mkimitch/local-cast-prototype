@@ -451,6 +451,17 @@ This classification does not promote status. A successful complete generation or
 
 The episode citation invariant remains strict: within one factual segment a `snapshotId` may appear at most once. Generation prompts and supported structured schemas state the rule, but local validation remains authoritative. Duplicate arrays are rejected rather than rewritten because choosing or merging excerpts could alter support semantics; the same snapshot may still support separate atomic factual segments.
 
+## D-047 — Normalize only exact redundant episode citation pairs
+
+Status: **ACCEPTED**
+Date: 2026-10-09
+
+This narrowly supersedes D-046's prohibition on all draft rewriting. After the existing strict episode draft schema succeeds, OpenAI and OpenAI-compatible adapters may remove subsequent byte-for-byte equal `(snapshotId, excerpt)` string pairs within the same factual segment. Preserve first-occurrence order, do not trim/merge/choose excerpts, and do not alter claims, evidence snapshots, distinct sources, or cross-segment reuse. Different excerpts for one source remain invalid. Existing raw-array bounds (one to four entries), strict final unique-source validation, exact membership, and semantic support classification remain mandatory. Direct validator callers still cannot submit duplicate-ID arrays. Chat is unchanged.
+
+One best-effort count-only `episode_citations_normalized` event per affected parsed draft records `removedCount`; it contains no identifiers, claims, or excerpts and does not imply successful validation. Rejected drafts remain unpersisted. A future bounded corrective model pass would require explicit cost authorization and the complete existing validation pipeline; it is not implemented here.
+
+`completed_at` is a terminal timestamp, not a success flag. Episode presentation derives success/failure from canonical run status. Nonretryable generated-output errors do not establish invalid user evidence. No retry eligibility, automatic dispatch, provider-status, or persistence semantics change.
+
 ## Open operator decisions
 
 These are genuine inputs that cannot be inferred safely. They do not block documentation bootstrap. A slice must stop before it needs an unresolved value.

@@ -398,3 +398,7 @@ The prototype is review-ready only when:
 Suggested commit: `feat(prototype): harden local production release`
 
 Never push, merge, deploy, tag, or modify Caddy as part of this plan without separate authorization.
+
+## Authorized maintenance — exact citation normalization (2026-10-09)
+
+Inspect the October 9 failed attempt read-only; normalize only exact per-segment citation pairs at the schema-validated provider boundary; keep strict ID/excerpt/support validation and ambiguous-repeat rejection; correct terminal-status and nonretryable failure copy. Add adapter/processor/validator/browser regressions, run the repository-only validation gate, and create one checkpoint. No production mutation, retry, provider call, schema change, image build, deployment, or unrelated Slice 6 work is authorized. See D-047 and the current STATE/BUILD_LOG evidence.

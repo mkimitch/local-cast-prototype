@@ -48,6 +48,27 @@ const response = (body: unknown): Response => new Response(JSON.stringify({
 }), {headers: {'content-type': 'application/json'}});
 
 describe('OpenAI-compatible local text provider contract', () => {
+	it.each(['supported', 'unsupported'] as const)('normalizes exact pairs but still requires %s semantic classification', async status => {
+		const log = vi.spyOn(console, 'info').mockImplementation(() => {});
+		try {
+			const duplicateDraft = structuredClone(draft);
+			duplicateDraft.sections[0]!.segments[0]!.citations.push({...duplicateDraft.sections[0]!.segments[0]!.citations[0]!});
+			const fetchImpl = vi.fn<typeof fetch>(async (_input, init) => {
+				if (fetchImpl.mock.calls.length === 1) return response(duplicateDraft);
+				const body = JSON.parse(String(init?.body));
+				const claims = JSON.parse(body.messages[1].content).claims;
+				expect(claims[0].citedEvidence).toEqual(draft.sections[0]!.segments[0]!.citations);
+				return response({results: claimResults(status)});
+			});
+			const provider = new OpenAiCompatibleTextProvider('Ollama', 'http://ollama.test/v1', 'local-model', {fetchImpl});
+			const result = provider.generateEpisode(request, evidence, new AbortController().signal);
+			if (status === 'supported') expect((await result).sections[1]!.segments[0]!.citations).toEqual(draft.sections[0]!.segments[0]!.citations);
+			else await expect(result).rejects.toMatchObject({code: 'UNSUPPORTED_GENERATED_CLAIM'});
+			expect(fetchImpl).toHaveBeenCalledTimes(2);
+			expect(log).toHaveBeenCalledTimes(1);
+		} finally { log.mockRestore(); }
+	});
+
 	it.each([
 		['Ollama', 'http://ollama.test/v1', 'OLLAMA'],
 		['LM Studio', 'http://lmstudio.test/v1', 'LM_STUDIO'],
@@ -88,7 +109,7 @@ describe('OpenAI-compatible local text provider contract', () => {
 
 	it('rejects repeated snapshot IDs before support validation', async () => {
 		const duplicateDraft = structuredClone(draft);
-		duplicateDraft.sections[0]!.segments[0]!.citations.push({...duplicateDraft.sections[0]!.segments[0]!.citations[0]!});
+		duplicateDraft.sections[0]!.segments[0]!.citations.push({snapshotId: evidence[0]!.id, excerpt: facts.slice(40, 80).join(' ')});
 		const fetchImpl = vi.fn<typeof fetch>(async () => response(duplicateDraft));
 		const provider = new OpenAiCompatibleTextProvider('Ollama', 'http://ollama.test/v1', 'local-model', {fetchImpl});
 

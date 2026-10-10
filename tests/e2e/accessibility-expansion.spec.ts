@@ -38,6 +38,12 @@ test.describe('Slice 6C accessibility coverage', () => {
 					if (selectedAppearance === 'high-contrast') element.dataset.contrast = 'high';
 					else delete element.dataset.contrast;
 				}, appearance);
+				// Audit the selected theme, not intermediate colors during its transition.
+				await page.evaluate(async () => {
+					await Promise.allSettled(document.getAnimations()
+						.filter(animation => animation instanceof CSSTransition)
+						.map(animation => animation.finished));
+				});
 				expect((await new AxeBuilder({page}).analyze()).violations).toEqual([]);
 			}
 		}

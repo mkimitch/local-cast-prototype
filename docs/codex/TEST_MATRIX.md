@@ -210,3 +210,12 @@ git status --porcelain=v1 --untracked-files=all after checks            CLEAN
 ```
 
 Exact outputs and timings are recorded in `STATE.md`.
+
+## October 9 exact citation-pair normalization regressions
+
+- Exact `[A:E1,A:E1]` and mixed redundant/distinct pairs retain first-occurrence order; different excerpts, whitespace differences, distinct IDs, and cross-segment reuse are not merged.
+- Existing strict validator still rejects unnormalized `[A,A]` and `[A,A,B]`; adapters normalize only after schema validation. Four distinct citations pass; five raw entries remain schema-invalid even if redundant.
+- OpenAI and compatible adapters still perform semantic support classification. Unknown IDs, nonverbatim excerpts, ambiguous repeats, unsupported/uncertain support fail closed.
+- Configured processor regressions prove exact normalization reaches the speech boundary only after support; invalid cases never reach speech/publication or alter applicable provider evidence/snapshots. Repeated local failures retain live evidence.
+- Browser regression supplies a failed run with a terminal timestamp and verifies Failed, no Completed, truthful input guidance, no retry/mutation, keyboard navigation, axe, and narrow-screen rendering. Successful-run Completed and insufficient-input guidance remain covered.
+- Count-only normalization logging is idempotent, excludes private content, and cannot fail generation if the sink throws. Full gate results are in BUILD_LOG.

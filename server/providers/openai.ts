@@ -24,6 +24,7 @@ import type {ServerConfig} from '../config';
 import type {EpisodeEvidence, EpisodeRequestSnapshot, GeneratedEpisodeScript, GeneratedSection, PublishedAudio} from '../episodes/types';
 import {aiAudioDisclosure, assertEvidenceSufficient, countWords} from '../episodes/modePolicy';
 import {assertGeneratedEpisode, narrationForScript} from '../episodes/validation';
+import {normalizeDraftCitations} from '../episodes/normalizeDraftCitations';
 import {GenerationError} from '../jobs/types';
 import {enterReservedChatProviderStage, type ChatProviderStageLifecycle} from '../services/chatStore';
 import {isWellFormedLocalCastText} from '../../src/types';
@@ -626,6 +627,7 @@ export class OpenAiTextProvider {
 			throw providerFailure('OPENAI_INVALID_RESPONSE', 'The configured OpenAI text provider returned invalid structured output', false);
 		}
 
+		normalizeDraftCitations(draft);
 		const evidenceById = new Map(evidence.map(item => [item.id, item]));
 		const sectionTitles: Record<GeneratedSection['type'], string> = {
 			intro: 'Introduction',

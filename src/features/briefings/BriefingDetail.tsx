@@ -85,7 +85,8 @@ export default function BriefingDetailView({runId, onBack, onPlay}: BriefingDeta
             <Clock size={16} aria-hidden="true" />
             <span>{new Date(run.createdAt).toLocaleString()}</span>
             {run.mode && <><span>•</span><span>{run.mode}</span></>}
-            {run.completedAt && <><span>•</span><CheckCircle2 size={16} aria-hidden="true" className="icon-success" /><span>Completed</span></>}
+            {run.status === 'complete' && <><span>•</span><CheckCircle2 size={16} aria-hidden="true" className="icon-success" /><span>Completed</span></>}
+            {run.status === 'failed' && <><span>•</span><TriangleAlert size={16} aria-hidden="true" /><span>Failed</span></>}
           </div>
         </div>
         {run.status === 'complete' && <button onClick={exportJson} className="button button--secondary"><Download size={16} aria-hidden="true" /> Export JSON</button>}
@@ -123,11 +124,11 @@ export default function BriefingDetailView({runId, onBack, onPlay}: BriefingDeta
       )}
 
       {run.status === 'failed' && (
-        <section className="card card--padded-lg" aria-labelledby="failure-title">
+        <section className="card card--padded-lg generation-failure" aria-labelledby="failure-title">
           <h2 id="failure-title" className="card__title">Generation failed</h2>
           <p role="alert">{run.job?.errorMessage || 'LocalCast could not complete this episode.'}</p>
           <p className="field-help">
-            Code: {run.job?.errorCode || 'GENERATION_FAILED'} · failed during {run.job?.failedPhase || 'job validation'} · attempt {run.job?.attemptCount || 1} · {run.job?.retryable ? 'retryable' : 'new or changed input required'}
+            Code: {run.job?.errorCode || 'GENERATION_FAILED'} · failed during {run.job?.failedPhase || 'job validation'} · attempt {run.job?.attemptCount || 1} · {run.job?.retryable ? 'retryable' : 'this attempt cannot be retried'}
           </p>
           {run.job?.diagnosticReference && <p className="field-help">Diagnostic reference: {run.job.diagnosticReference}</p>}
           {run.job?.attempts && run.job.attempts.length > 0 && (
@@ -152,7 +153,14 @@ export default function BriefingDetailView({runId, onBack, onPlay}: BriefingDeta
               </button>
             </>
           ) : (
-            <p><Link to="/stations">Change the supplied material and start a new generation.</Link></p>
+            <p>
+              {run.job?.errorCode === 'INSUFFICIENT_SOURCE_MATERIAL'
+                ? 'New or changed input is required: the supplied evidence is insufficient for this mode. '
+                : run.job?.errorCode === 'INVALID_CITATIONS' || run.job?.errorCode === 'UNSUPPORTED_GENERATED_CLAIM'
+                ? 'The generated output failed evidence validation; this does not establish that the supplied material is invalid. '
+                : 'Review the failure and supplied material before starting again. '}
+              <Link to="/stations">Review station and generation options.</Link> A new generation is a separate action and may incur provider costs. Nothing is retried automatically.
+            </p>
           )}
           {retryError && <p role="alert" className="field-help">Retry could not be started: {retryError}</p>}
         </section>

@@ -1,16 +1,26 @@
 # LocalCast build state
 
-Last updated: 2026-10-08
+Last updated: 2026-10-10
 Branch: `codex/localcast-prototype`
 Pre-bootstrap HEAD: `910485b77ead63450660b0b97544889960e45e3f`
 Slice 0 base HEAD: `e720d5818ab15efccfa143c94d6514c0c9a2baad`
 Current base checkpoint: Slice 6D security hardening at `176d30a6e18d6da18ef92ae38ab0655673c663d1`
-Current checkpoint: **Health readiness diagnostics prepared; live exception remains unresolved**
-Implementation slice: **HEALTH OBSERVABILITY — VALIDATED 2026-10-08, NOT DEPLOYED**
-Next action: **A separately authorized diagnostic rollout may apply only `8c3467c` to deployed baseline `e8a1154`; existing production 503 is a failed preflight requiring an explicit diagnostic maintenance exception and independent evidence**
+Current checkpoint: **Exact citation-pair normalization and truthful failure UI, based on `28f0fd8`**
+Implementation slice: **CITATION NORMALIZATION — VALIDATED; NOT DEPLOYED**
+Next action: **Await separately authorized deployment with fresh health preflight; do not retry production jobs or make live provider calls**
 Overall state: **SLICE 5 COMPLETE; SLICE 6A–6D DETERMINISTIC CHECKPOINTS COMPLETE; DAILY DRIVER 1A, STATION EVIDENCE-SELECTION, PROVIDER-RESTART, AND GENERATION VALIDATION/STATUS REPAIRS COMPLETE; OPERATIONAL SLICE 6 AND A11Y-01 GATES REMAIN OPEN**
 
-## Recurring NOT_READY investigation — 2026-10-08
+## October 9 citation failure and maintenance correction
+
+Read-only/query-only inspection of `job-242cf3a7-1736-4bc2-8b4b-b2d4292a669f:attempt-1` / `run-87ff41aa-7dc6-4368-ab50-1357c94a998c` confirms failure in validating at `2026-10-09T18:20:20.184Z`, code `INVALID_CITATIONS`, safe repeated-source message, one attempt, and zero published sections. Fifty frozen snapshots comprise one note and 49 feed items from CNN and NY Times, with distinct snapshot IDs, original IDs, exact bodies, and whitespace/case-normalized bodies. No raw rejected draft or repeated-pair diagnostic was persisted. Identical versus differing excerpts cannot be established, so this patch is not claimed to rescue this particular discarded draft.
+
+The deployed worker label is `28f0fd8af28be424713cfedb14ebaf95807bf010`; it started at `2026-10-09T16:09:51.220596268Z`, before the attempt, and its bundle contains the explicit uniqueness prompt. Its configured text provider/model is OpenAI / `gpt-5.4-mini`; failed run provider/model columns are null because publication never occurred. No retained request payload independently proves the exact dispatched prompt. Text and speech rows are still `LIVE VERIFIED`, with verification/update times `18:17:34.984Z` and `18:17:35.574Z` respectively, preceding the failure. Thus no downgrade is observed. Independent query-only quick-check/FK passed. App was incidentally observed unhealthy again, worker healthy; that separate issue was not investigated, restarted, or modified.
+
+D-047 adds exact-pair normalization only on private schema-validated episode drafts. Ambiguous repeats, invalid membership, unsupported claims, malformed/bound-exceeding output still fail. Direct strict validation and semantic support are unchanged. UI success derives from canonical status, not the terminal timestamp; citation/support failures no longer demand changed inputs without evidence. Retry remains disabled for these attempts; no new paid pass is added. Validation results are recorded in BUILD_LOG. Production data, runtime, credentials, provider evidence, and the failed attempt remain untouched.
+
+Final gate: TypeScript/no-emit PASS; `npm run test -- --reporter=dot` PASS 327/327; `npm run test:integration -- --reporter=dot` PASS 113/113; production build PASS; API/worker and production same-origin smokes PASS; full `playwright test --trace=off --reporter=line` PASS 23/23 in 5.4 minutes. Exact commands, isolated environment, intermediate browser findings and fixes are retained in BUILD_LOG. The frontend-testing skill led to explicit failed-status, keyboard, axe, desktop and 320px/200%-text checks; the failure panel received only scoped text wrapping. Independent normalization and UI reviews found no blockers. Source/client secret scans, dependency/schema/scope and whitespace checks passed. Automated validation used no live provider requests. The final browser result and checkpoint were reconciled on October 10; the retained command timestamps are October 9 UTC.
+
+## Recurring NOT_READY investigation — 2026-10-08 (historical)
 
 Read-only production inspection confirmed health 503 while ordinary read APIs returned 200, the worker remained healthy, a separate query-only connection passed schema 008/quick-check/FK/FTS, media access passed, and process/resource/file-identity checks showed no direct cause. The deployed handler discards its exception. At the final check around `2026-10-09T03:04Z`, app failing streak was 51,936, the original image/start times were unchanged, and restart counts were zero. Cause remains unresolved; a new read-only connection cannot prove the original app connection's audit succeeds.
 

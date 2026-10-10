@@ -2359,3 +2359,7 @@ html.dark .orb-theme-preview {
     white-space: normal;
   }
 }
+
+.generation-failure {
+  overflow-wrap: anywhere;
+}

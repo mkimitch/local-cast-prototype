@@ -49,6 +49,7 @@ test('a safe failed run retries once from the same durable episode URL', async (
 	await page.reload();
 	await expect(page).toHaveURL(runUrl);
 	await expect(page.getByText('AI-generated LocalCast audio')).toBeVisible({timeout: 25_000});
+	await expect(page.locator('.detail-meta')).toContainText('Completed');
 	const completeAccessibility = await new AxeBuilder({page}).include('main').analyze();
 	expect(completeAccessibility.violations).toEqual([]);
 
@@ -123,7 +124,8 @@ test('insufficient material requires changed inputs and offers no retry', async 
 	await expect(page.getByRole('heading', {name: 'Generation failed'})).toBeVisible({timeout: 15_000});
 	await expect(page.getByText('Code: INSUFFICIENT_SOURCE_MATERIAL')).toBeVisible();
 	await expect(page.getByRole('button', {name: /Retry/})).toHaveCount(0);
-	await expect(page.getByRole('link', {name: 'Change the supplied material and start a new generation.'})).toBeVisible();
+	await expect(page.getByText('New or changed input is required:', {exact: false})).toBeVisible();
+	await expect(page.getByRole('link', {name: 'Review station and generation options.'})).toBeVisible();
 });
 
 test('deep mode can be selected per run and persists a materially long transcript', async ({page}) => {

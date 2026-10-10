@@ -1,4 +1,5 @@
 import {z} from 'zod';
+import {normalizeDraftCitations} from '../episodes/normalizeDraftCitations';
 import type {EpisodeEvidence, EpisodeRequestSnapshot, GeneratedEpisodeScript, GeneratedSection} from '../episodes/types';
 import {aiAudioDisclosure, assertEvidenceSufficient, countWords} from '../episodes/modePolicy';
 import {assertGeneratedEpisode, narrationForScript} from '../episodes/validation';
@@ -159,6 +160,7 @@ export class OpenAiCompatibleTextProvider {
 			throw providerFailure(`${this.code}_INVALID_RESPONSE`, 'The configured local text provider returned invalid structured output', false);
 		}
 
+		normalizeDraftCitations(parsedDraft);
 		const evidenceById = new Map(evidence.map(item => [item.id, item]));
 		const titles: Record<GeneratedSection['type'], string> = {
 			intro: 'Introduction',
