@@ -475,6 +475,15 @@ This decision supersedes D-047 at the episode provider boundary: exact duplicate
 
 Validation failures may carry only a bounded structural diagnostic: stage, typed category, section/segment/citation indices, and counts. The worker persists that sanitized diagnostic in the existing attempt-correlated generation event; it never stores the rejected transcript, token-to-evidence values, titles, bodies, excerpts, provider response, or credential material. This adds no schema, provider call, retry, provider-status downgrade, or deployment-topology change.
 
+## D-049 — Readiness records safe quick-check result structure
+
+Status: **ACCEPTED**
+Date: 2026-10-11
+
+The readiness database audit still requires exactly one `PRAGMA quick_check` row whose `quick_check` value is the canonical `ok`; foreign-key, migration, FTS, media, and provider-summary checks are unchanged. A typed local error now distinguishes one non-OK result, an empty result, multiple result rows, an unexpected row/column shape, and a thrown query exception. It carries only result count, expected-column presence, connection transaction/read-only flags, and a bounded query duration. Recognized SQLite/system codes remain allowlisted.
+
+The existing rate-limited health diagnostic serializes only those structural fields. It does not retain result text, table names, SQL, database paths, settings, source material, arbitrary exception fields, or credentials. Public HTTP behavior remains `200` for complete readiness and the same `503 NOT_READY` body otherwise. This instrumentation narrows a future recurrence; it does not repair or weaken the unresolved connection-local readiness failure.
+
 ## Open operator decisions
 
 These are genuine inputs that cannot be inferred safely. They do not block documentation bootstrap. A slice must stop before it needs an unresolved value.

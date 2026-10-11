@@ -11,6 +11,36 @@ export interface DatabaseHealth {
 	schemaVersion: string;
 }
 
+export type QuickCheckFailureCategory =
+	| 'non_ok_result'
+	| 'empty_result'
+	| 'multiple_results'
+	| 'unexpected_result_shape'
+	| 'exception';
+
+export interface QuickCheckFailureDiagnostic {
+	category: QuickCheckFailureCategory;
+	rowCount?: number;
+	expectedColumnShape: boolean;
+	inTransaction: boolean;
+	durationMs: number;
+	connectionReadonly: boolean;
+}
+
+export class QuickCheckHealthError extends Error {
+	readonly code?: string;
+
+	constructor(
+		readonly diagnostic: QuickCheckFailureDiagnostic,
+		cause?: unknown,
+	) {
+		super('SQLite quick_check failed');
+		this.name = 'QuickCheckHealthError';
+		const causeCode = typeof cause === 'object' && cause !== null && 'code' in cause ? cause.code : undefined;
+		if (typeof causeCode === 'string') this.code = causeCode;
+	}
+}
+
 export interface OpenDatabaseOptions {
 	initializingStorage?: boolean;
 }
@@ -55,16 +85,84 @@ const verifyExistingInstallationIdentity = (database: Database.Database, config:
 	}
 };
 
+const quickCheckDuration = (startedAt: bigint): number => (
+	Math.min(60_000, Math.max(0, Math.round((Number(process.hrtime.bigint() - startedAt) / 1_000_000) * 1_000) / 1_000))
+);
+
+const quickCheckContext = (
+	database: Database.Database,
+	startedAt: bigint,
+	input: Pick<QuickCheckFailureDiagnostic, 'category' | 'rowCount' | 'expectedColumnShape'>,
+): QuickCheckFailureDiagnostic => ({
+	...input,
+	inTransaction: database.inTransaction,
+	durationMs: quickCheckDuration(startedAt),
+	connectionReadonly: database.readonly,
+});
+
+const inspectQuickCheck = (database: Database.Database): 'ok' => {
+	const startedAt = process.hrtime.bigint();
+	let value: unknown;
+	try {
+		value = database.pragma('quick_check');
+	} catch (error) {
+		throw new QuickCheckHealthError(quickCheckContext(database, startedAt, {
+			category: 'exception',
+			expectedColumnShape: false,
+		}), error);
+	}
+
+	if (!Array.isArray(value)) {
+		throw new QuickCheckHealthError(quickCheckContext(database, startedAt, {
+			category: 'unexpected_result_shape',
+			expectedColumnShape: false,
+		}));
+	}
+	if (value.length === 0) {
+		throw new QuickCheckHealthError(quickCheckContext(database, startedAt, {
+			category: 'empty_result',
+			rowCount: 0,
+			expectedColumnShape: false,
+		}));
+	}
+	const expectedColumnShape = value.every(row => (
+		typeof row === 'object'
+		&& row !== null
+		&& 'quick_check' in row
+		&& typeof row.quick_check === 'string'
+	));
+	if (!expectedColumnShape) {
+		throw new QuickCheckHealthError(quickCheckContext(database, startedAt, {
+			category: 'unexpected_result_shape',
+			rowCount: value.length,
+			expectedColumnShape,
+		}));
+	}
+	if (value.length !== 1) {
+		throw new QuickCheckHealthError(quickCheckContext(database, startedAt, {
+			category: 'multiple_results',
+			rowCount: value.length,
+			expectedColumnShape,
+		}));
+	}
+	if (value[0].quick_check !== 'ok') {
+		throw new QuickCheckHealthError(quickCheckContext(database, startedAt, {
+			category: 'non_ok_result',
+			rowCount: value.length,
+			expectedColumnShape,
+		}));
+	}
+	return 'ok';
+};
+
 export const inspectDatabaseHealth = (database: Database.Database): DatabaseHealth => {
 	const sqliteVersion = (database.prepare('SELECT sqlite_version() AS version').get() as {version: string}).version;
 	const fts5 = (database.prepare("SELECT sqlite_compileoption_used('ENABLE_FTS5') AS enabled").get() as {enabled: number}).enabled === 1;
-	const quickCheckRows = database.pragma('quick_check') as Array<{quick_check: string}>;
+	const quickCheck = inspectQuickCheck(database);
 	const foreignKeyRows = database.pragma('foreign_key_check') as unknown[];
 	const migrations = database.prepare('SELECT id FROM schema_migrations ORDER BY rowid').all() as Array<{id: string}>;
-	const quickCheck = quickCheckRows.length === 1 && quickCheckRows[0]?.quick_check === 'ok' ? 'ok' : undefined;
 
 	if (!fts5) throw new Error('This SQLite build does not include required FTS5 support');
-	if (quickCheck !== 'ok') throw new Error('SQLite quick_check failed');
 	if (foreignKeyRows.length > 0) throw new Error('SQLite foreign_key_check found violations');
 	if (migrations.length !== migrationIds.length || migrations.some((row, index) => row.id !== migrationIds[index])) {
 		throw new Error('SQLite migration version does not match this LocalCast build');

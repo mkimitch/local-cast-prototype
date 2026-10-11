@@ -1,4 +1,5 @@
 import {getSystemErrorMap} from 'node:util';
+import {QuickCheckHealthError} from '../database/connection';
 
 export type HealthStage = 'database_audit' | 'media_access' | 'provider_summary' | 'response';
 
@@ -46,8 +47,32 @@ const auditAssertions = new Map([
 	['SQLite migration version does not match this LocalCast build', 'schema_mismatch'],
 ]);
 
-const classify = (stage: HealthStage, error: unknown): {classification: string; code?: string} => {
+interface HealthFailureClassification {
+	classification: string;
+	code?: string;
+	category?: string;
+	rowCount?: number;
+	expectedColumnShape?: boolean;
+	inTransaction?: boolean;
+	durationMs?: number;
+	connectionReadonly?: boolean;
+}
+
+const classify = (stage: HealthStage, error: unknown): HealthFailureClassification => {
 	try {
+		if (stage === 'database_audit' && error instanceof QuickCheckHealthError) {
+			const code = error.code && (sqliteCodes.has(error.code) || systemCodes.has(error.code)) ? error.code : undefined;
+			return {
+				classification: code && sqliteCodes.has(code) ? 'sqlite' : code && systemCodes.has(code) ? 'system' : 'quick_check_failed',
+				...(code ? {code} : {}),
+				category: error.diagnostic.category,
+				...(error.diagnostic.rowCount === undefined ? {} : {rowCount: Math.min(10_000, Math.max(0, error.diagnostic.rowCount))}),
+				expectedColumnShape: error.diagnostic.expectedColumnShape,
+				inTransaction: error.diagnostic.inTransaction,
+				durationMs: Math.min(60_000, Math.max(0, error.diagnostic.durationMs)),
+				connectionReadonly: error.diagnostic.connectionReadonly,
+			};
+		}
 		if (typeof error === 'object' && error !== null) {
 			const code: unknown = 'code' in error ? error.code : undefined;
 			if (typeof code === 'string' && sqliteCodes.has(code)) return {classification: 'sqlite', code};

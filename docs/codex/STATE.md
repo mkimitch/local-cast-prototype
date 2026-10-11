@@ -5,10 +5,18 @@ Branch: `codex/localcast-prototype`
 Pre-bootstrap HEAD: `910485b77ead63450660b0b97544889960e45e3f`
 Slice 0 base HEAD: `e720d5818ab15efccfa143c94d6514c0c9a2baad`
 Current base checkpoint: Slice 6D security hardening at `176d30a6e18d6da18ef92ae38ab0655673c663d1`
-Current checkpoint: **Deterministic citation-reference catalog, based on `bf08e913`**
-Implementation slice: **DETERMINISTIC CITATION REFERENCES — VALIDATED; NOT DEPLOYED**
-Next action: **Await separately authorized deployment; do not retry production jobs or make live provider calls**
+Current checkpoint: **Deterministic citation-reference catalog plus bounded quick-check diagnostics, based on `40158c8`**
+Implementation slice: **QUICK-CHECK DIAGNOSTICS — VALIDATED; CONTROLLED DEPLOYMENT AUTHORIZED**
+Next action: **Create the focused checkpoint, preserve live failure evidence, enforce the independent safety/snapshot gates, then deploy without provider or generation calls**
 Overall state: **SLICE 5 COMPLETE; SLICE 6A–6D DETERMINISTIC CHECKPOINTS COMPLETE; DAILY DRIVER 1A, STATION EVIDENCE-SELECTION, PROVIDER-RESTART, AND GENERATION VALIDATION/STATUS REPAIRS COMPLETE; OPERATIONAL SLICE 6 AND A11Y-01 GATES REMAIN OPEN**
+
+## October 11 quick-check diagnostic refinement
+
+The recurring deployed app remains on `bf08e913` with an uninterrupted `database_audit` / `quick_check_failed` readiness failure while the worker and ordinary reads operate and a separate explicitly read-only/query-only connection returns canonical quick/integrity results, zero foreign-key violations, and schema 008. That discrepancy is not resolved. The operator explicitly authorized a controlled maintenance deployment only after preserving this process evidence and passing independent integrity, storage, quiescence, snapshot, and exact-image gates.
+
+`inspectDatabaseHealth` now retains only structural failure evidence from its own `quick_check`: non-OK single result, empty result, multiple results, unexpected shape, or exception. Typed diagnostics add bounded row count, expected-column presence, connection transaction/read-only flags, duration, and only an allowlisted SQLite/system code. Readiness assertions, rate limiting, public response, foreign-key/schema/FTS/media/provider checks remain unchanged; raw result messages, SQL, paths, tables, settings, evidence, and credentials are excluded.
+
+Repository validation before checkpoint: TypeScript PASS; unit PASS 333/333; integration PASS 113/113 after the known sandbox-only loopback restriction; production build PASS; API/worker smoke PASS; production same-origin smoke PASS. All provider behavior used deterministic fixtures; no live provider request, generation, retry, production mutation, schema/dependency/topology change, or readiness weakening occurred.
 
 ## October 11 deterministic citation-reference correction
 

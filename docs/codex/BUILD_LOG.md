@@ -1270,3 +1270,22 @@ Generation errors may now carry a bounded structural diagnostic. The worker seri
 One post-documentation direct `npx vitest` spot check bypassed the repository test wrapper and failed during import because an inherited `LOCALCAST_RUNTIME_MODE` was outside the configured enum; 16 tests completed before the three config-dependent suites stopped. No assertion failed. The prescribed `npm run test -- ...` wrapper supplied `LOCALCAST_RUNTIME_MODE=test` and reran the complete unit suite successfully at 327/327. TypeScript/no-emit also passed again on the final tree.
 
 All provider responses were deterministic fixtures. No live provider request, production database/media/runtime access, failed-job retry, station/source/credential/provider-state mutation, schema/migration, dependency/lockfile, browser feature, health-route, fixture, Compose/Caddy/volume, image build, deployment, or push occurred.
+
+## 2026-10-11 — Bounded quick-check result diagnostics
+
+The production app was observed continuously unhealthy on the expected `bf08e913` image with `database_audit` / `quick_check_failed`; the worker remained healthy. Six app-local probes returned the unchanged public `503 NOT_READY` response. Instrumented events began at `2026-10-10T11:50:49Z` in the current container and continued with minute-rate logs and 28 suppressed probes per event. A separate `readonly: true`, `query_only=ON` WAL connection returned canonical `quick_check=ok`, `integrity_check=ok`, zero foreign-key rows, and schema 008. This evidence does not establish that the app's long-lived connection is healthy.
+
+The diagnostic refinement replaces the generic noncanonical-result assertion with a typed failure that retains no SQLite result text. Categories are `non_ok_result`, `empty_result`, `multiple_results`, `unexpected_result_shape`, and `exception`. Logged metadata is restricted to bounded row count, expected-column presence, `inTransaction`, bounded duration, connection read-only state, and recognized SQLite/system code. Existing check order, exact canonical-OK requirement, foreign-key/migration/FTS/media/provider assertions, `200`/`503` behavior, minute suppression, and recovery logging are unchanged.
+
+| Command/check | Result |
+| --- | --- |
+| `npm run lint -- --pretty false` | PASS — TypeScript no-emit |
+| first full unit run after implementation | REPAIRED TEST-ONLY — product assertions passed; one privacy regex incorrectly matched the safe `SQLITE_` code prefix |
+| `npm run test -- --reporter=dot` | PASS — 333/333 in 21 files after narrowing that test canary |
+| first sandboxed integration run | ENVIRONMENT-BLOCKED — 82 assertions passed; all 31 failures were loopback `listen EPERM 127.0.0.1` |
+| authorized `npm run test:integration -- --reporter=dot` | PASS — 113/113 in 16 files |
+| `npm run build` | PASS — web and five server bundles; existing chunk-size warning only |
+| `npm run smoke:api` | PASS — disposable API/worker storage and loopback only |
+| `npm run smoke:production` | PASS — disposable production same-origin storage and loopback only |
+
+No browser behavior changed, so Playwright/axe is unaffected. No live provider call, generation/retry, production write, process restart, schema/migration, dependency/lockfile, Compose/Caddy/volume, fixture, station/source, credential, provider-status, or support-validation change occurred during implementation validation.
