@@ -79,18 +79,18 @@ const validDraft = {
 		segments: [{
 			kind: 'factual',
 			text: evidence[0]!.body,
-			citations: [{snapshotId: evidence[0]!.id, excerpt: evidence[0]!.body}],
+			citations: ['E01'],
 		}],
 	}],
 };
 
 const draftFromEvidence = (item: EpisodeEvidence, factualWords: number) => {
 	const words = [...item.body.matchAll(/\S+/g)].slice(0, factualWords);
-	const segments: Array<{kind: 'factual'; text: string; citations: Array<{snapshotId: string; excerpt: string}>}> = [];
+	const segments: Array<{kind: 'factual'; text: string; citations: string[]}> = [];
 	for (let offset = 0; offset < words.length; offset += 40) {
 		const group = words.slice(offset, offset + 40);
 		const text = item.body.slice(group[0]!.index!, group.at(-1)!.index! + group.at(-1)![0].length);
-		segments.push({kind: 'factual', text, citations: [{snapshotId: item.id, excerpt: text}]});
+		segments.push({kind: 'factual', text, citations: ['E01']});
 	}
 	return {
 		sections: Array.from({length: Math.ceil(segments.length / 10)}, (_value, sectionIndex) => ({
@@ -105,8 +105,8 @@ describe('OpenAI text provider contract', () => {
 	it.each([4, 5])('retains the existing raw response bound with %i citations', async count => {
 		const sources = Array.from({length: 4}, (_, index) => ({...evidence[0]!, id: `snapshot-bound-${index}`}));
 		const draft = structuredClone(validDraft);
-		draft.sections[0]!.segments[0]!.citations = sources.map(source => ({snapshotId: source.id, excerpt}));
-		if (count === 5) draft.sections[0]!.segments[0]!.citations.push({...draft.sections[0]!.segments[0]!.citations[0]!});
+		draft.sections[0]!.segments[0]!.citations = sources.map((_source, index) => `E0${index + 1}`);
+		if (count === 5) draft.sections[0]!.segments[0]!.citations.push('E01');
 		const fetchImpl = vi.fn<typeof fetch>()
 			.mockResolvedValueOnce(jsonResponse(outputPayload(draft)))
 			.mockResolvedValueOnce(jsonResponse(outputPayload({results: [{claimId: 'claim-run-live-0-0', status: 'supported'}]})));
@@ -117,38 +117,38 @@ describe('OpenAI text provider contract', () => {
 		expect(fetchImpl).toHaveBeenCalledTimes(count === 4 ? 2 : 1);
 	});
 
-	it.each(['supported', 'unsupported', 'uncertain'] as const)('normalizes only exact pairs before the mandatory %s support result', async status => {
-		const log = vi.spyOn(console, 'info').mockImplementation(() => {});
+	it.each(['supported', 'unsupported', 'uncertain'] as const)('resolves compact references before the mandatory %s support result', async status => {
 		const draft = structuredClone(validDraft);
-		const first = draft.sections[0]!.segments[0]!;
 		const secondEvidence = {...evidence[0]!, id: 'snapshot-second'};
-		first.citations.push({...first.citations[0]!}, {snapshotId: secondEvidence.id, excerpt});
+		draft.sections[0]!.segments[0]!.citations.push('E02');
 		const fetchImpl = vi.fn<typeof fetch>(async (_input, init) => {
 			const body = JSON.parse(String(init?.body));
 			if (fetchImpl.mock.calls.length === 1) return jsonResponse(outputPayload(draft));
 			const claims = JSON.parse(body.input[1].content).claims;
-			expect(claims[0].citedEvidence).toEqual([first.citations[0], first.citations[2]]);
+			expect(claims[0].citedEvidence).toEqual([
+				{snapshotId: evidence[0]!.id, excerpt: evidence[0]!.body},
+				{snapshotId: secondEvidence.id, excerpt: secondEvidence.body},
+			]);
 			return jsonResponse(outputPayload({results: [{claimId: 'claim-run-live-0-0', status}]}));
 		});
 		const provider = new OpenAiTextProvider('credential-canary', 'gpt-5.4-mini', {fetchImpl});
 		const result = provider.generateEpisode(request, [...evidence, secondEvidence], new AbortController().signal);
 		if (status === 'supported') {
-			expect((await result).sections[1]!.segments[0]!.citations).toEqual([first.citations[0], first.citations[2]]);
+			expect((await result).sections[1]!.segments[0]!.citations).toEqual([
+				{snapshotId: evidence[0]!.id, excerpt: evidence[0]!.body},
+				{snapshotId: secondEvidence.id, excerpt: secondEvidence.body},
+			]);
 		} else {
 			await expect(result).rejects.toMatchObject({code: 'UNSUPPORTED_GENERATED_CLAIM', providerStatusImpact: 'preserve'});
 		}
 		expect(fetchImpl).toHaveBeenCalledTimes(2);
-		expect(log.mock.calls).toEqual([[JSON.stringify({event: 'episode_citations_normalized', removedCount: 1})]]);
 	});
 
-	it.each(['unknown', 'nonverbatim', 'ambiguous'] as const)('exact-pair normalization cannot hide %s evidence', async invalid => {
-		vi.spyOn(console, 'info').mockImplementation(() => {});
+	it.each(['unknown', 'repeated'] as const)('rejects %s catalog references before support validation', async invalid => {
 		const draft = structuredClone(validDraft);
 		const segment = draft.sections[0]!.segments[0]!;
-		if (invalid === 'unknown') segment.citations[0]!.snapshotId = 'unknown';
-		if (invalid === 'nonverbatim') segment.citations[0]!.excerpt = 'Not present in supplied evidence';
-		segment.citations.push({...segment.citations[0]!});
-		if (invalid === 'ambiguous') segment.citations.push({snapshotId: evidence[0]!.id, excerpt});
+		if (invalid === 'unknown') segment.citations[0] = 'E99';
+		else segment.citations.push('E01');
 		const fetchImpl = vi.fn<typeof fetch>(async () => jsonResponse(outputPayload(draft)));
 		const provider = new OpenAiTextProvider('credential-canary', 'gpt-5.4-mini', {fetchImpl});
 		await expect(provider.generateEpisode(request, evidence, new AbortController().signal)).rejects.toMatchObject({code: 'INVALID_CITATIONS', retryable: false, providerStatusImpact: 'preserve'});
@@ -189,14 +189,17 @@ describe('OpenAI text provider contract', () => {
 		expect(calls[0]!.body).toMatchObject({text: {format: {type: 'json_schema', strict: true}}});
 		const draftInput = calls[0]!.body.input as Array<{role: string; content: string}>;
 		const developerPrompt = draftInput.find(message => message.role === 'developer')!.content;
-		expect(developerPrompt).toContain('Within a single factual segment, each snapshotId may appear at most once.');
-		expect(developerPrompt).toContain('single most directly supporting verbatim excerpt');
-		expect(developerPrompt).toContain('cite distinct snapshot IDs');
-		expect(developerPrompt).toContain('split them into appropriately atomic factual segments');
-		expect(developerPrompt).toContain('same snapshot may be reused in separate factual segments');
+		expect(developerPrompt).toContain('compact reference tokens');
+		expect(developerPrompt).toContain('navigation metadata only and are not citable evidence');
+		expect(developerPrompt).toContain('Never copy or invent snapshot IDs or excerpts');
+		expect(developerPrompt).toContain('at most one token may be selected from any one source');
+		expect(developerPrompt).toContain('Reusing a catalog token in separate factual segments is permitted');
 		const serializedSchema = JSON.stringify((calls[0]!.body.text as {format: {schema: unknown}}).format.schema);
-		expect(serializedSchema).toContain('Every snapshotId in this array must be distinct');
-		expect(serializedSchema).toContain('used at most once in this factual segment');
+		expect(serializedSchema).toContain('"enum":["E01"]');
+		expect(serializedSchema).toContain('at most one reference token from any one source');
+		const supplied = JSON.parse(draftInput.find(message => message.role === 'user')!.content);
+		expect(JSON.stringify(supplied)).not.toContain(evidence[0]!.id);
+		expect(supplied.evidenceCatalog[0]).toMatchObject({title: evidence[0]!.title, references: [{reference: 'E01', excerpt: evidence[0]!.body}]});
 		expect(result.sections[0]?.segments[0]).toMatchObject({kind: 'transition', text: 'This LocalCast audio was generated by AI.'});
 		expect(result.sections[1]).toMatchObject({title: 'Source summary'});
 		expect(result.sections[1]?.segments[0]).toMatchObject({kind: 'factual', supportStatus: 'supported'});
@@ -236,12 +239,8 @@ describe('OpenAI text provider contract', () => {
 	});
 
 	it.each([
-		['unknown snapshot', {...validDraft, sections: [{...validDraft.sections[0], segments: [{...validDraft.sections[0]!.segments[0], citations: [{snapshotId: 'note-original-id', excerpt}]}]}]}, 'INVALID_CITATIONS'],
-		['missing excerpt', {...validDraft, sections: [{...validDraft.sections[0], segments: [{...validDraft.sections[0]!.segments[0], citations: [{snapshotId: evidence[0]!.id, excerpt: 'not in evidence'}]}]}]}, 'INVALID_CITATIONS'],
-		['repeated snapshot ID with different excerpts', {...validDraft, sections: [{...validDraft.sections[0], segments: [{...validDraft.sections[0]!.segments[0], citations: [
-			{snapshotId: evidence[0]!.id, excerpt},
-			{snapshotId: evidence[0]!.id, excerpt: evidence[0]!.body.slice(excerpt.length + 1)},
-		]}]}]}, 'INVALID_CITATIONS'],
+		['unknown reference', {...validDraft, sections: [{...validDraft.sections[0], segments: [{...validDraft.sections[0]!.segments[0], citations: ['E99']}]}]}, 'INVALID_CITATIONS'],
+		['repeated reference', {...validDraft, sections: [{...validDraft.sections[0], segments: [{...validDraft.sections[0]!.segments[0], citations: ['E01', 'E01']}]}]}, 'INVALID_CITATIONS'],
 		['model-labeled factual transition', {...validDraft, sections: [{...validDraft.sections[0], segments: [{...validDraft.sections[0]!.segments[0], kind: 'transition', citations: []}]}]}, 'OPENAI_INVALID_RESPONSE'],
 		['uncited factual claim', {...validDraft, sections: [{...validDraft.sections[0], segments: [{...validDraft.sections[0]!.segments[0], citations: []}]}]}, 'OPENAI_INVALID_RESPONSE'],
 	])('rejects %s without a support call', async (_name, draft, code) => {
@@ -253,7 +252,7 @@ describe('OpenAI text provider contract', () => {
 
 	it('uses accurate safe wording for repeated per-segment citations', async () => {
 		const duplicateDraft = structuredClone(validDraft);
-		duplicateDraft.sections[0]!.segments[0]!.citations.push({snapshotId: evidence[0]!.id, excerpt});
+		duplicateDraft.sections[0]!.segments[0]!.citations.push('E01');
 		const provider = new OpenAiTextProvider('credential-canary', 'gpt-5.4-mini', {
 			fetchImpl: vi.fn<typeof fetch>(async () => jsonResponse(outputPayload(duplicateDraft))),
 			baseUrl: 'http://provider.test/v1',
@@ -273,6 +272,21 @@ describe('OpenAI text provider contract', () => {
 		await expect(provider.generateEpisode(request, evidence, new AbortController().signal)).rejects.toMatchObject({code: 'UNSUPPORTED_GENERATED_CLAIM'});
 	});
 
+	it('keeps title-only factual claims unsupported because titles are not catalog excerpts', async () => {
+		const titleOnlyDraft = structuredClone(validDraft);
+		titleOnlyDraft.sections[0]!.segments[0]!.text = Array.from({length: 14}, () => evidence[0]!.title).join(' ');
+		const fetchImpl = vi.fn<typeof fetch>()
+			.mockResolvedValueOnce(jsonResponse(outputPayload(titleOnlyDraft)))
+			.mockResolvedValueOnce(jsonResponse(outputPayload({results: [{claimId: 'claim-run-live-0-0', status: 'unsupported'}]})));
+		const provider = new OpenAiTextProvider('credential-canary', 'gpt-5.4-mini', {fetchImpl, baseUrl: 'http://provider.test/v1', allowTestBaseUrl: true});
+
+		await expect(provider.generateEpisode(request, evidence, new AbortController().signal)).rejects.toMatchObject({
+			code: 'UNSUPPORTED_GENERATED_CLAIM',
+			diagnostic: {stage: 'semantic_support', category: 'unsupported_claims', rejectedCount: 1},
+		});
+		expect(fetchImpl).toHaveBeenCalledTimes(2);
+	});
+
 	it('rejects a prompt-injected, unrelated, compound claim through the deterministic support oracle', async () => {
 		const injectedEvidence: EpisodeEvidence[] = [{
 			...evidence[0]!,
@@ -285,7 +299,7 @@ describe('OpenAI text provider contract', () => {
 		const adversarialDraft = {
 			sections: [{
 				...validDraft.sections[0]!,
-				segments: [{kind: 'factual', text: adversarialText, citations: [{snapshotId: injectedEvidence[0]!.id, excerpt}]}],
+				segments: [{kind: 'factual', text: adversarialText, citations: ['E01']}],
 			}],
 		};
 		const runWithOracle = async (draft: typeof adversarialDraft | typeof validDraft) => {
@@ -299,7 +313,7 @@ describe('OpenAI text provider contract', () => {
 				const results = claims.map(claim => ({
 					claimId: claim.claimId,
 					status: claim.claim === evidence[0]!.body && claim.citedEvidence.some(citation => (
-						citation.snapshotId === injectedEvidence[0]!.id && citation.excerpt === evidence[0]!.body
+						citation.snapshotId === injectedEvidence[0]!.id && citation.excerpt === injectedEvidence[0]!.body
 					)) ? 'supported' as const : 'unsupported' as const,
 				}));
 				return jsonResponse(outputPayload({results}));
@@ -345,7 +359,7 @@ describe('OpenAI text provider contract', () => {
 		checks.recordLive('text', config);
 		const liveRow = database.prepare("SELECT * FROM provider_checks WHERE capability = 'text'").get();
 		const duplicateDraft = structuredClone(validDraft);
-		duplicateDraft.sections[0]!.segments[0]!.citations.push({snapshotId: evidence[0]!.id, excerpt});
+		duplicateDraft.sections[0]!.segments[0]!.citations.push('E01');
 		const provider = new OpenAiTextProvider('credential-canary', 'gpt-5.4-mini', {
 			fetchImpl: vi.fn<typeof fetch>(async () => jsonResponse(outputPayload(duplicateDraft))),
 			baseUrl: 'http://provider.test/v1',
@@ -366,7 +380,7 @@ describe('OpenAI text provider contract', () => {
 		expect(database.prepare("SELECT * FROM provider_checks WHERE capability = 'text'").get()).toEqual(liveRow);
 	});
 
-	it('preserves live verification after local citation excerpt-membership rejection', async () => {
+	it('preserves live verification after local catalog-membership rejection', async () => {
 		const database = createTestDatabase();
 		chatDatabases.push(database);
 		const checks = new ProviderCheckStore(database, () => '2026-10-08T12:00:00.000Z');
@@ -378,10 +392,10 @@ describe('OpenAI text provider contract', () => {
 		});
 		checks.recordLive('text', config);
 		const liveRow = database.prepare("SELECT * FROM provider_checks WHERE capability = 'text'").get();
-		const invalidExcerptDraft = structuredClone(validDraft);
-		invalidExcerptDraft.sections[0]!.segments[0]!.citations[0]!.excerpt = 'This excerpt is not present in the immutable evidence snapshot.';
+		const invalidReferenceDraft = structuredClone(validDraft);
+		invalidReferenceDraft.sections[0]!.segments[0]!.citations[0] = 'E99';
 		const provider = new OpenAiTextProvider('credential-canary', 'gpt-5.4-mini', {
-			fetchImpl: vi.fn<typeof fetch>(async () => jsonResponse(outputPayload(invalidExcerptDraft))),
+			fetchImpl: vi.fn<typeof fetch>(async () => jsonResponse(outputPayload(invalidReferenceDraft))),
 			baseUrl: 'http://provider.test/v1',
 			allowTestBaseUrl: true,
 		});

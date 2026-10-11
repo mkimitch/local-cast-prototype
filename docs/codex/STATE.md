@@ -5,10 +5,20 @@ Branch: `codex/localcast-prototype`
 Pre-bootstrap HEAD: `910485b77ead63450660b0b97544889960e45e3f`
 Slice 0 base HEAD: `e720d5818ab15efccfa143c94d6514c0c9a2baad`
 Current base checkpoint: Slice 6D security hardening at `176d30a6e18d6da18ef92ae38ab0655673c663d1`
-Current checkpoint: **Exact citation-pair normalization and truthful failure UI, based on `28f0fd8`**
-Implementation slice: **CITATION NORMALIZATION — VALIDATED; NOT DEPLOYED**
-Next action: **Await separately authorized deployment with fresh health preflight; do not retry production jobs or make live provider calls**
+Current checkpoint: **Deterministic citation-reference catalog, based on `bf08e913`**
+Implementation slice: **DETERMINISTIC CITATION REFERENCES — VALIDATED; NOT DEPLOYED**
+Next action: **Await separately authorized deployment; do not retry production jobs or make live provider calls**
 Overall state: **SLICE 5 COMPLETE; SLICE 6A–6D DETERMINISTIC CHECKPOINTS COMPLETE; DAILY DRIVER 1A, STATION EVIDENCE-SELECTION, PROVIDER-RESTART, AND GENERATION VALIDATION/STATUS REPAIRS COMPLETE; OPERATIONAL SLICE 6 AND A11Y-01 GATES REMAIN OPEN**
+
+## October 11 deterministic citation-reference correction
+
+The generation adapters now derive an immutable attempt-scoped catalog from the frozen evidence snapshot. Compact tokens resolve internally to the canonical snapshot ID, original identity, exact source-body substring, and deterministic Unicode-safe offsets. Complete valid bodies at or below 600 characters use one unit; longer bodies split into bounded exact units. The provider sees titles and provenance only as navigation metadata, never as citable text. OpenAI receives a strict enum of available tokens; OpenAI-compatible providers receive the same finite list, and both paths enforce membership locally.
+
+Parsed token selections are resolved in their original order before the unchanged provider-independent citation validator. Unknown/repeated tokens and multiple units from one snapshot in one factual segment fail closed. Cross-segment reuse remains valid. Canonical ID/excerpt membership and the mandatory semantic-support pass remain unchanged, so LocalCast cannot infer evidence, accept title-only support, or repair an unsupported claim. The obsolete exact raw-pair normalizer is removed; no additional provider call or retry exists.
+
+Typed local validation diagnostics contain only stage, category, location indices, and counts. The generation worker stores them in the existing job-event row already bound to job and attempt. Deterministic integration evidence proves that the stored event excludes private titles, bodies, excerpts, IDs, and provider output, that failed resolution never reaches TTS/publication, and that applicable provider evidence is preserved.
+
+Final repository validation: TypeScript/no-emit PASS; unit PASS 327/327; integration PASS 113/113 (the first sandboxed run was environment-blocked only by loopback `EPERM`, then the authorized isolated-loopback run passed); production build PASS; API/worker smoke PASS; production same-origin smoke PASS. Browser/axe was not affected because no client source, markup, style, route, or behavior changed. No live provider request, production access/mutation, retry, schema/migration, dependency/lockfile, credential, health diagnostic, fixture, Compose/Caddy/volume, build-image, deployment, or push occurred.
 
 ## October 9 citation failure and maintenance correction
 

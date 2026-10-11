@@ -1,5 +1,6 @@
 import {describe, expect, it, vi} from 'vitest';
 import type {EpisodeEvidence, EpisodeRequestSnapshot} from '../../server/episodes/types';
+import {buildEvidenceCatalog} from '../../server/episodes/evidenceCatalog';
 import {GenerationError} from '../../server/jobs/types';
 import {OpenAiCompatibleTextProvider} from '../../server/providers/openAiCompatible';
 
@@ -29,7 +30,7 @@ const evidence: EpisodeEvidence[] = [{
 const draftSegments = Array.from({length: 16}, (_value, segmentIndex) => ({
 			kind: 'factual' as const,
 			text: facts.slice(segmentIndex * 40, segmentIndex * 40 + 40).join(' '),
-			citations: [{snapshotId: evidence[0]!.id, excerpt: facts.slice(segmentIndex * 40, segmentIndex * 40 + 40).join(' ')}],
+			citations: ['E01'],
 		}));
 const draft = {
 	sections: [
@@ -48,25 +49,22 @@ const response = (body: unknown): Response => new Response(JSON.stringify({
 }), {headers: {'content-type': 'application/json'}});
 
 describe('OpenAI-compatible local text provider contract', () => {
-	it.each(['supported', 'unsupported'] as const)('normalizes exact pairs but still requires %s semantic classification', async status => {
-		const log = vi.spyOn(console, 'info').mockImplementation(() => {});
+	it.each(['supported', 'unsupported'] as const)('resolves compact references but still requires %s semantic classification', async status => {
+		const catalog = buildEvidenceCatalog(evidence);
 		try {
-			const duplicateDraft = structuredClone(draft);
-			duplicateDraft.sections[0]!.segments[0]!.citations.push({...duplicateDraft.sections[0]!.segments[0]!.citations[0]!});
 			const fetchImpl = vi.fn<typeof fetch>(async (_input, init) => {
-				if (fetchImpl.mock.calls.length === 1) return response(duplicateDraft);
+				if (fetchImpl.mock.calls.length === 1) return response(draft);
 				const body = JSON.parse(String(init?.body));
 				const claims = JSON.parse(body.messages[1].content).claims;
-				expect(claims[0].citedEvidence).toEqual(draft.sections[0]!.segments[0]!.citations);
+				expect(claims[0].citedEvidence).toEqual([{snapshotId: evidence[0]!.id, excerpt: catalog.entries[0]!.excerpt}]);
 				return response({results: claimResults(status)});
 			});
 			const provider = new OpenAiCompatibleTextProvider('Ollama', 'http://ollama.test/v1', 'local-model', {fetchImpl});
 			const result = provider.generateEpisode(request, evidence, new AbortController().signal);
-			if (status === 'supported') expect((await result).sections[1]!.segments[0]!.citations).toEqual(draft.sections[0]!.segments[0]!.citations);
+			if (status === 'supported') expect((await result).sections[1]!.segments[0]!.citations).toEqual([{snapshotId: evidence[0]!.id, excerpt: catalog.entries[0]!.excerpt}]);
 			else await expect(result).rejects.toMatchObject({code: 'UNSUPPORTED_GENERATED_CLAIM'});
 			expect(fetchImpl).toHaveBeenCalledTimes(2);
-			expect(log).toHaveBeenCalledTimes(1);
-		} finally { log.mockRestore(); }
+		} finally { vi.restoreAllMocks(); }
 	});
 
 	it.each([
@@ -99,17 +97,19 @@ describe('OpenAI-compatible local text provider contract', () => {
 		}
 		const messages = calls[0]!.body.messages as Array<{role: string; content: string}>;
 		const prompt = messages.find(message => message.role === 'system')!.content;
-		expect(prompt).toContain('Within a single factual segment, each snapshotId may appear at most once.');
-		expect(prompt).toContain('single most directly supporting verbatim excerpt');
-		expect(prompt).toContain('cite distinct snapshot IDs');
-		expect(prompt).toContain('split them into appropriately atomic factual segments');
-		expect(prompt).toContain('same snapshot may be reused in separate factual segments');
+		expect(prompt).toContain('exact catalog: E01');
+		expect(prompt).toContain('Never copy or invent snapshot IDs or excerpts');
+		expect(prompt).toContain('navigation metadata only and are not citable evidence');
+		expect(prompt).toContain('at most one token may be selected from any one source');
+		expect(prompt).toContain('Reusing a catalog token in separate factual segments is permitted');
+		const supplied = JSON.parse(messages.find(message => message.role === 'user')!.content);
+		expect(JSON.stringify(supplied)).not.toContain(evidence[0]!.id);
 		expect(code).toMatch(/OLLAMA|LM_STUDIO/);
 	});
 
-	it('rejects repeated snapshot IDs before support validation', async () => {
+	it('rejects distinct catalog units from the same snapshot before support validation', async () => {
 		const duplicateDraft = structuredClone(draft);
-		duplicateDraft.sections[0]!.segments[0]!.citations.push({snapshotId: evidence[0]!.id, excerpt: facts.slice(40, 80).join(' ')});
+		duplicateDraft.sections[0]!.segments[0]!.citations.push('E02');
 		const fetchImpl = vi.fn<typeof fetch>(async () => response(duplicateDraft));
 		const provider = new OpenAiCompatibleTextProvider('Ollama', 'http://ollama.test/v1', 'local-model', {fetchImpl});
 

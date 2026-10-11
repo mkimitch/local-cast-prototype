@@ -60,6 +60,7 @@ export class GenerationWorker {
 					code: error.code,
 					message: error.safeMessage,
 					retryable: error.retryable,
+					diagnostic: error.diagnostic,
 				});
 			} else if (stillOwned) {
 				this.jobs.fail(job.id, this.config.workerId, {

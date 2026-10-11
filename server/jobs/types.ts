@@ -25,12 +25,48 @@ export type JobState = 'queued' | 'running' | 'complete' | 'failed';
 export type GenerationJobPayload = z.infer<typeof generationJobPayloadSchema>;
 export type ProviderStatusImpact = 'preserve' | 'failure';
 
+export interface GenerationDiagnostic {
+	stage: 'evidence_catalog' | 'citation_reference_resolution' | 'citation_validation' | 'semantic_support';
+	category:
+		| 'uncitable_body'
+		| 'unknown_reference'
+		| 'repeated_reference'
+		| 'repeated_snapshot'
+		| 'uncited_claim'
+		| 'invalid_membership'
+		| 'unsupported_claims';
+	sectionIndex?: number;
+	segmentIndex?: number;
+	citationIndex?: number;
+	referenceCount?: number;
+	rejectedCount?: number;
+}
+
+const boundedDiagnosticNumber = (value: number | undefined): number | undefined => (
+	Number.isSafeInteger(value) && value !== undefined && value >= 0 && value <= 10_000 ? value : undefined
+);
+
+export const serializeGenerationDiagnostic = (code: string, diagnostic?: GenerationDiagnostic): string => {
+	if (!diagnostic) return code;
+	return JSON.stringify({
+		code,
+		stage: diagnostic.stage,
+		category: diagnostic.category,
+		sectionIndex: boundedDiagnosticNumber(diagnostic.sectionIndex),
+		segmentIndex: boundedDiagnosticNumber(diagnostic.segmentIndex),
+		citationIndex: boundedDiagnosticNumber(diagnostic.citationIndex),
+		referenceCount: boundedDiagnosticNumber(diagnostic.referenceCount),
+		rejectedCount: boundedDiagnosticNumber(diagnostic.rejectedCount),
+	});
+};
+
 export class GenerationError extends Error {
 	constructor(
 		public readonly code: string,
 		public readonly safeMessage: string,
 		public readonly retryable: boolean,
 		public readonly providerStatusImpact: ProviderStatusImpact = 'preserve',
+		public readonly diagnostic?: GenerationDiagnostic,
 	) {
 		super(safeMessage);
 		this.name = 'GenerationError';

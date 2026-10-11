@@ -3,7 +3,8 @@ import {createHash, randomUUID} from 'node:crypto';
 import type {EpisodeMode} from '../../src/types';
 import {parseFeedUrl} from '../services/safeFeedFetcher';
 import {activeJobPhases, generationJobPayloadSchema} from './types';
-import type {ActiveJobPhase, GenerationJob, GenerationJobPayload, JobAttempt, JobEvent, JobPhase} from './types';
+import {serializeGenerationDiagnostic} from './types';
+import type {ActiveJobPhase, GenerationDiagnostic, GenerationJob, GenerationJobPayload, JobAttempt, JobEvent, JobPhase} from './types';
 
 type JobRow = {
 	id: string;
@@ -345,7 +346,7 @@ export class GenerationJobStore {
 		return complete.immediate();
 	}
 
-	fail(jobId: string, workerId: string, failure: {code: string; message: string; retryable: boolean}): GenerationJob {
+	fail(jobId: string, workerId: string, failure: {code: string; message: string; retryable: boolean; diagnostic?: GenerationDiagnostic}): GenerationJob {
 		const fail = this.database.transaction(() => {
 			const current = this.requireOwnedRunningJob(jobId, workerId);
 			const timestamp = this.now();
@@ -360,7 +361,7 @@ export class GenerationJobStore {
 			`).run(timestamp, timestamp, code, message, failure.retryable ? 1 : 0, jobId);
 			this.database.prepare("UPDATE briefing_runs SET status = 'failed', completed_at = ?, summary = NULL WHERE id = ?").run(timestamp, current.runId);
 			this.finishAttempt(current, 'failed', timestamp, code, message);
-			this.insertEvent(jobId, current.attemptCount, 'failed', code, timestamp);
+			this.insertEvent(jobId, current.attemptCount, 'failed', serializeGenerationDiagnostic(code, failure.diagnostic), timestamp);
 			return this.get(jobId)!;
 		});
 

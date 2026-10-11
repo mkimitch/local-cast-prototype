@@ -22,6 +22,7 @@ type RequestRow = {
 
 type EvidenceRow = {
 	id: string;
+	original_id_snapshot: string;
 	kind: EpisodeEvidence['kind'];
 	title: string;
 	body: string;
@@ -67,6 +68,7 @@ const evidenceCharacterCost = (input: {title: string; body: string; author: stri
 
 const evidenceFromRow = (row: EvidenceRow): EpisodeEvidence => ({
 	id: row.id,
+	originalId: row.original_id_snapshot,
 	kind: row.kind,
 	title: row.title,
 	body: row.body,

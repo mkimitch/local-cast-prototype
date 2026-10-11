@@ -1246,3 +1246,27 @@ Commands ran with credential-free `env -i PATH=/usr/local/bin:/usr/bin:/bin` par
 Browser repair ledger: first full run passed 22/23 with the settled-theme race described above. After the test-only transition wait, the stronger mobile assertion found long diagnostic words overflowing the failure panel at 320px/200% text. That run was deliberately stopped (8 passed, one known failure, one interrupted, 13 not run) rather than counted as final evidence. A `.generation-failure`-only `overflow-wrap: anywhere` rule corrected the panel without hiding text or changing global layout. A focused five-test run then passed the corrected failure case and three other cases but reached the existing 30-second overall deadline near the end of the broad route matrix while unit/integration suites were executing in parallel. No timeout or assertion was relaxed; the final standalone full run passed all 23. Screenshots inspect the internally scrollable panel at its heading and keyboard-focused action, rather than claiming a whole-document capture shows off-screen content. Re-review found no blocker or weakened assertion.
 
 After the final source change, TypeScript, 327 unit, 113 integration, production build and both smokes were rerun successfully. `npm ls --depth=0 --offline` also passed without dependency changes. Final evidence was reconciled October 10 (client date); executable validation timestamps were October 9 UTC. The frontend-testing skill was used because failure presentation changed; no Browser plugin was available, so the existing Playwright/axe workflow supplied browser evidence. No production data, source selection, fixture, credential, provider evidence, runtime, or failed job was changed; no live provider call, retry, deployment, push, migration, or storage-init occurred. This is a local checkpoint only. A future deployment still requires fresh independent runtime/health gates, especially given the separately observed recurring unhealthy app.
+
+## 2026-10-11 — Deterministic episode citation-reference catalog
+
+The maintenance patch replaces model-copied opaque snapshot IDs and verbatim excerpts with an attempt-scoped catalog built from frozen evidence. Entries use deterministic compact tokens and retain canonical snapshot ID, original identity, exact body substring, and source offsets internally. Valid short bodies remain whole; longer bodies split at Unicode-safe bounded exact-substring boundaries. The model receives only grouped catalog excerpts plus navigation metadata. OpenAI's strict schema enumerates the exact token set; OpenAI-compatible prompts provide the same finite list and both adapters enforce membership locally.
+
+After parsing, LocalCast resolves ordered tokens to canonical `(snapshotId, excerpt)` citations. Unknown/repeated tokens and multiple units from one snapshot in one factual segment fail closed. Cross-segment reuse remains valid. The provider-independent exact membership validator and semantic-support pass remain mandatory; title-only and unsupported claims still reject. The prior raw exact-pair normalizer is removed, with no inferred citations, automatic repair, retry, or provider call added.
+
+Generation errors may now carry a bounded structural diagnostic. The worker serializes only code, stage, typed category, section/segment/citation indices, and counts into the existing attempt-correlated job event. Integration coverage proves private titles, bodies, excerpts, snapshot IDs, and provider output do not enter the event; resolution failure does not reach support, TTS, or publication; applicable provider status remains unchanged.
+
+| Command/check | Result |
+| --- | --- |
+| `npm run lint -- --pretty false` | PASS — TypeScript no-emit |
+| focused catalog/OpenAI/OpenAI-compatible/grounding unit suites | PASS — 106 tests before the final title-only regression; the complete unit result below supersedes the count |
+| `npm run test -- --reporter=dot` | PASS — 327/327 in 20 files |
+| first sandboxed `npm run test:integration -- --reporter=dot` | ENVIRONMENT-BLOCKED — 82 assertions passed; all 31 failures were loopback `listen EPERM 127.0.0.1` |
+| authorized `npm run test:integration -- --reporter=dot` | PASS — 113/113 in 16 files |
+| `npm run build` | PASS — Vite transformed 2,156 modules and built five server bundles; existing chunk-size warning only |
+| Playwright/axe | NOT AFFECTED — no browser source, markup, style, route, or behavior changed |
+| `npm run smoke:api` | PASS — isolated API/worker smoke |
+| `npm run smoke:production` | PASS — isolated production same-origin smoke |
+
+One post-documentation direct `npx vitest` spot check bypassed the repository test wrapper and failed during import because an inherited `LOCALCAST_RUNTIME_MODE` was outside the configured enum; 16 tests completed before the three config-dependent suites stopped. No assertion failed. The prescribed `npm run test -- ...` wrapper supplied `LOCALCAST_RUNTIME_MODE=test` and reran the complete unit suite successfully at 327/327. TypeScript/no-emit also passed again on the final tree.
+
+All provider responses were deterministic fixtures. No live provider request, production database/media/runtime access, failed-job retry, station/source/credential/provider-state mutation, schema/migration, dependency/lockfile, browser feature, health-route, fixture, Compose/Caddy/volume, image build, deployment, or push occurred.

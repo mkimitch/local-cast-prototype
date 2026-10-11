@@ -2,6 +2,7 @@ import type {EpisodeMode, FeedNetworkScope} from '../../src/types';
 
 export interface EpisodeEvidence {
 	id: string;
+	originalId?: string;
 	kind: 'note' | 'feed';
 	title: string;
 	body: string;

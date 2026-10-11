@@ -22,9 +22,9 @@ import {
 } from '../chat/types';
 import type {ServerConfig} from '../config';
 import type {EpisodeEvidence, EpisodeRequestSnapshot, GeneratedEpisodeScript, GeneratedSection, PublishedAudio} from '../episodes/types';
+import {buildEvidenceCatalog, resolveEvidenceReferences} from '../episodes/evidenceCatalog';
 import {aiAudioDisclosure, assertEvidenceSufficient, countWords} from '../episodes/modePolicy';
 import {assertGeneratedEpisode, narrationForScript} from '../episodes/validation';
-import {normalizeDraftCitations} from '../episodes/normalizeDraftCitations';
 import {GenerationError} from '../jobs/types';
 import {enterReservedChatProviderStage, type ChatProviderStageLifecycle} from '../services/chatStore';
 import {isWellFormedLocalCastText} from '../../src/types';
@@ -40,15 +40,12 @@ const providerFailure = (code: string, safeMessage: string, retryable: boolean):
 	new GenerationError(code, safeMessage, retryable, 'failure')
 );
 
-const citationSchema = z.object({
-	snapshotId: z.string().min(1).max(240),
-	excerpt: z.string().min(5).max(600),
-}).strict();
+const citationReferenceSchema = z.string().min(3).max(32);
 
 const segmentSchema = z.object({
 	kind: z.literal('factual'),
 	text: z.string().min(1).max(1_200),
-	citations: z.array(citationSchema).min(1).max(4),
+	citations: z.array(citationReferenceSchema).min(1).max(4),
 }).strict();
 
 const draftSchema = z.object({
@@ -66,7 +63,7 @@ const supportSchema = z.object({
 	}).strict()).max(60),
 }).strict();
 
-const episodeJsonSchema = {
+const episodeJsonSchema = (references: string[]) => ({
 	type: 'object',
 	additionalProperties: false,
 	required: ['sections'],
@@ -97,16 +94,8 @@ const episodeJsonSchema = {
 									type: 'array',
 									minItems: 1,
 									maxItems: 4,
-									description: 'Citations supporting this factual segment. Every snapshotId in this array must be distinct.',
-									items: {
-										type: 'object',
-										additionalProperties: false,
-										required: ['snapshotId', 'excerpt'],
-										properties: {
-											snapshotId: {type: 'string', description: 'An exact supplied snapshot ID used at most once in this factual segment.'},
-											excerpt: {type: 'string'},
-										},
-									},
+									description: 'One to four distinct catalog reference tokens. Use at most one reference token from any one source in this factual segment.',
+									items: {type: 'string', enum: references},
 								},
 							},
 						},
@@ -115,7 +104,7 @@ const episodeJsonSchema = {
 			},
 		},
 	},
-} as const;
+} as const);
 
 const supportJsonSchema = {
 	type: 'object',
@@ -566,18 +555,11 @@ export class OpenAiTextProvider {
 		signal: AbortSignal,
 		onDraftComplete: () => void = () => undefined,
 	): Promise<{script: GeneratedEpisodeScript; sections: GeneratedSection[]; narration: string; usage: SafeUsage[]}> {
+		const catalog = buildEvidenceCatalog(evidence);
 		const userContent = JSON.stringify({
 			stationDirection: request.topicInstruction,
 			mode: request.mode,
-			evidence: evidence.map(item => ({
-				snapshotId: item.id,
-				kind: item.kind,
-				title: item.title,
-				body: item.body,
-				author: item.author || null,
-				originalUrl: item.originalUrl || null,
-				publishedAt: item.publishedAt || null,
-			})),
+			evidenceCatalog: catalog.sources,
 		});
 		if (Buffer.byteLength(userContent, 'utf8') > 160_000) {
 			throw new GenerationError('EVIDENCE_INPUT_TOO_LARGE', 'The selected supplied material exceeds the provider input limit', false);
@@ -599,9 +581,10 @@ export class OpenAiTextProvider {
 						'Do not search, use tools, retrieve URLs, or introduce outside facts.',
 						`Return ${modePolicy.minimumOutputWords - disclosureWords} to ${modePolicy.maximumOutputWords - disclosureWords} factual spoken words. LocalCast adds a fixed ${disclosureWords}-word disclosure locally, making the published total ${modePolicy.minimumOutputWords} to ${modePolicy.maximumOutputWords} words. Aim for about ${modePolicy.targetOutputWords - disclosureWords} returned words and never pad beyond supportable material.`,
 						'Keep each segment atomic: one directly supportable factual point, expressed without compound or unrelated assertions.',
-						'Every factual segment must cite exact snapshot IDs and verbatim supporting excerpts. Within a single factual segment, each snapshotId may appear at most once.',
-						'For each cited snapshot, use the single most directly supporting verbatim excerpt. If multiple independent sources support the segment, cite distinct snapshot IDs.',
-						'If different facts require different excerpts from the same snapshot, split them into appropriately atomic factual segments instead of citing that snapshot more than once in one segment. The same snapshot may be reused in separate factual segments.',
+						'The evidence catalog contains exact body excerpts identified by compact reference tokens such as E01. Titles, authors, URLs, dates, and source labels are navigation metadata only and are not citable evidence.',
+						'Every factual segment must return one to four catalog reference tokens in citations. Never copy or invent snapshot IDs or excerpts.',
+						'Within one factual segment, every reference token must be distinct and at most one token may be selected from any one source. Use the single catalog excerpt that most directly supports the complete segment.',
+						'If different facts need different catalog excerpts from the same source, split them into atomic factual segments. Reusing a catalog token in separate factual segments is permitted.',
 						'Do not create transitions, disclosure language, or factual section headings; LocalCast supplies those locally.',
 					].join(' '),
 				},
@@ -610,7 +593,7 @@ export class OpenAiTextProvider {
 					content: userContent,
 				},
 			],
-			text: {format: {type: 'json_schema', name: 'localcast_episode', strict: true, schema: episodeJsonSchema}},
+			text: {format: {type: 'json_schema', name: 'localcast_episode', strict: true, schema: episodeJsonSchema(catalog.entries.map(entry => entry.reference))}},
 		};
 		const draftResponse = await requestSerializedJson(
 			this.options,
@@ -627,34 +610,23 @@ export class OpenAiTextProvider {
 			throw providerFailure('OPENAI_INVALID_RESPONSE', 'The configured OpenAI text provider returned invalid structured output', false);
 		}
 
-		normalizeDraftCitations(draft);
-		const evidenceById = new Map(evidence.map(item => [item.id, item]));
+		const resolvedDraft = resolveEvidenceReferences(draft, catalog);
 		const sectionTitles: Record<GeneratedSection['type'], string> = {
 			intro: 'Introduction',
 			news_summary: 'Source summary',
 			deep_dive: 'Deep dive',
 			outro: 'Closing',
 		};
-		const sections: GeneratedSection[] = draft.sections.map((section, sectionIndex) => ({
+		const sections: GeneratedSection[] = resolvedDraft.map((section, sectionIndex) => ({
 			id: `section-${request.runId}-${sectionIndex}`,
 			title: sectionTitles[section.type],
 			type: section.type,
 			segments: section.segments.map((segment, segmentIndex) => {
-				const citations = segment.citations;
-				if (citations.length === 0) throw new GenerationError('INVALID_CITATIONS', 'The generated transcript contained an uncited factual claim', false);
-				const uniqueIds = new Set(citations.map(citation => citation.snapshotId));
-				if (uniqueIds.size !== citations.length) throw new GenerationError('INVALID_CITATIONS', 'The generated transcript repeated a source citation within one factual segment', false);
-				for (const citation of citations) {
-					const source = evidenceById.get(citation.snapshotId);
-					if (!source || citation.excerpt !== citation.excerpt.trim() || !source.body.includes(citation.excerpt)) {
-						throw new GenerationError('INVALID_CITATIONS', 'The generated transcript cited evidence that could not be validated', false);
-					}
-				}
 				return {
 					id: `claim-${request.runId}-${sectionIndex}-${segmentIndex}`,
 					kind: segment.kind,
 					text: segment.text,
-					citations,
+					citations: segment.citations,
 					supportStatus: 'supported' as const,
 					speakerRole: 'host' as const,
 				};
@@ -719,7 +691,13 @@ export class OpenAiTextProvider {
 		}
 		const resultById = new Map(support.results.map(result => [result.claimId, result.status]));
 		if (resultById.size !== factualClaims.length || support.results.length !== factualClaims.length || factualClaims.some(claim => resultById.get(claim.id) !== 'supported')) {
-			throw new GenerationError('UNSUPPORTED_GENERATED_CLAIM', 'The generated transcript could not be fully supported by its cited evidence', false);
+			throw new GenerationError(
+				'UNSUPPORTED_GENERATED_CLAIM',
+				'The generated transcript could not be fully supported by its cited evidence',
+				false,
+				'preserve',
+				{stage: 'semantic_support', category: 'unsupported_claims', rejectedCount: factualClaims.filter(claim => resultById.get(claim.id) !== 'supported').length},
+			);
 		}
 
 		const script = assertGeneratedEpisode(request, evidence, publishedSections);

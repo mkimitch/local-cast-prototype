@@ -462,6 +462,19 @@ One best-effort count-only `episode_citations_normalized` event per affected par
 
 `completed_at` is a terminal timestamp, not a success flag. Episode presentation derives success/failure from canonical run status. Nonretryable generated-output errors do not establish invalid user evidence. No retry eligibility, automatic dispatch, provider-status, or persistence semantics change.
 
+## D-048 — Episode generation selects deterministic compact evidence references
+
+Status: **ACCEPTED**
+Date: 2026-10-11
+
+Episode generation no longer asks a model to reproduce opaque snapshot IDs or verbatim excerpts. For each attempt, LocalCast derives an immutable catalog from the already frozen evidence order. Each entry has a compact deterministic token, the canonical snapshot ID, original evidence identity, a byte-for-byte source-body substring, and UTF-16 source offsets that reproduce that exact substring. A valid body of at most 600 characters becomes one complete catalog excerpt; longer bodies are split deterministically at Unicode-safe boundaries into excerpts that retain the existing 5–600-character citation bounds. No title, punctuation, whitespace, or source text is synthesized or normalized.
+
+The OpenAI draft schema enumerates the attempt's exact tokens. OpenAI-compatible generation receives the same finite token list in its bounded prompt, and both adapters enforce membership locally. Titles, authors, URLs, dates, and source labels are navigation metadata only. Provider output contains ordered token arrays; after schema parsing LocalCast resolves them to canonical `(snapshotId, excerpt)` citations. Unknown tokens, repeated tokens, and two distinct tokens resolving to the same snapshot in one factual segment fail closed. Reuse in a separate factual segment remains valid. LocalCast never chooses a token for the model, repairs an unsupported claim, or makes a corrective provider call.
+
+This decision supersedes D-047 at the episode provider boundary: exact duplicate token selections are rejected rather than normalized, and the obsolete raw-pair normalizer is removed. The provider-independent unique-snapshot, exact excerpt-membership, semantic-support, TTS/publication, and immutable snapshot validators remain authoritative after resolution. Chat retains its existing canonical citation contract.
+
+Validation failures may carry only a bounded structural diagnostic: stage, typed category, section/segment/citation indices, and counts. The worker persists that sanitized diagnostic in the existing attempt-correlated generation event; it never stores the rejected transcript, token-to-evidence values, titles, bodies, excerpts, provider response, or credential material. This adds no schema, provider call, retry, provider-status downgrade, or deployment-topology change.
+
 ## Open operator decisions
 
 These are genuine inputs that cannot be inferred safely. They do not block documentation bootstrap. A slice must stop before it needs an unresolved value.

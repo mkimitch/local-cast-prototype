@@ -5,12 +5,13 @@ import {StationStore} from '../../server/services/stationStore';
 import {ProviderCheckStore} from '../../server/services/providerCheckStore';
 import {GenerationJobStore} from '../../server/jobs/generationJobStore';
 import {createGenerationProcessor} from '../../server/jobs/generationProcessor';
+import {GenerationWorker} from '../../server/jobs/generationWorker';
 import {OpenAiSpeechProvider} from '../../server/providers/openai';
 
 afterEach(() => { vi.restoreAllMocks(); });
 
 describe('normalization through the configured generation processor', () => {
-	it.each(['exact', 'ambiguous', 'unknown', 'nonverbatim', 'unsupported'] as const)('%s citations retain validation, publication fencing, and provider evidence', async pattern => {
+	it.each(['exact', 'repeated', 'unknown', 'unsupported'] as const)('%s references retain validation, publication fencing, and provider evidence', async pattern => {
 		const db = createTestDatabase();
 		try {
 			const jobs = new GenerationJobStore(db);
@@ -34,9 +35,8 @@ describe('normalization through the configured generation processor', () => {
 			checks.recordLive('text', config);
 			checks.recordLive('speech', config);
 			const before = db.prepare('SELECT * FROM provider_checks ORDER BY capability').all();
-			const citation = {snapshotId: pattern === 'unknown' ? 'unknown' : evidence[0]!.id, excerpt: pattern === 'nonverbatim' ? 'Not in the supplied evidence.' : body};
-			const citations = [citation, {...citation}];
-			if (pattern === 'ambiguous') citations.push({snapshotId: evidence[0]!.id, excerpt: 'A person explicitly requests each LocalCast episode.'});
+			const citations = [pattern === 'unknown' ? 'E99' : 'E01'];
+			if (pattern === 'repeated') citations.push('E01');
 			const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
 				const value = fetchMock.mock.calls.length === 1
 					? {sections: [{title: 'Synthetic', type: 'news_summary', segments: [{kind: 'factual', text: body, citations}]}]}
@@ -59,6 +59,51 @@ describe('normalization through the configured generation processor', () => {
 			expect(publish).not.toHaveBeenCalled();
 			expect(db.prepare('SELECT COUNT(*) AS count FROM briefing_sections').get()).toEqual({count: 0});
 			expect(episodes.listEvidence(job.runId)).toEqual(evidence);
+		} finally { db.close(); }
+	});
+
+	it('persists bounded attempt-correlated reference diagnostics without evidence content', async () => {
+		const db = createTestDatabase();
+		try {
+			const jobs = new GenerationJobStore(db);
+			const episodes = new EpisodeStore(db);
+			const stations = new StationStore(db);
+			const body = 'A person explicitly requests each LocalCast episode. The worker processes one generation job at a time. The database retains immutable supplied evidence. Each factual statement must have a verbatim supporting excerpt. The application does not search for new material or invent missing facts.';
+			const note = stations.createNote({title: 'Private diagnostic title canary', body});
+			const station = stations.createStation({name: 'Synthetic station', topicInstruction: 'Use only supplied facts.', defaultMode: 'brief', noteIds: [note.id], sourceIds: []});
+			const queued = jobs.enqueueStation(station.id, 'brief').job;
+			vi.spyOn(episodeStore, 'getRequest').mockImplementation(id => episodes.getRequest(id));
+			vi.spyOn(episodeStore, 'listEvidence').mockImplementation(id => episodes.listEvidence(id));
+			vi.spyOn(episodeStore, 'finalizeEvidence').mockImplementation((requestId, runId) => episodes.finalizeEvidence(requestId, runId));
+			const render = vi.spyOn(OpenAiSpeechProvider.prototype, 'render');
+			const config = testConfig({textProvider: 'openai', speechProvider: 'openai', openAiApiKey: 'synthetic-credential', allowFakeProviders: false, workerId: 'diagnostic-worker'});
+			const checks = new ProviderCheckStore(db);
+			const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({
+				status: 'completed',
+				output: [{type: 'message', content: [{type: 'output_text', text: JSON.stringify({
+					sections: [{title: 'Synthetic', type: 'news_summary', segments: [{kind: 'factual', text: body, citations: ['E99']}]}],
+				})}]}],
+			}), {headers: {'content-type': 'application/json'}}));
+			const processor = createGenerationProcessor(config, jobs, {resolve: () => config.openAiApiKey}, checks);
+			const worker = new GenerationWorker(config, jobs, processor);
+
+			await expect(worker.runOnce()).resolves.toBe(true);
+			expect(fetchMock).toHaveBeenCalledTimes(1);
+			expect(render).not.toHaveBeenCalled();
+			expect(episodes.listEvidence(queued.runId)).toHaveLength(1);
+			const failedEvent = jobs.listEvents(queued.id).at(-1)!;
+			expect(failedEvent).toMatchObject({attemptNumber: 1, phase: 'failed'});
+			expect(JSON.parse(failedEvent.detail!)).toEqual({
+				code: 'INVALID_CITATIONS',
+				stage: 'citation_reference_resolution',
+				category: 'unknown_reference',
+				sectionIndex: 0,
+				segmentIndex: 0,
+				citationIndex: 0,
+				referenceCount: 1,
+			});
+			expect(failedEvent.detail).not.toMatch(/Private diagnostic|person explicitly|snapshot|excerpt/i);
+			expect(db.prepare('SELECT COUNT(*) AS count FROM briefing_sections').get()).toEqual({count: 0});
 		} finally { db.close(); }
 	});
 });
