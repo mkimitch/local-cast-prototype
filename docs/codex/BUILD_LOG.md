@@ -1311,3 +1311,5 @@ Migration 009 adds constrained non-null `brief_length_preset` columns to station
 | `npm run smoke:production` | PASS — disposable production same-origin storage and loopback only |
 
 The frontend-testing skill was used because a station control changed. The optional Browser plugin was unavailable, so the repository's Playwright/axe suite supplied rendered and accessibility evidence. A later ad-hoc disposable-server launch failed to bind before inspection; it did not touch production and is not counted as validation. No live provider request, generation/retry, production read or write, process restart, deployment, credential/provider-state/station/source/fixture mutation, Caddy/Compose/volume change, dependency/lockfile change, or push occurred.
+
+Implementation checkpoint: `27ca1a7` (`fix(generation): add compact brief preset`). This documentation-only ledger follow-up records that completed checkpoint; it changes no executable artifact.

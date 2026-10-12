@@ -5,9 +5,9 @@ Branch: `codex/localcast-prototype`
 Pre-bootstrap HEAD: `910485b77ead63450660b0b97544889960e45e3f`
 Slice 0 base HEAD: `e720d5818ab15efccfa143c94d6514c0c9a2baad`
 Current base checkpoint: Slice 6D security hardening at `176d30a6e18d6da18ef92ae38ab0655673c663d1`
-Current checkpoint: **Compact Brief length preset, based on `36b23aa`**
-Implementation slice: **COMPACT BRIEF LENGTH — VALIDATED; CHECKPOINT PENDING**
-Next action: **Create the focused code-only checkpoint; deployment and any new generation require separate authorization**
+Current checkpoint: **Compact Brief length preset at `27ca1a7`**
+Implementation slice: **COMPACT BRIEF LENGTH — COMPLETE**
+Next action: **Await separate deployment authorization; do not initiate a provider call or generation automatically**
 Overall state: **SLICE 5 COMPLETE; SLICE 6A–6D DETERMINISTIC CHECKPOINTS COMPLETE; DAILY DRIVER 1A, STATION EVIDENCE-SELECTION, PROVIDER-RESTART, AND GENERATION VALIDATION/STATUS REPAIRS COMPLETE; OPERATIONAL SLICE 6 AND A11Y-01 GATES REMAIN OPEN**
 
 ## October 12 Compact Brief length preset
@@ -669,4 +669,4 @@ This repair ledger is retained as historical evidence and is superseded by the c
 
 ## Next action
 
-Create the green Compact Brief checkpoint. Afterward, await separate deployment authorization; do not initiate a provider verification or Morning Signal generation automatically.
+Await separate deployment authorization; do not initiate a provider verification or Morning Signal generation automatically.
