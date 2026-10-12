@@ -23,6 +23,7 @@ test('station note and feed selections are visible, operable, and persistent', a
 	await page.goto('/stations');
 	await page.getByLabel('Station name').fill('Selection persistence station');
 	await page.getByLabel('Topic and editorial direction').fill('Use the selected notes and feeds together.');
+	await page.getByLabel('Brief length').selectOption('compact');
 
 	const firstNote = page.getByRole('checkbox', {name: 'Selection note one'});
 	const secondNote = page.getByRole('checkbox', {name: 'Selection note two'});
@@ -57,6 +58,7 @@ test('station note and feed selections are visible, operable, and persistent', a
 	await expect(page.getByRole('heading', {name: 'Selection persistence station'})).toBeVisible();
 	await page.reload();
 	await page.getByRole('button', {name: 'Edit station Selection persistence station'}).click();
+	await expect(page.getByLabel('Brief length')).toHaveValue('compact');
 	await expect(page.getByRole('checkbox', {name: 'Selection note one'})).toBeChecked();
 	await expect(page.getByRole('checkbox', {name: 'Selection note two'})).toBeChecked();
 	await expect(page.getByRole('checkbox', {name: 'Selection feed one'})).toBeChecked();

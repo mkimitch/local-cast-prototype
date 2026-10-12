@@ -106,4 +106,67 @@ describe('normalization through the configured generation processor', () => {
 			expect(db.prepare('SELECT COUNT(*) AS count FROM briefing_sections').get()).toEqual({count: 0});
 		} finally { db.close(); }
 	});
+
+	it('persists private-free Compact length diagnostics and stops before support, speech, and publication', async () => {
+		const db = createTestDatabase();
+		try {
+			const jobs = new GenerationJobStore(db);
+			const episodes = new EpisodeStore(db);
+			const stations = new StationStore(db);
+			const words = Array.from({length: 800}, (_value, index) => `privateword${String(index + 1).padStart(4, '0')}`);
+			const body = words.join(' ');
+			const note = stations.createNote({title: 'Private length title canary', body});
+			const station = stations.createStation({
+				name: 'Compact diagnostic station',
+				topicInstruction: 'Use only supplied facts.',
+				defaultMode: 'brief',
+				briefLengthPreset: 'compact',
+				noteIds: [note.id],
+				sourceIds: [],
+			});
+			const queued = jobs.enqueueStation(station.id, 'brief').job;
+			vi.spyOn(episodeStore, 'getRequest').mockImplementation(id => episodes.getRequest(id));
+			vi.spyOn(episodeStore, 'listEvidence').mockImplementation(id => episodes.listEvidence(id));
+			vi.spyOn(episodeStore, 'finalizeEvidence').mockImplementation((requestId, runId) => episodes.finalizeEvidence(requestId, runId));
+			const publish = vi.spyOn(episodeStore, 'publishEpisode');
+			const render = vi.spyOn(OpenAiSpeechProvider.prototype, 'render');
+			const sections = [{
+				title: 'Synthetic',
+				type: 'news_summary',
+				segments: Array.from({length: 5}, (_value, index) => ({
+					kind: 'factual',
+					text: words.slice(index * 40, index === 4 ? 192 : index * 40 + 40).join(' '),
+					citations: ['E01'],
+				})),
+			}];
+			const config = testConfig({textProvider: 'openai', speechProvider: 'openai', openAiApiKey: 'synthetic-credential', allowFakeProviders: false, workerId: 'length-worker'});
+			const checks = new ProviderCheckStore(db);
+			checks.recordLive('text', config);
+			const before = db.prepare("SELECT * FROM provider_checks WHERE capability = 'text'").get();
+			const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({
+				status: 'completed',
+				output: [{type: 'message', content: [{type: 'output_text', text: JSON.stringify({sections})}]}],
+			}), {headers: {'content-type': 'application/json'}}));
+			const processor = createGenerationProcessor(config, jobs, {resolve: () => config.openAiApiKey}, checks);
+			const worker = new GenerationWorker(config, jobs, processor);
+
+			await expect(worker.runOnce()).resolves.toBe(true);
+			expect(fetchMock).toHaveBeenCalledTimes(1);
+			expect(render).not.toHaveBeenCalled();
+			expect(publish).not.toHaveBeenCalled();
+			expect(db.prepare("SELECT * FROM provider_checks WHERE capability = 'text'").get()).toEqual(before);
+			const detail = jobs.listEvents(queued.id).at(-1)!.detail!;
+			expect(JSON.parse(detail)).toEqual({
+				code: 'EPISODE_LENGTH_OUT_OF_RANGE',
+				stage: 'length_validation',
+				category: 'length_out_of_range',
+				actualWords: 199,
+				minimumWords: 200,
+				maximumWords: 350,
+				direction: 'below',
+			});
+			expect(detail).not.toMatch(/Private length|privateword|excerpt|snapshot/i);
+			expect(db.prepare('SELECT COUNT(*) AS count FROM briefing_sections').get()).toEqual({count: 0});
+		} finally { db.close(); }
+	});
 });

@@ -47,6 +47,7 @@ const request: EpisodeRequestSnapshot = {
 	stationName: 'LocalCast sample',
 	topicInstruction: 'Explain the supplied facts in a calm, practical order.',
 	mode: 'brief',
+	briefLengthPreset: 'standard',
 	requestHash: 'a'.repeat(64),
 	requestedAt: '2026-08-05T12:00:00.000Z',
 };
@@ -208,15 +209,16 @@ describe('OpenAI text provider contract', () => {
 	});
 
 	it.each([
-		['brief' as const, 600 - countWords(aiAudioDisclosure), 600, 1_000, 8_000],
-		['deep' as const, 1_800 - countWords(aiAudioDisclosure), 1_800, 3_000, 24_000],
-	])('enforces the %s provider budget and returns a versioned ordered host script', async (mode, factualWords, minimum, maximum, maxOutputTokens) => {
+		['standard brief', 'brief' as const, 'standard' as const, 600 - countWords(aiAudioDisclosure), 600, 1_000, 700, 8_000],
+		['compact brief', 'brief' as const, 'compact' as const, 200 - countWords(aiAudioDisclosure), 200, 350, 275, 4_000],
+		['deep', 'deep' as const, 'compact' as const, 1_800 - countWords(aiAudioDisclosure), 1_800, 3_000, 2_100, 24_000],
+	])('enforces the %s provider budget and returns a versioned ordered host script', async (_name, mode, briefLengthPreset, factualWords, minimum, maximum, target, maxOutputTokens) => {
 		const modeEvidence: EpisodeEvidence[] = [{
 			...evidence[0]!,
 			id: `snapshot-${mode}`,
 			body: Array.from({length: 2_300}, (_value, index) => `fact${String(index + 1).padStart(4, '0')}`).join(' '),
 		}];
-		const modeRequest = {...request, id: `request-${mode}`, runId: `run-${mode}`, mode};
+		const modeRequest = {...request, id: `request-${mode}-${briefLengthPreset || 'default'}`, runId: `run-${mode}-${briefLengthPreset || 'default'}`, mode, briefLengthPreset};
 		const draft = draftFromEvidence(modeEvidence[0]!, factualWords);
 		const calls: Record<string, unknown>[] = [];
 		const fetchImpl = vi.fn<typeof fetch>(async (_input, init) => {
@@ -236,6 +238,7 @@ describe('OpenAI text provider contract', () => {
 		expect(result.script.sections.flatMap(section => section.segments).every(segment => segment.speakerRole === 'host')).toBe(true);
 		expect(calls[0]).toMatchObject({max_output_tokens: maxOutputTokens});
 		expect(JSON.stringify(calls[0])).toContain(`${minimum} to ${maximum}`);
+		expect(JSON.stringify(calls[0])).toContain(`Aim for about ${target - countWords(aiAudioDisclosure)} returned words`);
 	});
 
 	it.each([

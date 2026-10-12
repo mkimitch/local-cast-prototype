@@ -1289,3 +1289,25 @@ The diagnostic refinement replaces the generic noncanonical-result assertion wit
 | `npm run smoke:production` | PASS — disposable production same-origin storage and loopback only |
 
 No browser behavior changed, so Playwright/axe is unaffected. No live provider call, generation/retry, production write, process restart, schema/migration, dependency/lockfile, Compose/Caddy/volume, fixture, station/source, credential, provider-status, or support-validation change occurred during implementation validation.
+
+## 2026-10-12 — Compact Brief length preset
+
+Starting from clean `codex/localcast-prototype` at `36b23aafac1e80efca3c5d172dd4e6d56d3052f8`, this code-only maintenance adds a typed Brief length preset and an additive persistence boundary. Standard remains the compatibility default and retains 600–1,000 published words, target 700, its existing sparse-evidence fallback, and its prior token budget. Compact publishes 200–350 words with target 275. Provider guidance subtracts the existing seven-word disclosure, yielding 593–993 factual words for Standard and 193–343 for Compact. Deep mode is unchanged.
+
+Migration 009 adds constrained non-null `brief_length_preset` columns to stations and immutable generation requests with a Standard default. Enqueue snapshots the value into the request hash and row. The station UI uses an associated native select; API omission defaults to Standard and invalid values fail parsing. OpenAI, OpenAI-compatible, deterministic generation, sufficiency, and final validation use one policy. Length failures retain only bounded counts and direction. Citation/reference/support validation and publication fencing are unchanged.
+
+| Command/check | Result |
+| --- | --- |
+| focused lint and mode/provider/migration/station/processor tests | PASS — 145 cases |
+| `npm run test -- --reporter=dot` | PASS — 338/338 in 21 files |
+| first sandboxed `npm run test:integration -- --reporter=dot` | ENVIRONMENT-BLOCKED — 83 assertions passed; all 31 failures were loopback `listen EPERM 127.0.0.1` |
+| authorized `npm run test:integration -- --reporter=dot` | PASS — 114/114 in 16 files |
+| `npm run build` | PASS — Vite transformed 2,156 modules and built five server bundles; existing chunk-size warning only |
+| focused station/axe Playwright | PASS — 5/5 |
+| first complete Playwright/axe run | 22/23 — one unchanged theme-transition contrast sample measured 4.49 against 4.5 |
+| focused accessibility rerun | PASS — 4/4 |
+| final complete Playwright/axe rerun | PASS — 23/23 in 5.4 minutes, without product or assertion changes |
+| `npm run smoke:api` | PASS — disposable API/worker storage and loopback only |
+| `npm run smoke:production` | PASS — disposable production same-origin storage and loopback only |
+
+The frontend-testing skill was used because a station control changed. The optional Browser plugin was unavailable, so the repository's Playwright/axe suite supplied rendered and accessibility evidence. A later ad-hoc disposable-server launch failed to bind before inspection; it did not touch production and is not counted as validation. No live provider request, generation/retry, production read or write, process restart, deployment, credential/provider-state/station/source/fixture mutation, Caddy/Compose/volume change, dependency/lockfile change, or push occurred.

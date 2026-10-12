@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import type {EpisodeEvidence, EpisodeRequestSnapshot} from '../../server/episodes/types';
-import {assertEvidenceSufficient, countWords, policyForEvidence} from '../../server/episodes/modePolicy';
+import {aiAudioDisclosure, assertEvidenceSufficient, briefLengthPresets, countWords, policyForEvidence} from '../../server/episodes/modePolicy';
 import {assertGeneratedEpisode, narrationForScript} from '../../server/episodes/validation';
 import type {GenerationJob} from '../../server/jobs/types';
 import {fakeGeneratedSections} from '../../server/testing/fakeGenerationProcessor';
@@ -14,7 +14,7 @@ const evidenceWithWords = (wordCount: number): EpisodeEvidence[] => [{
 	networkScope: 'user_supplied',
 }];
 
-const requestFor = (mode: 'brief' | 'deep'): EpisodeRequestSnapshot => ({
+const requestFor = (mode: 'brief' | 'deep', briefLengthPreset?: 'compact' | 'standard'): EpisodeRequestSnapshot => ({
 	id: `request-${mode}`,
 	runId: `run-${mode}`,
 	stationId: 'station-mode',
@@ -22,6 +22,7 @@ const requestFor = (mode: 'brief' | 'deep'): EpisodeRequestSnapshot => ({
 	stationName: 'Mode station',
 	topicInstruction: 'Explain only the supplied material.',
 	mode,
+	briefLengthPreset: briefLengthPreset ?? 'standard',
 	requestHash: 'b'.repeat(64),
 	requestedAt: '2026-08-06T12:00:00.000Z',
 });
@@ -39,6 +40,62 @@ const jobFor = (mode: 'brief' | 'deep'): GenerationJob => ({
 });
 
 describe('source-grounded episode mode policy', () => {
+	it('defines compact and standard Brief contracts from one typed policy source', () => {
+		expect(countWords(aiAudioDisclosure)).toBe(7);
+		expect(briefLengthPresets.compact).toEqual({
+			minimumOutputWords: 200,
+			maximumOutputWords: 350,
+			targetOutputWords: 275,
+			maxOutputTokens: 4_000,
+		});
+		expect(briefLengthPresets.standard).toEqual({
+			minimumOutputWords: 600,
+			maximumOutputWords: 1_000,
+			targetOutputWords: 700,
+			maxOutputTokens: 8_000,
+		});
+		expect(policyForEvidence('brief', evidenceWithWords(2_300), 'compact')).toMatchObject(briefLengthPresets.compact);
+		expect(policyForEvidence('brief', evidenceWithWords(2_300))).toMatchObject(briefLengthPresets.standard);
+		expect(policyForEvidence('deep', evidenceWithWords(2_300), 'compact')).toMatchObject({
+			minimumOutputWords: 1_800,
+			maximumOutputWords: 3_000,
+			targetOutputWords: 2_100,
+		});
+	});
+
+	it('accepts Compact narration at both published boundaries and reports bounded failures', () => {
+		const evidence = evidenceWithWords(2_300);
+		const sectionsFor = (publishedWords: number) => {
+			const factualWords = publishedWords - countWords(aiAudioDisclosure);
+			const words = [...evidence[0]!.body.matchAll(/\S+/g)].slice(0, factualWords);
+			const segments = [];
+			for (let offset = 0; offset < words.length; offset += 40) {
+				const group = words.slice(offset, offset + 40);
+				const text = evidence[0]!.body.slice(group[0]!.index!, group.at(-1)!.index! + group.at(-1)![0].length);
+				segments.push({
+					id: `claim-compact-${offset}`,
+					kind: 'factual' as const,
+					text,
+					citations: [{snapshotId: evidence[0]!.id, excerpt: text}],
+					supportStatus: 'supported' as const,
+					speakerRole: 'host' as const,
+				});
+			}
+			return [{
+				id: 'section-compact-disclosure', title: 'AI audio disclosure', type: 'intro' as const,
+				segments: [{id: 'claim-compact-disclosure', kind: 'transition' as const, text: aiAudioDisclosure, citations: [], supportStatus: 'not_required' as const, speakerRole: 'host' as const}],
+			}, {id: 'section-compact-facts', title: 'Source summary', type: 'news_summary' as const, segments}];
+		};
+		const request = requestFor('brief', 'compact');
+		expect(countWords(narrationForScript(assertGeneratedEpisode(request, evidence, sectionsFor(200))))).toBe(200);
+		expect(countWords(narrationForScript(assertGeneratedEpisode(request, evidence, sectionsFor(350))))).toBe(350);
+		for (const [words, direction] of [[199, 'below'], [351, 'above']] as const) {
+			expect(() => assertGeneratedEpisode(request, evidence, sectionsFor(words))).toThrow(expect.objectContaining({
+				code: 'EPISODE_LENGTH_OUT_OF_RANGE',
+				diagnostic: {stage: 'length_validation', category: 'length_out_of_range', actualWords: words, minimumWords: 200, maximumWords: 350, direction},
+			}));
+		}
+	});
 	it('keeps brief and deep output inside their contracts for identical adequate evidence', () => {
 		const evidence = evidenceWithWords(2_300);
 		const brief = assertGeneratedEpisode(requestFor('brief'), evidence, fakeGeneratedSections(jobFor('brief'), evidence, 'brief'));
@@ -69,6 +126,7 @@ describe('source-grounded episode mode policy', () => {
 
 	it.each([0, 10, 39])('rejects %s supplied words before any generation boundary', wordCount => {
 		expect(() => assertEvidenceSufficient('brief', evidenceWithWords(wordCount))).toThrow(expect.objectContaining({code: 'INSUFFICIENT_SOURCE_MATERIAL'}));
+		expect(() => assertEvidenceSufficient('brief', evidenceWithWords(wordCount), 'compact')).toThrow(expect.objectContaining({code: 'INSUFFICIENT_SOURCE_MATERIAL'}));
 	});
 
 	it('publishes fixed, observable policy boundaries', () => {

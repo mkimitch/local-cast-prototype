@@ -1327,6 +1327,17 @@ const migrations: Migration[] = [
 			`);
 		},
 	},
+	{
+		id: '009_compact_brief_length',
+		up: db => {
+			if (!hasColumn(db, 'stations', 'brief_length_preset')) {
+				db.exec("ALTER TABLE stations ADD COLUMN brief_length_preset TEXT NOT NULL DEFAULT 'standard' CHECK (brief_length_preset IN ('compact', 'standard'))");
+			}
+			if (!hasColumn(db, 'generation_requests', 'brief_length_preset')) {
+				db.exec("ALTER TABLE generation_requests ADD COLUMN brief_length_preset TEXT NOT NULL DEFAULT 'standard' CHECK (brief_length_preset IN ('compact', 'standard'))");
+			}
+		},
+	},
 ];
 
 export const migrationIds = migrations.map(migration => migration.id);

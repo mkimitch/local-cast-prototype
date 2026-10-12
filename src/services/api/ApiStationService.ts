@@ -30,7 +30,7 @@ export class ApiStationService implements StationService {
     }
   }
 
-  async saveStation(input: Pick<Station, 'name' | 'topicInstruction' | 'defaultMode' | 'noteIds' | 'sourceIds'>, id?: string): Promise<Station> {
+  async saveStation(input: Pick<Station, 'name' | 'topicInstruction' | 'defaultMode' | 'briefLengthPreset' | 'noteIds' | 'sourceIds'>, id?: string): Promise<Station> {
     return apiRequest<Station>(id ? `/stations/${encodeURIComponent(id)}` : '/stations', {
       method: id ? 'PUT' : 'POST',
       body: JSON.stringify(input),

@@ -1,4 +1,4 @@
-import type {EpisodeMode, FeedNetworkScope} from '../../src/types';
+import type {BriefLengthPreset, EpisodeMode, FeedNetworkScope} from '../../src/types';
 
 export interface EpisodeEvidence {
 	id: string;
@@ -23,6 +23,7 @@ export interface EpisodeRequestSnapshot {
 	stationName: string;
 	topicInstruction: string;
 	mode: EpisodeMode;
+	briefLengthPreset: BriefLengthPreset;
 	requestHash: string;
 	requestedAt: string;
 }

@@ -3,11 +3,11 @@ import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query';
 import {FileText, Pencil, Play, Plus, Radio, Trash2} from 'lucide-react';
 import {Link, useNavigate, useParams} from 'react-router-dom';
 import {briefingService, providerService, sourceService, stationService} from '../../services';
-import type {EpisodeMode, Note, Station} from '../../types';
+import {defaultBriefLengthPreset, type BriefLengthPreset, type EpisodeMode, type Note, type Station} from '../../types';
 import ConfirmDialog from '../../components/layout/ConfirmDialog';
 
 const emptyNote = {title: '', body: '', author: '', originalUrl: ''};
-const emptyStation = {name: '', topicInstruction: '', defaultMode: 'brief' as EpisodeMode, noteIds: [] as string[], sourceIds: [] as string[]};
+const emptyStation = {name: '', topicInstruction: '', defaultMode: 'brief' as EpisodeMode, briefLengthPreset: defaultBriefLengthPreset, noteIds: [] as string[], sourceIds: [] as string[]};
 
 export default function StationsView() {
   const navigate = useNavigate();
@@ -100,6 +100,7 @@ export default function StationsView() {
       name: station.name,
       topicInstruction: station.topicInstruction,
       defaultMode: station.defaultMode,
+      briefLengthPreset: station.briefLengthPreset,
       noteIds: station.noteIds,
       sourceIds: station.sourceIds,
     });
@@ -230,6 +231,19 @@ export default function StationsView() {
                 <option value="deep">Deep</option>
               </select>
             </div>
+            <div className="field">
+              <label className="form-label" htmlFor="station-brief-length">Brief length</label>
+              <select
+                id="station-brief-length"
+                className="control"
+                value={stationForm.briefLengthPreset}
+                onChange={event => setStationForm({...stationForm, briefLengthPreset: event.target.value as BriefLengthPreset})}
+              >
+                <option value="standard">Standard — 600–1,000 words</option>
+                <option value="compact">Compact — 200–350 words</option>
+              </select>
+              <p className="field-help">Used when this station generates in Brief mode. Deep mode is unchanged.</p>
+            </div>
             <fieldset className="field">
               <legend className="form-label">Pasted notes</legend>
               <div className="station-choice-list">
@@ -306,7 +320,7 @@ export default function StationsView() {
               return <article key={station.id} id={`station-${station.id}`} className="briefing-row" aria-current={station.id === stationId ? 'true' : undefined}>
                 <div>
                   <h3 className="briefing-row__title"><Link to={`/stations/${encodeURIComponent(station.id)}`}>{station.name}</Link></h3>
-                  <p className="field-help">{station.defaultMode} · revision {station.revision} · {station.noteIds.length} note{station.noteIds.length === 1 ? '' : 's'}</p>
+                  <p className="field-help">{station.defaultMode}{station.defaultMode === 'brief' ? ` · ${station.briefLengthPreset}` : ''} · revision {station.revision} · {station.noteIds.length} note{station.noteIds.length === 1 ? '' : 's'}</p>
                   {unavailableReason && <p className="field-help">{unavailableReason}</p>}
                 </div>
                 <div className="page-actions">

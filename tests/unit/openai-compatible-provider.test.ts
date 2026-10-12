@@ -12,6 +12,7 @@ const request: EpisodeRequestSnapshot = {
 	stationName: 'Synthetic station',
 	topicInstruction: 'Use only supplied facts.',
 	mode: 'brief',
+	briefLengthPreset: 'standard',
 	requestHash: 'a'.repeat(64),
 	requestedAt: '2026-08-21T00:00:00.000Z',
 };
@@ -105,6 +106,24 @@ describe('OpenAI-compatible local text provider contract', () => {
 		const supplied = JSON.parse(messages.find(message => message.role === 'user')!.content);
 		expect(JSON.stringify(supplied)).not.toContain(evidence[0]!.id);
 		expect(code).toMatch(/OLLAMA|LM_STUDIO/);
+	});
+
+	it('aligns the Compact prompt with the published validator contract', async () => {
+		const compactDraft = structuredClone(draft);
+		compactDraft.sections = [{...compactDraft.sections[0]!, segments: draftSegments.slice(0, 5)}];
+		compactDraft.sections[0]!.segments.at(-1)!.text = facts.slice(160, 193).join(' ');
+		const calls: Record<string, unknown>[] = [];
+		const fetchImpl = vi.fn<typeof fetch>(async (_input, init) => {
+			const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+			calls.push(body);
+			return calls.length === 1 ? response(compactDraft) : response({results: claimResults().slice(0, 5)});
+		});
+		const provider = new OpenAiCompatibleTextProvider('Ollama', 'http://ollama.test/v1', 'local-model', {fetchImpl});
+		await provider.generateEpisode({...request, briefLengthPreset: 'compact'}, evidence, new AbortController().signal);
+		const prompt = ((calls[0]!.messages as Array<{content: string}>)[0]!).content;
+		expect(prompt).toContain('Return 193 to 343 factual spoken words');
+		expect(prompt).toContain('published total 200 to 350 words');
+		expect(prompt).toContain('Aim for about 268 returned words');
 	});
 
 	it('rejects distinct catalog units from the same snapshot before support validation', async () => {

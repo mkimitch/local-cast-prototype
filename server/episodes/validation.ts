@@ -15,7 +15,7 @@ export const assertGeneratedEpisode = (
 	evidence: EpisodeEvidence[],
 	sections: GeneratedSection[],
 ): GeneratedEpisodeScript => {
-	assertEvidenceSufficient(request.mode, evidence);
+	assertEvidenceSufficient(request.mode, evidence, request.briefLengthPreset);
 	if (sections.length === 0 || sections.length > 8) invalidEpisode('INVALID_EPISODE_STRUCTURE', 'The generated transcript structure was invalid');
 	const evidenceById = new Map(evidence.map(item => [item.id, item]));
 	const ids = new Set<string>();
@@ -74,11 +74,19 @@ export const assertGeneratedEpisode = (
 	const script: GeneratedEpisodeScript = {version: 1, sections};
 	const narration = narrationForScript(script);
 	const words = countWords(narration);
-	const policy = policyForEvidence(request.mode, evidence);
+	const policy = policyForEvidence(request.mode, evidence, request.briefLengthPreset);
 	if (words < policy.minimumOutputWords || words > policy.maximumOutputWords) {
 		invalidEpisode(
 			'EPISODE_LENGTH_OUT_OF_RANGE',
 			`The generated ${request.mode} episode did not meet its source-grounded length contract`,
+			{
+				stage: 'length_validation',
+				category: 'length_out_of_range',
+				actualWords: words,
+				minimumWords: policy.minimumOutputWords,
+				maximumWords: policy.maximumOutputWords,
+				direction: words < policy.minimumOutputWords ? 'below' : 'above',
+			},
 		);
 	}
 	if (narration.length > 32_000) invalidEpisode('TTS_INPUT_TOO_LARGE', 'The generated narration exceeded the configured speech limit');

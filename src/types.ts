@@ -90,6 +90,8 @@ export interface Note {
 }
 
 export type EpisodeMode = 'brief' | 'deep';
+export type BriefLengthPreset = 'compact' | 'standard';
+export const defaultBriefLengthPreset: BriefLengthPreset = 'standard';
 
 export interface Station {
   id: string;
@@ -97,6 +99,7 @@ export interface Station {
   name: string;
   topicInstruction: string;
   defaultMode: EpisodeMode;
+  briefLengthPreset: BriefLengthPreset;
   noteIds: string[];
   sourceIds: string[];
   createdAt: string;

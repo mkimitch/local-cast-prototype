@@ -484,6 +484,17 @@ The readiness database audit still requires exactly one `PRAGMA quick_check` row
 
 The existing rate-limited health diagnostic serializes only those structural fields. It does not retain result text, table names, SQL, database paths, settings, source material, arbitrary exception fields, or credentials. Public HTTP behavior remains `200` for complete readiness and the same `503 NOT_READY` body otherwise. This instrumentation narrows a future recurrence; it does not repair or weaken the unresolved connection-local readiness failure.
 
+## D-050 — Brief length is an immutable typed generation policy
+
+Status: **ACCEPTED**
+Date: 2026-10-12
+
+Brief stations select either `standard` or `compact` from one typed mode-policy definition. Standard retains the existing 600–1,000 published-word range, 700-word target, token budget, and sparse-evidence fallback. Compact uses a fixed 200–350 published-word range and 275-word target. Both account for the existing seven-word disclosure before constructing provider guidance; Deep mode ignores the Brief preset and remains unchanged. Omitted API values and all pre-existing rows become Standard.
+
+The station value is copied into the immutable generation request at enqueue and participates in the request hash. Additive migration `009_compact_brief_length` persists both station policy and historical request policy with constrained, non-null Standard defaults. Provider prompts, token budgets, deterministic test generation, evidence sufficiency, and final narration validation derive from the same policy. Safe failure diagnostics retain only actual/minimum/maximum word counts and `below`/`above`, never rejected narration.
+
+The preset changes only narration length. Frozen evidence, deterministic reference resolution, exact citation membership, semantic-support classification, and TTS/publication fencing remain authoritative. Compact cannot justify unsupported padding or bypass insufficient-evidence failure.
+
 ## Open operator decisions
 
 These are genuine inputs that cannot be inferred safely. They do not block documentation bootstrap. A slice must stop before it needs an unresolved value.

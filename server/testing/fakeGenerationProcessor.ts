@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {createHash, randomUUID} from 'node:crypto';
-import type {BriefingSection, SourceItem} from '../../src/types';
+import type {BriefLengthPreset, BriefingSection, SourceItem} from '../../src/types';
 import type {ServerConfig} from '../config';
 import type {EpisodeEvidence, GeneratedSection, PublishedAudio} from '../episodes/types';
 import {aiAudioDisclosure, countWords, policyForEvidence} from '../episodes/modePolicy';
@@ -94,8 +94,8 @@ const trimChunkToWords = (text: string, maximumWords: number): string => {
 	return text.slice(0, last.index! + last[0].length);
 };
 
-export const fakeGeneratedSections = (job: GenerationJob, evidence: EpisodeEvidence[], mode: 'brief' | 'deep'): GeneratedSection[] => {
-	const targetFactualWords = policyForEvidence(mode, evidence).targetOutputWords - countWords(aiAudioDisclosure);
+export const fakeGeneratedSections = (job: GenerationJob, evidence: EpisodeEvidence[], mode: 'brief' | 'deep', briefLengthPreset?: BriefLengthPreset): GeneratedSection[] => {
+	const targetFactualWords = policyForEvidence(mode, evidence, briefLengthPreset).targetOutputWords - countWords(aiAudioDisclosure);
 	const availableChunks = evidence.flatMap(exactEvidenceChunks);
 	const selected: Array<{text: string; snapshotId: string}> = [];
 	let selectedWords = 0;
@@ -233,7 +233,7 @@ export class DeterministicFakeGenerationProcessor implements GenerationProcessor
 			this.jobs.complete(job.id, workerId, () => this.episodes.publishEpisode({
 				runId: job.runId,
 				request,
-				sections: fakeGeneratedSections(job, evidence, request.mode),
+				sections: fakeGeneratedSections(job, evidence, request.mode, request.briefLengthPreset),
 				audio,
 				textProvider: 'Deterministic test text',
 				textModel: 'fixture-text-v1',

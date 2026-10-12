@@ -564,7 +564,7 @@ export class OpenAiTextProvider {
 		if (Buffer.byteLength(userContent, 'utf8') > 160_000) {
 			throw new GenerationError('EVIDENCE_INPUT_TOO_LARGE', 'The selected supplied material exceeds the provider input limit', false);
 		}
-		const modePolicy = assertEvidenceSufficient(request.mode, evidence);
+		const modePolicy = assertEvidenceSufficient(request.mode, evidence, request.briefLengthPreset);
 		const disclosureWords = countWords(aiAudioDisclosure);
 		const draftBody = {
 			model: this.model,

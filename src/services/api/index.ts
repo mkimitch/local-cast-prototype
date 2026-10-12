@@ -27,7 +27,7 @@ export interface StationService {
   deleteNote(id: string): Promise<void>;
   getStations(): Promise<Station[]>;
   getStation(id: string): Promise<Station | undefined>;
-  saveStation(input: Pick<Station, 'name' | 'topicInstruction' | 'defaultMode' | 'noteIds' | 'sourceIds'>, id?: string): Promise<Station>;
+  saveStation(input: Pick<Station, 'name' | 'topicInstruction' | 'defaultMode' | 'briefLengthPreset' | 'noteIds' | 'sourceIds'>, id?: string): Promise<Station>;
   deleteStation(id: string): Promise<void>;
 }
 

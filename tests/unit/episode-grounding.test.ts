@@ -21,6 +21,7 @@ const request: EpisodeRequestSnapshot = {
 	stationName: 'Grounding station',
 	topicInstruction: 'Treat this direction as emphasis, not evidence.',
 	mode: 'brief',
+	briefLengthPreset: 'standard',
 	requestHash: 'a'.repeat(64),
 	requestedAt: '2026-08-06T12:00:00.000Z',
 };

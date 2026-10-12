@@ -1,4 +1,4 @@
-import type {EpisodeMode} from '../../src/types';
+import {defaultBriefLengthPreset, type BriefLengthPreset, type EpisodeMode} from '../../src/types';
 import type {EpisodeEvidence} from './types';
 import {GenerationError} from '../jobs/types';
 
@@ -16,6 +16,21 @@ export interface EpisodeModePolicy {
 	maxOutputTokens: number;
 }
 
+export const briefLengthPresets = {
+	compact: {
+		minimumOutputWords: 200,
+		maximumOutputWords: 350,
+		targetOutputWords: 275,
+		maxOutputTokens: 4_000,
+	},
+	standard: {
+		minimumOutputWords: 600,
+		maximumOutputWords: 1_000,
+		targetOutputWords: 700,
+		maxOutputTokens: 8_000,
+	},
+} as const satisfies Record<BriefLengthPreset, Pick<EpisodeModePolicy, 'minimumOutputWords' | 'maximumOutputWords' | 'targetOutputWords' | 'maxOutputTokens'>>;
+
 const evidenceText = (evidence: EpisodeEvidence[]): string => {
 	const uniqueBodies = new Map<string, string>();
 	for (const item of evidence) {
@@ -24,7 +39,11 @@ const evidenceText = (evidence: EpisodeEvidence[]): string => {
 	return [...uniqueBodies.values()].join(' ').replace(/\s+/g, ' ').trim();
 };
 
-export const policyForEvidence = (mode: EpisodeMode, evidence: EpisodeEvidence[]): EpisodeModePolicy => {
+export const policyForEvidence = (
+	mode: EpisodeMode,
+	evidence: EpisodeEvidence[],
+	briefLengthPreset: BriefLengthPreset = defaultBriefLengthPreset,
+): EpisodeModePolicy => {
 	const suppliedText = evidenceText(evidence);
 	const evidenceWords = countWords(suppliedText);
 	const disclosureWords = countWords(aiAudioDisclosure);
@@ -41,21 +60,35 @@ export const policyForEvidence = (mode: EpisodeMode, evidence: EpisodeEvidence[]
 		};
 	}
 
-	const adequateForFullBrief = evidenceWords + disclosureWords >= 600;
+	const preset = briefLengthPresets[briefLengthPreset];
+	if (briefLengthPreset === 'compact') {
+		return {
+			mode,
+			minimumEvidenceWords: 40,
+			minimumEvidenceCharacters: 200,
+			...preset,
+		};
+	}
+
+	const adequateForFullBrief = evidenceWords + disclosureWords >= preset.minimumOutputWords;
 	const sparseMaximum = Math.max(disclosureWords + 40, evidenceWords + disclosureWords);
 	return {
 		mode,
 		minimumEvidenceWords: 40,
 		minimumEvidenceCharacters: 200,
-		minimumOutputWords: adequateForFullBrief ? 600 : Math.min(sparseMaximum, Math.max(48, Math.floor(evidenceWords * 0.7) + disclosureWords)),
-		maximumOutputWords: adequateForFullBrief ? 1_000 : sparseMaximum,
-		targetOutputWords: adequateForFullBrief ? Math.min(700, evidenceWords + disclosureWords) : sparseMaximum,
-		maxOutputTokens: adequateForFullBrief ? 8_000 : 4_000,
+		minimumOutputWords: adequateForFullBrief ? preset.minimumOutputWords : Math.min(sparseMaximum, Math.max(48, Math.floor(evidenceWords * 0.7) + disclosureWords)),
+		maximumOutputWords: adequateForFullBrief ? preset.maximumOutputWords : sparseMaximum,
+		targetOutputWords: adequateForFullBrief ? Math.min(preset.targetOutputWords, evidenceWords + disclosureWords) : sparseMaximum,
+		maxOutputTokens: adequateForFullBrief ? preset.maxOutputTokens : 4_000,
 	};
 };
 
-export const assertEvidenceSufficient = (mode: EpisodeMode, evidence: EpisodeEvidence[]): EpisodeModePolicy => {
-	const policy = policyForEvidence(mode, evidence);
+export const assertEvidenceSufficient = (
+	mode: EpisodeMode,
+	evidence: EpisodeEvidence[],
+	briefLengthPreset: BriefLengthPreset = defaultBriefLengthPreset,
+): EpisodeModePolicy => {
+	const policy = policyForEvidence(mode, evidence, briefLengthPreset);
 	const suppliedText = evidenceText(evidence);
 	if (
 		evidence.length === 0

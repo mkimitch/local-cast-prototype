@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3';
 import {createHash, randomUUID} from 'node:crypto';
-import type {EpisodeMode} from '../../src/types';
+import type {BriefLengthPreset, EpisodeMode} from '../../src/types';
 import {parseFeedUrl} from '../services/safeFeedFetcher';
 import {activeJobPhases, generationJobPayloadSchema} from './types';
 import {serializeGenerationDiagnostic} from './types';
@@ -140,6 +140,7 @@ export class GenerationJobStore {
 				name: string;
 				topic_instruction: string;
 				default_mode: EpisodeMode;
+				brief_length_preset: BriefLengthPreset;
 			} | undefined;
 			if (!station) throw new JobStateError('Selected station does not exist');
 
@@ -173,6 +174,7 @@ export class GenerationJobStore {
 				feed_network_scope: 'public' | 'private' | 'unknown';
 			}>;
 			const mode = requestedMode || station.default_mode;
+			const briefLengthPreset = station.brief_length_preset;
 			if (sources.some(source => source.is_active !== 1 || !source.url)) throw new JobStateError('One or more selected RSS sources are inactive or invalid');
 			let capturedSources: Array<(typeof sources)[number] & {canonicalUrl: string}>;
 			try {
@@ -185,7 +187,7 @@ export class GenerationJobStore {
 			const jobId = `job-${this.createId()}`;
 			const requestId = `request-${this.createId()}`;
 			const canonicalRequest = JSON.stringify({
-				station: {id: station.id, revision: station.revision, name: station.name, topicInstruction: station.topic_instruction},
+				station: {id: station.id, revision: station.revision, name: station.name, topicInstruction: station.topic_instruction, briefLengthPreset},
 				mode,
 				notes: notes.map(note => ({id: note.id, revision: note.revision, title: note.title, body: note.body, author: note.author, originalUrl: note.original_url})),
 				sources: capturedSources.map(source => ({id: source.source_id, name: source.name, url: source.canonicalUrl, networkScope: source.feed_network_scope})),
@@ -203,9 +205,9 @@ export class GenerationJobStore {
 			this.database.prepare(`
 				INSERT INTO generation_requests (
 					id, run_id, station_id_snapshot, station_revision, station_name,
-					topic_instruction, requested_mode, request_hash, requested_at
-				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-			`).run(requestId, runId, station.id, station.revision, station.name, station.topic_instruction, mode, requestHash, timestamp);
+					topic_instruction, requested_mode, brief_length_preset, request_hash, requested_at
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			`).run(requestId, runId, station.id, station.revision, station.name, station.topic_instruction, mode, briefLengthPreset, requestHash, timestamp);
 
 			const insertNote = this.database.prepare(`
 				INSERT INTO generation_request_notes (

@@ -1,14 +1,24 @@
 # LocalCast build state
 
-Last updated: 2026-10-10
+Last updated: 2026-10-12
 Branch: `codex/localcast-prototype`
 Pre-bootstrap HEAD: `910485b77ead63450660b0b97544889960e45e3f`
 Slice 0 base HEAD: `e720d5818ab15efccfa143c94d6514c0c9a2baad`
 Current base checkpoint: Slice 6D security hardening at `176d30a6e18d6da18ef92ae38ab0655673c663d1`
-Current checkpoint: **Deterministic citation-reference catalog plus bounded quick-check diagnostics, based on `40158c8`**
-Implementation slice: **QUICK-CHECK DIAGNOSTICS — VALIDATED; CONTROLLED DEPLOYMENT AUTHORIZED**
-Next action: **Create the focused checkpoint, preserve live failure evidence, enforce the independent safety/snapshot gates, then deploy without provider or generation calls**
+Current checkpoint: **Compact Brief length preset, based on `36b23aa`**
+Implementation slice: **COMPACT BRIEF LENGTH — VALIDATED; CHECKPOINT PENDING**
+Next action: **Create the focused code-only checkpoint; deployment and any new generation require separate authorization**
 Overall state: **SLICE 5 COMPLETE; SLICE 6A–6D DETERMINISTIC CHECKPOINTS COMPLETE; DAILY DRIVER 1A, STATION EVIDENCE-SELECTION, PROVIDER-RESTART, AND GENERATION VALIDATION/STATUS REPAIRS COMPLETE; OPERATIONAL SLICE 6 AND A11Y-01 GATES REMAIN OPEN**
+
+## October 12 Compact Brief length preset
+
+The station model now has an explicit `compact`/`standard` Brief length preset. One typed mode-policy table defines published range, target, and token budget. Standard preserves 600–1,000 words and target 700, including its existing source-bounded sparse fallback; Compact uses 200–350 and target 275. Both subtract the fixed seven-word disclosure for provider guidance, producing factual ranges of 593–993 and 193–343. Deep mode is unchanged.
+
+The API accepts the optional preset with Standard as the compatibility default. The station form exposes an associated native select and restores the controlled value on edit. Additive migration `009_compact_brief_length` stores constrained non-null presets on stations and immutable generation requests, backfilling pre-existing rows to Standard. Enqueue copies the station value into the request hash and row, so later station edits do not affect a queued or historical attempt.
+
+OpenAI, OpenAI-compatible, deterministic generation, evidence policy, and final validation share the same policy. A length rejection records only bounded actual/minimum/maximum counts and `below`/`above`; it does not retain narration. Compact does not alter Architecture B reference resolution, citation membership, semantic support, source sufficiency, provider lifecycle, or the no-TTS/publication failure boundary.
+
+Repository validation is green: TypeScript PASS; 145 focused tests PASS; unit PASS 338/338; integration PASS 114/114 after the known sandbox-only loopback restriction; production build PASS; focused station/axe browser PASS 5/5; final full Playwright/axe PASS 23/23; isolated API/worker and production same-origin smokes PASS. The first full browser run had one unchanged theme-transition contrast sample at 4.49 versus 4.5; the focused accessibility rerun passed 4/4 and the fresh complete rerun passed all 23 without product or assertion changes. All providers were deterministic fixtures. No live call, production access/mutation, restart, deployment, retry, topology, credential, station, source, fixture, or health-route change occurred.
 
 ## October 11 quick-check diagnostic refinement
 
@@ -659,4 +669,4 @@ This repair ledger is retained as historical evidence and is superseded by the c
 
 ## Next action
 
-Await explicit authorization for the next bounded Slice 6 gate. Slice 6B does not authorize accessibility expansion, security or Docker/Compose/Caddy hardening, deployment, live-provider work, production backup/restore, retention/pruning, encryption, or cleanup of retained fixtures, images, rollback tags, or backups.
+Create the green Compact Brief checkpoint. Afterward, await separate deployment authorization; do not initiate a provider verification or Morning Signal generation automatically.

@@ -26,7 +26,7 @@ export type GenerationJobPayload = z.infer<typeof generationJobPayloadSchema>;
 export type ProviderStatusImpact = 'preserve' | 'failure';
 
 export interface GenerationDiagnostic {
-	stage: 'evidence_catalog' | 'citation_reference_resolution' | 'citation_validation' | 'semantic_support';
+	stage: 'evidence_catalog' | 'citation_reference_resolution' | 'citation_validation' | 'semantic_support' | 'length_validation';
 	category:
 		| 'uncitable_body'
 		| 'unknown_reference'
@@ -34,16 +34,25 @@ export interface GenerationDiagnostic {
 		| 'repeated_snapshot'
 		| 'uncited_claim'
 		| 'invalid_membership'
-		| 'unsupported_claims';
+		| 'unsupported_claims'
+		| 'length_out_of_range';
 	sectionIndex?: number;
 	segmentIndex?: number;
 	citationIndex?: number;
 	referenceCount?: number;
 	rejectedCount?: number;
+	actualWords?: number;
+	minimumWords?: number;
+	maximumWords?: number;
+	direction?: 'below' | 'above';
 }
 
 const boundedDiagnosticNumber = (value: number | undefined): number | undefined => (
 	Number.isSafeInteger(value) && value !== undefined && value >= 0 && value <= 10_000 ? value : undefined
+);
+
+const boundedWordCount = (value: number | undefined): number | undefined => (
+	Number.isSafeInteger(value) && value !== undefined && value >= 0 && value <= 100_000 ? value : undefined
 );
 
 export const serializeGenerationDiagnostic = (code: string, diagnostic?: GenerationDiagnostic): string => {
@@ -57,6 +66,10 @@ export const serializeGenerationDiagnostic = (code: string, diagnostic?: Generat
 		citationIndex: boundedDiagnosticNumber(diagnostic.citationIndex),
 		referenceCount: boundedDiagnosticNumber(diagnostic.referenceCount),
 		rejectedCount: boundedDiagnosticNumber(diagnostic.rejectedCount),
+		actualWords: boundedWordCount(diagnostic.actualWords),
+		minimumWords: boundedWordCount(diagnostic.minimumWords),
+		maximumWords: boundedWordCount(diagnostic.maximumWords),
+		direction: diagnostic.direction === 'below' || diagnostic.direction === 'above' ? diagnostic.direction : undefined,
 	});
 };
 

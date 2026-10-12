@@ -53,7 +53,7 @@ describe('health route observability', () => {
 		expect(response.status).toBe(200);
 		expect(await response.json()).toMatchObject({
 			ok: true, service: 'local-cast-api', mediaWritable: true,
-			database: {quickCheck: 'ok', fts5: true, foreignKeyViolations: 0, schemaVersion: '008_episode_grounded_chat'},
+			database: {quickCheck: 'ok', fts5: true, foreignKeyViolations: 0, schemaVersion: '009_compact_brief_length'},
 		});
 		expect(value.order).toEqual(['database', 'media', 'providers']);
 		expect(value.write).not.toHaveBeenCalled();

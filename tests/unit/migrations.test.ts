@@ -176,6 +176,35 @@ describe('additive migration history', () => {
 		expect(db.prepare("SELECT name FROM sqlite_master WHERE name = 'generation_jobs'").get()).toBeTruthy();
 	});
 
+	it('adds Standard defaults for existing stations and immutable generation requests', () => {
+		const db = database();
+		applyMigrationPlan(db, migrationPlanThrough('008_episode_grounded_chat'));
+		const timestamp = '2026-10-12T12:00:00.000Z';
+		db.prepare(`
+			INSERT INTO stations (id, revision, name, topic_instruction, default_mode, created_at, updated_at)
+			VALUES ('station-existing', 1, 'Existing station', 'Use supplied facts.', 'brief', ?, ?)
+		`).run(timestamp, timestamp);
+		db.prepare(`
+			INSERT INTO briefing_runs (id, title, status, created_at, mode, station_id_snapshot, station_name_snapshot, station_revision, ai_generated)
+			VALUES ('run-existing', 'Existing run', 'failed', ?, 'brief', 'station-existing', 'Existing station', 1, 1)
+		`).run(timestamp);
+		db.prepare(`
+			INSERT INTO generation_requests (
+				id, run_id, station_id_snapshot, station_revision, station_name,
+				topic_instruction, requested_mode, request_hash, requested_at
+			) VALUES ('request-existing', 'run-existing', 'station-existing', 1, 'Existing station', 'Use supplied facts.', 'brief', ?, ?)
+		`).run('a'.repeat(64), timestamp);
+
+		applyMigrations(db);
+		applyMigrations(db);
+
+		expect(db.prepare('SELECT brief_length_preset FROM stations WHERE id = ?').get('station-existing')).toEqual({brief_length_preset: 'standard'});
+		expect(db.prepare('SELECT brief_length_preset FROM generation_requests WHERE id = ?').get('request-existing')).toEqual({brief_length_preset: 'standard'});
+		expect(() => db.prepare("UPDATE stations SET brief_length_preset = 'short' WHERE id = 'station-existing'").run()).toThrow();
+		expect(() => db.prepare("UPDATE generation_requests SET brief_length_preset = 'short' WHERE id = 'request-existing'").run()).toThrow();
+		expect((db.prepare('SELECT id FROM schema_migrations ORDER BY rowid DESC LIMIT 1').get() as {id: string}).id).toBe('009_compact_brief_length');
+	});
+
 	it.each(['001_initial_schema', '002_source_item_identity', '003_source_sync_metadata', '004_generation_jobs', '005_real_provider_walking_skeleton'])('upgrades a %s snapshot without losing data', migrationId => {
 		const db = database();
 		installFrozenMigrationSnapshot(db, migrationId);

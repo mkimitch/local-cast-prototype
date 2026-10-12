@@ -1,6 +1,6 @@
 import type Database from 'better-sqlite3';
 import {randomUUID} from 'node:crypto';
-import type {EpisodeMode, Note, Station} from '../../src/types';
+import {defaultBriefLengthPreset, type BriefLengthPreset, type EpisodeMode, type Note, type Station} from '../../src/types';
 import {db} from '../database/index';
 
 export interface SaveNoteInput {
@@ -14,6 +14,7 @@ export interface SaveStationInput {
 	name: string;
 	topicInstruction: string;
 	defaultMode: EpisodeMode;
+	briefLengthPreset?: BriefLengthPreset;
 	noteIds: string[];
 	sourceIds: string[];
 }
@@ -35,6 +36,7 @@ type StationRow = {
 	name: string;
 	topic_instruction: string;
 	default_mode: EpisodeMode;
+	brief_length_preset: BriefLengthPreset;
 	created_at: string;
 	updated_at: string;
 };
@@ -117,9 +119,9 @@ export class StationStore {
 		const save = this.database.transaction(() => {
 			this.assertSelections(input);
 			this.database.prepare(`
-				INSERT INTO stations (id, revision, name, topic_instruction, default_mode, created_at, updated_at)
-				VALUES (?, 1, ?, ?, ?, ?, ?)
-			`).run(id, input.name, input.topicInstruction, input.defaultMode, timestamp, timestamp);
+				INSERT INTO stations (id, revision, name, topic_instruction, default_mode, brief_length_preset, created_at, updated_at)
+				VALUES (?, 1, ?, ?, ?, ?, ?, ?)
+			`).run(id, input.name, input.topicInstruction, input.defaultMode, input.briefLengthPreset ?? defaultBriefLengthPreset, timestamp, timestamp);
 			this.replaceSelections(id, input);
 		});
 		save.immediate();
@@ -132,9 +134,9 @@ export class StationStore {
 			this.assertSelections(input);
 			this.database.prepare(`
 				UPDATE stations
-				SET revision = revision + 1, name = ?, topic_instruction = ?, default_mode = ?, updated_at = ?
+				SET revision = revision + 1, name = ?, topic_instruction = ?, default_mode = ?, brief_length_preset = ?, updated_at = ?
 				WHERE id = ?
-			`).run(input.name, input.topicInstruction, input.defaultMode, this.now(), id);
+			`).run(input.name, input.topicInstruction, input.defaultMode, input.briefLengthPreset ?? defaultBriefLengthPreset, this.now(), id);
 			this.replaceSelections(id, input);
 		});
 		save.immediate();
@@ -154,6 +156,7 @@ export class StationStore {
 			name: row.name,
 			topicInstruction: row.topic_instruction,
 			defaultMode: row.default_mode,
+			briefLengthPreset: row.brief_length_preset,
 			noteIds,
 			sourceIds,
 			createdAt: row.created_at,

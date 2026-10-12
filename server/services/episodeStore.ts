@@ -4,6 +4,7 @@ import {db} from '../database/index';
 import {GenerationError} from '../jobs/types';
 import {hasEmbeddedUrlCredential} from './safeFeedFetcher';
 import type {EpisodeEvidence, EpisodeRequestSnapshot, EpisodeRequestSource, GeneratedSection, PublishedAudio} from '../episodes/types';
+import type {BriefLengthPreset} from '../../src/types';
 import {assertEvidenceSufficient} from '../episodes/modePolicy';
 import {assertGeneratedEpisode} from '../episodes/validation';
 import {publishedEpisodePredicate} from '../episodes/publication';
@@ -16,6 +17,7 @@ type RequestRow = {
 	station_name: string;
 	topic_instruction: string;
 	requested_mode: EpisodeRequestSnapshot['mode'];
+	brief_length_preset: BriefLengthPreset;
 	request_hash: string;
 	requested_at: string;
 };
@@ -95,6 +97,7 @@ export class EpisodeStore {
 			stationName: row.station_name,
 			topicInstruction: row.topic_instruction,
 			mode: row.requested_mode,
+			briefLengthPreset: row.brief_length_preset,
 			requestHash: row.request_hash,
 			requestedAt: row.requested_at,
 		};
@@ -150,7 +153,7 @@ export class EpisodeStore {
 
 			const existing = this.listEvidence(runId);
 			if (existing.length > 0) {
-				assertEvidenceSufficient(request.mode, existing);
+				assertEvidenceSufficient(request.mode, existing, request.briefLengthPreset);
 				return existing;
 			}
 
@@ -226,7 +229,7 @@ export class EpisodeStore {
 			}
 
 			const evidence = this.listEvidence(runId);
-			assertEvidenceSufficient(request.mode, evidence);
+			assertEvidenceSufficient(request.mode, evidence, request.briefLengthPreset);
 			return evidence;
 		});
 

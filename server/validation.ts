@@ -1,6 +1,5 @@
 import {z} from 'zod';
-import type {AppSettings} from '../src/types';
-import type {EpisodeMode} from '../src/types';
+import {defaultBriefLengthPreset, type AppSettings, type EpisodeMode} from '../src/types';
 import {isBoundedLocalCastText, isWellFormedLocalCastText} from '../src/types';
 import type {CreateSourceInput, UpdateSourceInput} from './services/sourceStore';
 import type {SaveNoteInput, SaveStationInput} from './services/stationStore';
@@ -51,6 +50,7 @@ const stationSchema = z.object({
 	name: z.string().trim().min(1).max(200),
 	topicInstruction: z.string().trim().min(1).max(4_000),
 	defaultMode: z.enum(['brief', 'deep']),
+	briefLengthPreset: z.enum(['compact', 'standard']).optional().default(defaultBriefLengthPreset),
 	noteIds: z.array(z.string().trim().min(1).max(200)).max(200),
 	sourceIds: z.array(z.string().trim().min(1).max(200)).max(20),
 }).strict();
