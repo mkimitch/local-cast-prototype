@@ -123,7 +123,9 @@ describe('OpenAI-compatible local text provider contract', () => {
 		const prompt = ((calls[0]!.messages as Array<{content: string}>)[0]!).content;
 		expect(prompt).toContain('Return 193 to 343 factual spoken words');
 		expect(prompt).toContain('published total 200 to 350 words');
-		expect(prompt).toContain('Aim for about 268 returned words');
+		expect(prompt).toContain('Aim for about 293 returned words');
+		expect(prompt).toContain('additional distinct, evidence-supported factual detail');
+		expect(prompt).toContain('never pad with repetition, speculation, or unsupported context');
 	});
 
 	it('rejects distinct catalog units from the same snapshot before support validation', async () => {

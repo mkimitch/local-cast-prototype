@@ -95,7 +95,7 @@ const trimChunkToWords = (text: string, maximumWords: number): string => {
 };
 
 export const fakeGeneratedSections = (job: GenerationJob, evidence: EpisodeEvidence[], mode: 'brief' | 'deep', briefLengthPreset?: BriefLengthPreset): GeneratedSection[] => {
-	const targetFactualWords = policyForEvidence(mode, evidence, briefLengthPreset).targetOutputWords - countWords(aiAudioDisclosure);
+	const targetFactualWords = policyForEvidence(mode, evidence, briefLengthPreset).providerTargetOutputWords - countWords(aiAudioDisclosure);
 	const availableChunks = evidence.flatMap(exactEvidenceChunks);
 	const selected: Array<{text: string; snapshotId: string}> = [];
 	let selectedWords = 0;

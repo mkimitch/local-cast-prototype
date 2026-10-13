@@ -13,6 +13,7 @@ export interface EpisodeModePolicy {
 	minimumOutputWords: number;
 	maximumOutputWords: number;
 	targetOutputWords: number;
+	providerTargetOutputWords: number;
 	maxOutputTokens: number;
 }
 
@@ -21,15 +22,17 @@ export const briefLengthPresets = {
 		minimumOutputWords: 200,
 		maximumOutputWords: 350,
 		targetOutputWords: 275,
+		providerTargetOutputWords: 300,
 		maxOutputTokens: 4_000,
 	},
 	standard: {
 		minimumOutputWords: 600,
 		maximumOutputWords: 1_000,
 		targetOutputWords: 700,
+		providerTargetOutputWords: 700,
 		maxOutputTokens: 8_000,
 	},
-} as const satisfies Record<BriefLengthPreset, Pick<EpisodeModePolicy, 'minimumOutputWords' | 'maximumOutputWords' | 'targetOutputWords' | 'maxOutputTokens'>>;
+} as const satisfies Record<BriefLengthPreset, Pick<EpisodeModePolicy, 'minimumOutputWords' | 'maximumOutputWords' | 'targetOutputWords' | 'providerTargetOutputWords' | 'maxOutputTokens'>>;
 
 const evidenceText = (evidence: EpisodeEvidence[]): string => {
 	const uniqueBodies = new Map<string, string>();
@@ -56,6 +59,7 @@ export const policyForEvidence = (
 			minimumOutputWords: 1_800,
 			maximumOutputWords: 3_000,
 			targetOutputWords: Math.min(2_100, Math.max(1_800, evidenceWords + disclosureWords)),
+			providerTargetOutputWords: Math.min(2_100, Math.max(1_800, evidenceWords + disclosureWords)),
 			maxOutputTokens: 24_000,
 		};
 	}
@@ -79,6 +83,7 @@ export const policyForEvidence = (
 		minimumOutputWords: adequateForFullBrief ? preset.minimumOutputWords : Math.min(sparseMaximum, Math.max(48, Math.floor(evidenceWords * 0.7) + disclosureWords)),
 		maximumOutputWords: adequateForFullBrief ? preset.maximumOutputWords : sparseMaximum,
 		targetOutputWords: adequateForFullBrief ? Math.min(preset.targetOutputWords, evidenceWords + disclosureWords) : sparseMaximum,
+		providerTargetOutputWords: adequateForFullBrief ? Math.min(preset.providerTargetOutputWords, evidenceWords + disclosureWords) : sparseMaximum,
 		maxOutputTokens: adequateForFullBrief ? preset.maxOutputTokens : 4_000,
 	};
 };

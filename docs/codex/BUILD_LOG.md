@@ -1313,3 +1313,23 @@ Migration 009 adds constrained non-null `brief_length_preset` columns to station
 The frontend-testing skill was used because a station control changed. The optional Browser plugin was unavailable, so the repository's Playwright/axe suite supplied rendered and accessibility evidence. A later ad-hoc disposable-server launch failed to bind before inspection; it did not touch production and is not counted as validation. No live provider request, generation/retry, production read or write, process restart, deployment, credential/provider-state/station/source/fixture mutation, Caddy/Compose/volume change, dependency/lockfile change, or push occurred.
 
 Implementation checkpoint: `27ca1a7` (`fix(generation): add compact brief preset`). This documentation-only ledger follow-up records that completed checkpoint; it changes no executable artifact.
+
+## 2026-10-13 — Compact Brief generation guard band
+
+Starting from clean `codex/localcast-prototype` at `5a3b9116bb578503966ad111c7adf9af7684dc7b`, a network-disabled disposable container mounted the production data volume read-only and opened SQLite with both `readonly: true` and `query_only=ON`. The later October 13 attempt used immutable `brief` / `compact`, station revision 7, and 50 feed evidence snapshots. Its bounded diagnostic was `length_validation` / `length_out_of_range`, 188 actual published words, 200 minimum, 350 maximum, direction `below`. The earlier attempt was already established at 191 words with 49 feed snapshots and one note. No rejected narration, evidence text, provider response, credential, or unrelated private data was read or retained. Production containers and persistent state were not changed or restarted; the app's separate unhealthy SQLite diagnostic process remained untouched.
+
+The typed policy now separates Compact's unchanged 275-word product target from a 300-word interior provider target. OpenAI and OpenAI-compatible prompts therefore aim for 293 factual words after the seven-word disclosure while retaining the exact 193–343 factual / 200–350 published acceptance contract. They request additional distinct, evidence-supported detail only when available and explicitly prohibit padding, repetition, speculation, and unsupported context. Standard and Deep targets remain identical to their prior behavior. Deterministic fake generation uses the provider target so fixtures exercise the same guidance; final length, reference, citation, support, provider-status, diagnostic, and publication behavior is unchanged.
+
+| Command/check | Result |
+| --- | --- |
+| focused mode-policy/OpenAI/OpenAI-compatible suites | PASS — 97/97 in 3 files, including exact 300-word deterministic Compact output and unchanged 200/350 acceptance boundaries |
+| `npm run lint -- --pretty false` | PASS — TypeScript no-emit |
+| `npm run test -- --reporter=dot` | PASS — 339/339 in 21 files |
+| first sandboxed `npm run test:integration -- --reporter=dot` | ENVIRONMENT-BLOCKED — 83 assertions passed; all 31 failures were loopback `listen EPERM 127.0.0.1` |
+| authorized `npm run test:integration -- --reporter=dot` | PASS — 114/114 in 16 files |
+| `npm run build` | PASS — Vite transformed 2,156 modules and built five server bundles; existing chunk-size warning only |
+| `npm run smoke:api` | PASS — disposable API/worker storage and loopback only |
+| `npm run smoke:production` | PASS — disposable production same-origin storage and loopback only |
+| Playwright/axe | NOT AFFECTED — no browser source, markup, style, route, or behavior changed |
+
+All provider responses were deterministic fixtures. No live provider request, production generation/retry, production write, restart, deployment, schema/migration, dependency/lockfile, credential/provider-state, station/source, health-route, deferred-fixture, Caddy/Compose/volume, or push occurred.

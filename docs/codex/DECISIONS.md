@@ -495,6 +495,17 @@ The station value is copied into the immutable generation request at enqueue and
 
 The preset changes only narration length. Frozen evidence, deterministic reference resolution, exact citation membership, semantic-support classification, and TTS/publication fencing remain authoritative. Compact cannot justify unsupported padding or bypass insufficient-evidence failure.
 
+## D-051 — Compact generation uses an interior length guard target
+
+Status: **ACCEPTED**
+Date: 2026-10-13
+
+Two consecutive production Compact attempts used the correct immutable preset, passed deterministic reference resolution and strict citation validation, then failed below the unchanged 200-word published minimum at 191 and 188 words. The first contained 50 evidence snapshots including one pasted note; the second contained 50 feed snapshots after the note was excluded. This repeat pattern justifies changing generation guidance rather than the acceptance contract.
+
+The typed mode policy now distinguishes the product target from the provider generation target. Compact retains its 200–350 published-word acceptance range and 275-word product target, while provider guidance aims at 300 published words, or 293 factual words after the fixed seven-word disclosure. The prompt asks for additional distinct, evidence-supported factual detail when available and explicitly forbids padding, repetition, speculation, and unsupported context. Standard remains 600–1,000/700, its sparse-evidence behavior is unchanged, and Deep retains its existing dynamic target.
+
+Final length validation, Architecture B reference resolution, exact citation membership, semantic-support classification, provider-status behavior, diagnostics, and TTS/publication fencing are unchanged. There is no retry, additional provider call, schema or persistence change. The interior target is generation guidance only; it neither expands the accepted range nor guarantees completion when evidence cannot support the minimum.
+
 ## Open operator decisions
 
 These are genuine inputs that cannot be inferred safely. They do not block documentation bootstrap. A slice must stop before it needs an unresolved value.

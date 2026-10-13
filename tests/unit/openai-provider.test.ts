@@ -210,9 +210,9 @@ describe('OpenAI text provider contract', () => {
 
 	it.each([
 		['standard brief', 'brief' as const, 'standard' as const, 600 - countWords(aiAudioDisclosure), 600, 1_000, 700, 8_000],
-		['compact brief', 'brief' as const, 'compact' as const, 200 - countWords(aiAudioDisclosure), 200, 350, 275, 4_000],
+		['compact brief', 'brief' as const, 'compact' as const, 200 - countWords(aiAudioDisclosure), 200, 350, 300, 4_000],
 		['deep', 'deep' as const, 'compact' as const, 1_800 - countWords(aiAudioDisclosure), 1_800, 3_000, 2_100, 24_000],
-	])('enforces the %s provider budget and returns a versioned ordered host script', async (_name, mode, briefLengthPreset, factualWords, minimum, maximum, target, maxOutputTokens) => {
+	])('enforces the %s provider budget and returns a versioned ordered host script', async (_name, mode, briefLengthPreset, factualWords, minimum, maximum, providerTarget, maxOutputTokens) => {
 		const modeEvidence: EpisodeEvidence[] = [{
 			...evidence[0]!,
 			id: `snapshot-${mode}`,
@@ -238,7 +238,9 @@ describe('OpenAI text provider contract', () => {
 		expect(result.script.sections.flatMap(section => section.segments).every(segment => segment.speakerRole === 'host')).toBe(true);
 		expect(calls[0]).toMatchObject({max_output_tokens: maxOutputTokens});
 		expect(JSON.stringify(calls[0])).toContain(`${minimum} to ${maximum}`);
-		expect(JSON.stringify(calls[0])).toContain(`Aim for about ${target - countWords(aiAudioDisclosure)} returned words`);
+		expect(JSON.stringify(calls[0])).toContain(`Aim for about ${providerTarget - countWords(aiAudioDisclosure)} returned words`);
+		expect(JSON.stringify(calls[0])).toContain('additional distinct, evidence-supported factual detail');
+		expect(JSON.stringify(calls[0])).toContain('never pad with repetition, speculation, or unsupported context');
 	});
 
 	it.each([

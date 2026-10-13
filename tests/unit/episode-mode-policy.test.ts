@@ -46,12 +46,14 @@ describe('source-grounded episode mode policy', () => {
 			minimumOutputWords: 200,
 			maximumOutputWords: 350,
 			targetOutputWords: 275,
+			providerTargetOutputWords: 300,
 			maxOutputTokens: 4_000,
 		});
 		expect(briefLengthPresets.standard).toEqual({
 			minimumOutputWords: 600,
 			maximumOutputWords: 1_000,
 			targetOutputWords: 700,
+			providerTargetOutputWords: 700,
 			maxOutputTokens: 8_000,
 		});
 		expect(policyForEvidence('brief', evidenceWithWords(2_300), 'compact')).toMatchObject(briefLengthPresets.compact);
@@ -60,6 +62,7 @@ describe('source-grounded episode mode policy', () => {
 			minimumOutputWords: 1_800,
 			maximumOutputWords: 3_000,
 			targetOutputWords: 2_100,
+			providerTargetOutputWords: 2_100,
 		});
 	});
 
@@ -96,6 +99,21 @@ describe('source-grounded episode mode policy', () => {
 			}));
 		}
 	});
+
+	it('uses the Compact provider guard target without changing its published target or acceptance range', () => {
+		const evidence = evidenceWithWords(2_300);
+		const policy = policyForEvidence('brief', evidence, 'compact');
+		const generated = fakeGeneratedSections(jobFor('brief'), evidence, 'brief', 'compact');
+
+		expect(policy).toMatchObject({
+			minimumOutputWords: 200,
+			maximumOutputWords: 350,
+			targetOutputWords: 275,
+			providerTargetOutputWords: 300,
+		});
+		expect(countWords(narrationForScript(assertGeneratedEpisode(requestFor('brief', 'compact'), evidence, generated)))).toBe(300);
+	});
+
 	it('keeps brief and deep output inside their contracts for identical adequate evidence', () => {
 		const evidence = evidenceWithWords(2_300);
 		const brief = assertGeneratedEpisode(requestFor('brief'), evidence, fakeGeneratedSections(jobFor('brief'), evidence, 'brief'));
