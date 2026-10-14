@@ -1,7 +1,7 @@
 import {describe, expect, it} from 'vitest';
 import type {EpisodeEvidence, EpisodeRequestSnapshot} from '../../server/episodes/types';
 import {aiAudioDisclosure, assertEvidenceSufficient, briefLengthPresets, countWords, policyForEvidence} from '../../server/episodes/modePolicy';
-import {assertGeneratedEpisode, narrationForScript} from '../../server/episodes/validation';
+import {assertGeneratedEpisode, editorialLengthWarningForScript, narrationForScript} from '../../server/episodes/validation';
 import type {GenerationJob} from '../../server/jobs/types';
 import {fakeGeneratedSections} from '../../server/testing/fakeGenerationProcessor';
 
@@ -43,8 +43,10 @@ describe('source-grounded episode mode policy', () => {
 	it('defines compact and standard Brief contracts from one typed policy source', () => {
 		expect(countWords(aiAudioDisclosure)).toBe(7);
 		expect(briefLengthPresets.compact).toEqual({
-			minimumOutputWords: 200,
+			minimumOutputWords: 50,
 			maximumOutputWords: 350,
+			preferredMinimumOutputWords: 200,
+			preferredMaximumOutputWords: 350,
 			targetOutputWords: 275,
 			providerTargetOutputWords: 300,
 			maxOutputTokens: 4_000,
@@ -52,6 +54,8 @@ describe('source-grounded episode mode policy', () => {
 		expect(briefLengthPresets.standard).toEqual({
 			minimumOutputWords: 600,
 			maximumOutputWords: 1_000,
+			preferredMinimumOutputWords: 600,
+			preferredMaximumOutputWords: 1_000,
 			targetOutputWords: 700,
 			providerTargetOutputWords: 700,
 			maxOutputTokens: 8_000,
@@ -61,12 +65,14 @@ describe('source-grounded episode mode policy', () => {
 		expect(policyForEvidence('deep', evidenceWithWords(2_300), 'compact')).toMatchObject({
 			minimumOutputWords: 1_800,
 			maximumOutputWords: 3_000,
+			preferredMinimumOutputWords: 1_800,
+			preferredMaximumOutputWords: 3_000,
 			targetOutputWords: 2_100,
 			providerTargetOutputWords: 2_100,
 		});
 	});
 
-	it('accepts Compact narration at both published boundaries and reports bounded failures', () => {
+	it('applies Compact hard boundaries and warns below the preferred editorial range', () => {
 		const evidence = evidenceWithWords(2_300);
 		const sectionsFor = (publishedWords: number) => {
 			const factualWords = publishedWords - countWords(aiAudioDisclosure);
@@ -90,14 +96,27 @@ describe('source-grounded episode mode policy', () => {
 			}, {id: 'section-compact-facts', title: 'Source summary', type: 'news_summary' as const, segments}];
 		};
 		const request = requestFor('brief', 'compact');
-		expect(countWords(narrationForScript(assertGeneratedEpisode(request, evidence, sectionsFor(200))))).toBe(200);
-		expect(countWords(narrationForScript(assertGeneratedEpisode(request, evidence, sectionsFor(350))))).toBe(350);
-		for (const [words, direction] of [[199, 'below'], [351, 'above']] as const) {
+		for (const words of [50, 199, 200, 350]) {
+			const script = assertGeneratedEpisode(request, evidence, sectionsFor(words));
+			expect(countWords(narrationForScript(script))).toBe(words);
+			const warning = editorialLengthWarningForScript(request, evidence, script);
+			if (words < 200) {
+				expect(warning).toEqual({
+					code: 'COMPACT_EDITORIAL_LENGTH_BELOW_PREFERRED',
+					category: 'editorial_length',
+					actualWords: words,
+					preferredMinimumWords: 200,
+					preferredMaximumWords: 350,
+				});
+			} else expect(warning).toBeUndefined();
+		}
+		for (const [words, direction] of [[49, 'below'], [351, 'above']] as const) {
 			expect(() => assertGeneratedEpisode(request, evidence, sectionsFor(words))).toThrow(expect.objectContaining({
 				code: 'EPISODE_LENGTH_OUT_OF_RANGE',
-				diagnostic: {stage: 'length_validation', category: 'length_out_of_range', actualWords: words, minimumWords: 200, maximumWords: 350, direction},
+				diagnostic: {stage: 'length_validation', category: 'length_out_of_range', actualWords: words, minimumWords: 50, maximumWords: 350, direction},
 			}));
 		}
+		expect(() => assertGeneratedEpisode(request, evidence, sectionsFor(countWords(aiAudioDisclosure)))).toThrow();
 	});
 
 	it('uses the Compact provider guard target without changing its published target or acceptance range', () => {
@@ -106,8 +125,10 @@ describe('source-grounded episode mode policy', () => {
 		const generated = fakeGeneratedSections(jobFor('brief'), evidence, 'brief', 'compact');
 
 		expect(policy).toMatchObject({
-			minimumOutputWords: 200,
+			minimumOutputWords: 50,
 			maximumOutputWords: 350,
+			preferredMinimumOutputWords: 200,
+			preferredMaximumOutputWords: 350,
 			targetOutputWords: 275,
 			providerTargetOutputWords: 300,
 		});
@@ -149,6 +170,7 @@ describe('source-grounded episode mode policy', () => {
 
 	it('publishes fixed, observable policy boundaries', () => {
 		expect(policyForEvidence('brief', evidenceWithWords(2_300))).toMatchObject({minimumOutputWords: 600, maximumOutputWords: 1_000});
+		expect(policyForEvidence('brief', evidenceWithWords(2_300), 'compact')).toMatchObject({minimumOutputWords: 50, maximumOutputWords: 350, preferredMinimumOutputWords: 200, preferredMaximumOutputWords: 350});
 		expect(policyForEvidence('deep', evidenceWithWords(2_300))).toMatchObject({minimumOutputWords: 1_800, maximumOutputWords: 3_000, minimumEvidenceWords: 1_800});
 	});
 });

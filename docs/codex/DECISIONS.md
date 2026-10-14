@@ -506,6 +506,17 @@ The typed mode policy now distinguishes the product target from the provider gen
 
 Final length validation, Architecture B reference resolution, exact citation membership, semantic-support classification, provider-status behavior, diagnostics, and TTS/publication fencing are unchanged. There is no retry, additional provider call, schema or persistence change. The interior target is generation guidance only; it neither expands the accepted range nor guarantees completion when evidence cannot support the minimum.
 
+## D-052 — Compact temporarily accepts short grounded narration with an editorial warning
+
+Status: **ACCEPTED — TEMPORARY PROTOTYPE POLICY**
+Date: 2026-10-14
+
+To unblock end-to-end prototype testing without changing generation guidance, Compact's hard published-word acceptance range is temporarily 50–350. Its preferred editorial range remains 200–350, product target remains 275, and provider target remains 300 published / 293 factual words. The seven-word disclosure counts toward both ranges, so the hard minimum still requires at least 43 words of model-generated factual narration; the disclosure alone cannot form a valid episode.
+
+Accepted Compact narration from 50–199 words records a bounded, attempt-correlated `COMPACT_EDITORIAL_LENGTH_BELOW_PREFERRED` warning containing only actual and preferred boundary counts. The warning becomes visible only for a completed episode and uses existing job-event persistence, so no migration is required. Below 50 and above 350 still fail with `EPISODE_LENGTH_OUT_OF_RANGE` before support, TTS, or publication.
+
+This temporary policy changes only the Compact length boundary. Provider prompts still request the preferred range and forbid filler, repetition, speculation, and unsupported context. Architecture B reference resolution, strict citation membership/excerpts, semantic-support classification, evidence sufficiency, narration structure, provider status, and publication fencing remain authoritative. Standard, Standard sparse behavior, and Deep are unchanged. This decision supersedes D-050/D-051 only for Compact's hard minimum and must be revisited after end-to-end prototype validation.
+
 ## Open operator decisions
 
 These are genuine inputs that cannot be inferred safely. They do not block documentation bootstrap. A slice must stop before it needs an unresolved value.

@@ -40,3 +40,21 @@ test('failed citation output is not displayed as completed or blamed on supplied
 	expect(errors).toEqual([]);
 	expect(mutations).toEqual([]);
 });
+
+test('a completed short Compact briefing exposes its nonfatal editorial warning accessibly', async ({page}) => {
+	await page.route('**/api/briefing-runs/run-compact-warning', route => route.fulfill({json: {
+		id: 'run-compact-warning', title: 'Synthetic Compact briefing', status: 'complete', mode: 'brief',
+		createdAt: '2026-10-14T12:00:00.000Z', completedAt: '2026-10-14T12:01:00.000Z', sections: [],
+		warnings: [{
+			kind: 'editorial_length', code: 'COMPACT_EDITORIAL_LENGTH_BELOW_PREFERRED',
+			message: 'This Compact briefing is 199 published words, below the preferred 200–350-word editorial range.',
+			actualWords: 199, preferredMinimumWords: 200, preferredMaximumWords: 350,
+		}],
+	}}));
+	await page.goto('/episodes/run-compact-warning');
+	const warnings = page.getByRole('region', {name: 'Episode warnings'});
+	await expect(warnings).toContainText('199 published words');
+	await expect(warnings).toContainText('COMPACT_EDITORIAL_LENGTH_BELOW_PREFERRED');
+	await expect(page.locator('.detail-meta')).toContainText('Completed');
+	expect((await new AxeBuilder({page}).include('main').analyze()).violations).toEqual([]);
+});

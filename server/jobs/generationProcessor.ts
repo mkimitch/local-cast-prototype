@@ -9,6 +9,7 @@ import {GenerationError} from './types';
 import type {GenerationJob} from './types';
 import type {GenerationJobStore} from './generationJobStore';
 import type {EpisodeEvidence, GeneratedEpisodeScript, GeneratedSection, PublishedAudio} from '../episodes/types';
+import {editorialLengthWarningForScript} from '../episodes/validation';
 import {openAiCredentialStore} from '../credentials/index';
 import {configWithResolvedOpenAiCredential, type OpenAiCredentialStore} from '../credentials/openAiCredentialStore';
 
@@ -114,6 +115,8 @@ class ConfiguredGenerationProcessor implements GenerationProcessor {
 			recordTextProviderFailure(error, this.config, this.checks);
 			throw error;
 		}
+		const editorialLengthWarning = editorialLengthWarningForScript(request, evidence, generated.script);
+		if (editorialLengthWarning) this.jobs.recordEditorialLengthWarning(job.id, workerId, editorialLengthWarning);
 
 		this.jobs.updatePhase(job.id, workerId, 'rendering_audio', this.config.leaseMs);
 		let audio;

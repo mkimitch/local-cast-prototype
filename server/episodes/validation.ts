@@ -1,6 +1,11 @@
 import type {EpisodeEvidence, EpisodeRequestSnapshot, GeneratedEpisodeScript, GeneratedSection} from './types';
 import {assertEvidenceSufficient, countWords, policyForEvidence} from './modePolicy';
-import {GenerationError, type GenerationDiagnostic} from '../jobs/types';
+import {
+	compactEditorialLengthWarningCode,
+	GenerationError,
+	type EditorialLengthWarning,
+	type GenerationDiagnostic,
+} from '../jobs/types';
 
 const invalidEpisode = (code: string, message: string, diagnostic?: GenerationDiagnostic): never => {
 	throw new GenerationError(code, message, false, 'preserve', diagnostic);
@@ -9,6 +14,29 @@ const invalidEpisode = (code: string, message: string, diagnostic?: GenerationDi
 export const narrationForScript = (script: GeneratedEpisodeScript): string => script.sections
 	.flatMap(section => section.segments.map(segment => segment.text))
 	.join('\n\n');
+
+export const editorialLengthWarningForScript = (
+	request: EpisodeRequestSnapshot,
+	evidence: EpisodeEvidence[],
+	script: GeneratedEpisodeScript,
+): EditorialLengthWarning | undefined => {
+	const policy = policyForEvidence(request.mode, evidence, request.briefLengthPreset);
+	const actualWords = countWords(narrationForScript(script));
+	if (
+		request.mode !== 'brief'
+		|| request.briefLengthPreset !== 'compact'
+		|| actualWords < policy.minimumOutputWords
+		|| actualWords >= policy.preferredMinimumOutputWords
+		|| actualWords > policy.maximumOutputWords
+	) return undefined;
+	return {
+		code: compactEditorialLengthWarningCode,
+		category: 'editorial_length',
+		actualWords,
+		preferredMinimumWords: policy.preferredMinimumOutputWords,
+		preferredMaximumWords: policy.preferredMaximumOutputWords,
+	};
+};
 
 export const assertGeneratedEpisode = (
 	request: EpisodeRequestSnapshot,

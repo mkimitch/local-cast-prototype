@@ -185,9 +185,13 @@ export interface ChatTurn {
 export interface EpisodeWarning {
   code: string;
   message: string;
-  sourceName: string;
+  kind?: 'source_sync' | 'editorial_length';
+  sourceName?: string;
   occurredAt?: string;
-  cachedEvidenceUsed: boolean;
+  cachedEvidenceUsed?: boolean;
+  actualWords?: number;
+  preferredMinimumWords?: number;
+  preferredMaximumWords?: number;
 }
 
 export interface AudioAsset {

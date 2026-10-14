@@ -121,8 +121,8 @@ describe('OpenAI-compatible local text provider contract', () => {
 		const provider = new OpenAiCompatibleTextProvider('Ollama', 'http://ollama.test/v1', 'local-model', {fetchImpl});
 		await provider.generateEpisode({...request, briefLengthPreset: 'compact'}, evidence, new AbortController().signal);
 		const prompt = ((calls[0]!.messages as Array<{content: string}>)[0]!).content;
-		expect(prompt).toContain('Return 193 to 343 factual spoken words');
-		expect(prompt).toContain('published total 200 to 350 words');
+		expect(prompt).toContain('Return approximately 193 to 343 factual spoken words');
+		expect(prompt).toContain('preferred published total 200 to 350 words');
 		expect(prompt).toContain('Aim for about 293 returned words');
 		expect(prompt).toContain('additional distinct, evidence-supported factual detail');
 		expect(prompt).toContain('never pad with repetition, speculation, or unsupported context');

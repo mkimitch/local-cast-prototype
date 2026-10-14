@@ -3,8 +3,8 @@ import {createHash, randomUUID} from 'node:crypto';
 import type {BriefLengthPreset, EpisodeMode} from '../../src/types';
 import {parseFeedUrl} from '../services/safeFeedFetcher';
 import {activeJobPhases, generationJobPayloadSchema} from './types';
-import {serializeGenerationDiagnostic} from './types';
-import type {ActiveJobPhase, GenerationDiagnostic, GenerationJob, GenerationJobPayload, JobAttempt, JobEvent, JobPhase} from './types';
+import {serializeEditorialLengthWarning, serializeGenerationDiagnostic} from './types';
+import type {ActiveJobPhase, EditorialLengthWarning, GenerationDiagnostic, GenerationJob, GenerationJobPayload, JobAttempt, JobEvent, JobPhase} from './types';
 
 type JobRow = {
 	id: string;
@@ -469,6 +469,21 @@ export class GenerationJobStore {
 			errorCode: row.error_code ?? undefined,
 			errorMessage: row.error_message ?? undefined,
 		}));
+	}
+
+	recordEditorialLengthWarning(jobId: string, workerId: string, warning: EditorialLengthWarning): void {
+		const record = this.database.transaction(() => {
+			const current = this.requireOwnedRunningJob(jobId, workerId);
+			if (current.phase !== 'validating') throw new JobStateError('Editorial length warnings may only be recorded during validation');
+			const detail = serializeEditorialLengthWarning(warning);
+			const existing = this.database.prepare(`
+				SELECT 1 FROM generation_job_events
+				WHERE job_id = ? AND attempt_number = ? AND phase = 'validating' AND detail = ?
+				LIMIT 1
+			`).get(jobId, current.attemptCount, detail);
+			if (!existing) this.insertEvent(jobId, current.attemptCount, 'validating', detail, this.now());
+		});
+		record.immediate();
 	}
 
 	count(): number {

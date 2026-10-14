@@ -1333,3 +1333,28 @@ The typed policy now separates Compact's unchanged 275-word product target from 
 | Playwright/axe | NOT AFFECTED — no browser source, markup, style, route, or behavior changed |
 
 All provider responses were deterministic fixtures. No live provider request, production generation/retry, production write, restart, deployment, schema/migration, dependency/lockfile, credential/provider-state, station/source, health-route, deferred-fixture, Caddy/Compose/volume, or push occurred.
+
+## 2026-10-14 — Temporary Compact Brief acceptance range
+
+Starting from clean `codex/localcast-prototype` at `f559e451fa9e49cd84cdbe8eec86dc84abb8f4dd`, this code-only maintenance separates Compact's preferred editorial range from its temporary hard acceptance range. Compact still prefers 200–350 published words, has product target 275, and asks providers for approximately 193–343 factual words with a 293-factual/300-published target. Its hard range is temporarily 50–350 published words. Accepted 50–199-word output records a bounded `COMPACT_EDITORIAL_LENGTH_BELOW_PREFERRED` warning only after reference, citation, and semantic-support validation has succeeded. Below 50 and above 350 retain `EPISODE_LENGTH_OUT_OF_RANGE`; the fixed seven-word disclosure alone cannot produce a structurally valid episode or meet the hard minimum.
+
+The warning is stored idempotently in the existing current-attempt validating event stream and projected only on completed runs. It contains only actual and preferred boundary counts; no rejected narration, excerpt, title, snapshot ID, or provider response is retained. No migration is needed. The episode warning presentation reuses existing UI and warning design tokens. Standard, Standard sparse behavior, Deep, Architecture B, citation/excerpt validation, semantic support, evidence sufficiency, provider lifecycle, and TTS/publication fencing are unchanged.
+
+| Command/check | Result |
+| --- | --- |
+| `npm run lint` | PASS — TypeScript no-emit |
+| focused mode-policy/OpenAI/OpenAI-compatible/processor suites | PASS — 104/104 in 4 files |
+| `npm run test -- --reporter=dot` | PASS — 339/339 in 21 files |
+| first sandboxed `npm run test:integration -- --reporter=dot` | ENVIRONMENT-BLOCKED — 84 assertions passed; all 31 failures were loopback `listen EPERM 127.0.0.1` |
+| authorized `npm run test:integration -- --reporter=dot` | PASS — 115/115 in 16 files |
+| `npm run build` | PASS — Vite transformed 2,156 modules and built five server bundles; existing chunk-size warning only |
+| initial focused Playwright against stale prior build | SUPERSEDED — server warning path passed, but the old built UI retained the old heading |
+| rebuilt focused warning Playwright/axe | PASS — 2/2 after correcting warning-metadata contrast with the existing warning text token |
+| `npm run test:e2e` | PASS — 24/24 in 5.8 minutes |
+| first sandboxed `npm run smoke:api` | ENVIRONMENT-BLOCKED — loopback `listen EPERM 127.0.0.1` |
+| authorized `npm run smoke:api` | PASS — disposable API/worker storage and loopback only |
+| authorized `npm run smoke:production` | PASS — disposable production same-origin storage and loopback only |
+| `npm ls --depth=0 --offline` | PASS — declared dependency tree clean |
+| final dependency/lockfile, migration/topology, secret-shape, scope, and `git diff --check` scans | PASS — no drift, protected value, unrelated path, or whitespace error |
+
+All provider behavior used deterministic fixtures. No live provider request, production generation/retry, production data/runtime access, process restart, deployment, schema/migration, dependency/lockfile, credential/provider-state, station/source, SQLite-health/RSS change, deferred-fixture, Caddy/Compose/volume, or push occurred.

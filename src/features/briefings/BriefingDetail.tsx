@@ -93,12 +93,12 @@ export default function BriefingDetailView({runId, onBack, onPlay}: BriefingDeta
       </div>
 
       {run.warnings && run.warnings.length > 0 && (
-        <section className="card card--padded warning-card" aria-labelledby="source-warning-title">
-          <h2 id="source-warning-title" className="card__title"><TriangleAlert size={18} aria-hidden="true" /> Source refresh warning</h2>
+        <section className="card card--padded warning-card" aria-labelledby="episode-warning-title">
+          <h2 id="episode-warning-title" className="card__title"><TriangleAlert size={18} aria-hidden="true" /> Episode warnings</h2>
           <ul className="section-subgroup">
             {run.warnings.map((warning, index) => (
-              <li key={`${warning.code}-${warning.sourceName}-${index}`}>
-                <strong>{warning.sourceName}</strong>: {warning.message}
+              <li key={`${warning.code}-${warning.sourceName || warning.kind || 'warning'}-${index}`}>
+                {warning.sourceName ? <><strong>{warning.sourceName}</strong>: </> : null}{warning.message}
                 <span className="field-help"> Code {warning.code}{warning.occurredAt ? ` · ${new Date(warning.occurredAt).toLocaleString()}` : ''}</span>
               </li>
             ))}

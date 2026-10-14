@@ -1867,6 +1867,10 @@ html.dark .orb-theme-preview {
   color: var(--color-text);
 }
 
+.warning-card .field-help {
+  color: var(--color-warning-text);
+}
+
 .transcript-speaker {
   margin-bottom: var(--space-1);
   color: var(--color-primary-text);

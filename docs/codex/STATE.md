@@ -1,14 +1,22 @@
 # LocalCast build state
 
-Last updated: 2026-10-13
+Last updated: 2026-10-14
 Branch: `codex/localcast-prototype`
 Pre-bootstrap HEAD: `910485b77ead63450660b0b97544889960e45e3f`
 Slice 0 base HEAD: `e720d5818ab15efccfa143c94d6514c0c9a2baad`
 Current base checkpoint: Slice 6D security hardening at `176d30a6e18d6da18ef92ae38ab0655673c663d1`
-Current checkpoint: **Compact Brief generation guard band (this checkpoint)**
-Implementation slice: **COMPACT BRIEF LENGTH RELIABILITY — COMPLETE**
+Current checkpoint: **Temporary Compact Brief acceptance range (this checkpoint)**
+Implementation slice: **TEMPORARY COMPACT BRIEF LENGTH POLICY — COMPLETE**
 Next action: **Await separate deployment authorization; do not initiate a provider call or generation automatically**
 Overall state: **SLICE 5 COMPLETE; SLICE 6A–6D DETERMINISTIC CHECKPOINTS COMPLETE; DAILY DRIVER 1A, STATION EVIDENCE-SELECTION, PROVIDER-RESTART, AND GENERATION VALIDATION/STATUS REPAIRS COMPLETE; OPERATIONAL SLICE 6 AND A11Y-01 GATES REMAIN OPEN**
+
+## October 14 temporary Compact Brief acceptance range
+
+Compact now has distinct preferred and hard length bounds in the typed mode policy. The preferred editorial range remains 200–350 published words, product target 275, and provider target 300 published / 293 factual. The temporary hard range is 50–350 published words. Output from 50–199 is accepted only after all existing reference, citation, and semantic-support validation succeeds and records a bounded `COMPACT_EDITORIAL_LENGTH_BELOW_PREFERRED` warning. Output below 50 or above 350 retains `EPISODE_LENGTH_OUT_OF_RANGE`; the seven-word disclosure alone cannot satisfy required narration structure or the hard minimum.
+
+The warning uses an existing validating-phase job event, is idempotent per attempt, contains only actual/preferred word counts, and is projected only for the completed current attempt. No schema change is required. OpenAI and OpenAI-compatible prompts continue to request approximately the preferred 193–343 factual words and aim for 293; they never expose the 50-word hard floor as a target. Standard, Standard sparse behavior, Deep, evidence sufficiency, Architecture B, exact citation validation, semantic support, provider lifecycle, and TTS/publication fences are unchanged.
+
+Final repository validation is green: TypeScript PASS; focused policy/OpenAI/OpenAI-compatible/processor PASS 104/104; unit PASS 339/339; integration PASS 115/115 after the expected sandbox-only loopback restriction; production build PASS; focused warning UI/axe PASS 2/2; full Playwright/axe PASS 24/24; isolated API/worker and production same-origin smokes PASS. The focused browser gate first loaded the previous build, then the rebuilt gate exposed a 4.34:1 warning-metadata contrast issue; the existing warning text token corrected it and the rebuilt focused/full gates passed. Dependency, lockfile, migration, topology, secret-shape, scope, and whitespace checks passed. No live provider call, production access/mutation, generation/retry, restart, deployment, schema/dependency/lockfile, credential/provider-state, station/source, health-route, RSS, deferred-fixture, Caddy/Compose/volume, or push occurred.
 
 ## October 13 Compact Brief generation guard band
 

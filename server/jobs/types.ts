@@ -47,6 +47,30 @@ export interface GenerationDiagnostic {
 	direction?: 'below' | 'above';
 }
 
+export const compactEditorialLengthWarningCode = 'COMPACT_EDITORIAL_LENGTH_BELOW_PREFERRED' as const;
+
+export const editorialLengthWarningSchema = z.object({
+	code: z.literal(compactEditorialLengthWarningCode),
+	category: z.literal('editorial_length'),
+	actualWords: z.number().int().min(0).max(100_000),
+	preferredMinimumWords: z.number().int().min(0).max(100_000),
+	preferredMaximumWords: z.number().int().min(0).max(100_000),
+}).strict();
+
+export type EditorialLengthWarning = z.infer<typeof editorialLengthWarningSchema>;
+
+export const serializeEditorialLengthWarning = (warning: EditorialLengthWarning): string => JSON.stringify(editorialLengthWarningSchema.parse(warning));
+
+export const parseEditorialLengthWarning = (value: string | undefined): EditorialLengthWarning | undefined => {
+	if (!value) return undefined;
+	try {
+		const parsed = editorialLengthWarningSchema.safeParse(JSON.parse(value) as unknown);
+		return parsed.success ? parsed.data : undefined;
+	} catch {
+		return undefined;
+	}
+};
+
 const boundedDiagnosticNumber = (value: number | undefined): number | undefined => (
 	Number.isSafeInteger(value) && value !== undefined && value >= 0 && value <= 10_000 ? value : undefined
 );

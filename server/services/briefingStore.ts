@@ -1,6 +1,7 @@
 import type {AudioAsset, BriefingRun, BriefingSection, RunStatus} from '../../src/types';
 import type Database from 'better-sqlite3';
 import {db} from '../database/index';
+import {parseEditorialLengthWarning} from '../jobs/types';
 
 const cloneRun = (run: BriefingRun): BriefingRun => ({
 	...run,
@@ -200,7 +201,7 @@ export class BriefingStore {
 			sections: sectionRows.map(section => ({...sectionFromRow(section), segments: this.hydrateSegments(section.id)})),
 			audioAsset: audioRow ? audioAssetFromRow(audioRow) : undefined,
 			scriptFormatVersion: row.script_format_version === 1 ? 1 : undefined,
-			warnings: this.hydrateWarnings(row.id),
+			warnings: this.hydrateWarnings(row.id, row.status),
 			mode: row.mode || undefined,
 			station: row.station_id_snapshot && row.station_name_snapshot && row.station_revision
 				? {id: row.station_id_snapshot, name: row.station_name_snapshot, revision: row.station_revision}
@@ -248,7 +249,7 @@ export class BriefingStore {
 		});
 	}
 
-	private hydrateWarnings(runId: string): NonNullable<BriefingRun['warnings']> {
+	private hydrateWarnings(runId: string, status: RunStatus): NonNullable<BriefingRun['warnings']> {
 		const rows = this.database.prepare(`
 			SELECT grs.source_id_snapshot, grs.source_name_snapshot, grs.sync_error_code, grs.synced_at,
 				EXISTS (
@@ -266,10 +267,11 @@ export class BriefingStore {
 			synced_at: string | null;
 			cached_evidence_used: number;
 		}>;
-		return rows.map(row => {
+		const warnings: NonNullable<BriefingRun['warnings']> = rows.map(row => {
 			const sourceName = row.source_name_snapshot || 'Selected RSS/Atom source';
 			const cachedEvidenceUsed = row.cached_evidence_used === 1;
 			return {
+				kind: 'source_sync',
 				code: row.sync_error_code || 'SOURCE_SYNC_FAILED',
 				message: cachedEvidenceUsed
 					? `${sourceName} could not be refreshed; this episode used previously stored items.`
@@ -279,6 +281,28 @@ export class BriefingStore {
 				cachedEvidenceUsed,
 			};
 		});
+		if (status !== 'complete') return warnings;
+		const eventRows = this.database.prepare(`
+			SELECT gje.detail, gje.created_at
+			FROM generation_jobs gj
+			JOIN generation_job_events gje ON gje.job_id = gj.id AND gje.attempt_number = gj.attempt_count
+			WHERE gj.run_id = ? AND gje.phase = 'validating'
+			ORDER BY gje.id
+		`).all(runId) as Array<{detail: string | null; created_at: string}>;
+		for (const row of eventRows) {
+			const warning = parseEditorialLengthWarning(row.detail ?? undefined);
+			if (!warning) continue;
+			warnings.push({
+				kind: 'editorial_length',
+				code: warning.code,
+				message: `This Compact briefing is ${warning.actualWords} published words, below the preferred ${warning.preferredMinimumWords}–${warning.preferredMaximumWords}-word editorial range.`,
+				occurredAt: row.created_at,
+				actualWords: warning.actualWords,
+				preferredMinimumWords: warning.preferredMinimumWords,
+				preferredMaximumWords: warning.preferredMaximumWords,
+			});
+		}
+		return warnings;
 	}
 
 	private replaceSections(runId: string, sections: BriefingSection[]): void {
