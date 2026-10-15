@@ -1,3 +1,4 @@
+import {captureTrace, captureTraceGap, traceEnabled, traceRootForDatabase, withGenerationTrace} from '../debug/generationTrace';
 import type {ServerConfig} from '../config';
 import {OpenAiSpeechProvider, OpenAiTextProvider} from '../providers/openai';
 import {OpenAiCompatibleTextProvider} from '../providers/openAiCompatible';
@@ -99,46 +100,63 @@ class ConfiguredGenerationProcessor implements GenerationProcessor {
 
 		const request = episodeStore.getRequest(job.payload.requestId);
 		if (!request || request.runId !== job.runId) throw new GenerationError('INVALID_JOB_PAYLOAD', 'The persisted generation request is invalid', false);
-		if (episodeStore.listEvidence(job.runId).length === 0) await synchronizeRequestSources(request.id, signal);
-		this.jobs.updatePhase(job.id, workerId, 'selecting', this.config.leaseMs);
-		const evidence = episodeStore.finalizeEvidence(request.id, job.runId);
-		assertGenerationEvidenceAuthorized(this.config, evidence);
+		return withGenerationTrace(traceRootForDatabase(this.config.databasePath), request.stationId, {jobId: job.id, runId: job.runId, attemptNumber: job.attemptCount}, [this.config.openAiApiKey ?? ''], async () => {
+			captureTrace('request', 'immutable generation_requests row', 'raw', request);
+			if (traceEnabled()) {
+				try {
+					captureTrace('request.sources', 'generation_request_sources', 'raw', episodeStore.listRequestSources(request.id));
+					captureTrace('request.notes', 'immutable generation_request_notes', 'raw', episodeStore.listRequestNotes(request.id));
+				} catch { captureTraceGap('request.details', 'snapshot inspection', 'snapshot_read_failed'); }
+			}
+			captureTrace('stage', 'generation processor', 'derived', 'syncing');
+			if (episodeStore.listEvidence(job.runId).length === 0) await synchronizeRequestSources(request.id, signal);
+			this.jobs.updatePhase(job.id, workerId, 'selecting', this.config.leaseMs);
+			captureTrace('stage', 'generation processor', 'derived', 'selecting');
+			const evidence = episodeStore.finalizeEvidence(request.id, job.runId);
+			captureTrace('evidence', 'committed episode_evidence_snapshots in selection order', 'raw', evidence);
+			assertGenerationEvidenceAuthorized(this.config, evidence);
 
-		this.jobs.updatePhase(job.id, workerId, 'drafting', this.config.leaseMs);
-		let generated;
-		try {
-			generated = await this.text.generateEpisode(request, evidence, signal, () => {
-				this.jobs.updatePhase(job.id, workerId, 'validating', this.config.leaseMs);
-			});
-			this.checks.recordLive('text', this.config);
-		} catch (error) {
-			recordTextProviderFailure(error, this.config, this.checks);
-			throw error;
-		}
-		const editorialLengthWarning = editorialLengthWarningForScript(request, evidence, generated.script);
-		if (editorialLengthWarning) this.jobs.recordEditorialLengthWarning(job.id, workerId, editorialLengthWarning);
+			this.jobs.updatePhase(job.id, workerId, 'drafting', this.config.leaseMs);
+			captureTrace('stage', 'generation processor', 'derived', 'drafting');
+			let generated;
+			try {
+				generated = await this.text.generateEpisode(request, evidence, signal, () => {
+					this.jobs.updatePhase(job.id, workerId, 'validating', this.config.leaseMs);
+					captureTrace('stage', 'generation processor', 'derived', 'validating');
+				});
+				this.checks.recordLive('text', this.config);
+			} catch (error) {
+				recordTextProviderFailure(error, this.config, this.checks);
+				throw error;
+			}
+			const editorialLengthWarning = editorialLengthWarningForScript(request, evidence, generated.script);
+			if (editorialLengthWarning) this.jobs.recordEditorialLengthWarning(job.id, workerId, editorialLengthWarning);
 
-		this.jobs.updatePhase(job.id, workerId, 'rendering_audio', this.config.leaseMs);
-		let audio;
-		try {
-			audio = await this.speech.render(job.runId, generated.script, signal, () => {
+			this.jobs.updatePhase(job.id, workerId, 'rendering_audio', this.config.leaseMs);
+			captureTrace('stage', 'generation processor', 'derived', 'rendering_audio');
+			let audio;
+			try {
+				audio = await this.speech.render(job.runId, generated.script, signal, () => {
+					this.jobs.renewLease(job.id, workerId, this.config.leaseMs);
+				});
 				this.jobs.renewLease(job.id, workerId, this.config.leaseMs);
-			});
-			this.jobs.renewLease(job.id, workerId, this.config.leaseMs);
-			recordSpeechProviderSuccess(audio, this.config, this.checks);
-		} catch (error) {
-			recordSpeechProviderFailure(error, this.config, this.checks);
-			throw error;
-		}
+				recordSpeechProviderSuccess(audio, this.config, this.checks);
+			} catch (error) {
+				recordSpeechProviderFailure(error, this.config, this.checks);
+				throw error;
+			}
 
-		this.jobs.complete(job.id, workerId, () => episodeStore.publishEpisode({
-			runId: job.runId,
-			request,
-			sections: generated.sections,
-			audio,
-			textProvider: this.textProviderName,
-			textModel: this.textModel,
-		}));
+			captureTrace('stage', 'generation processor', 'derived', 'publishing');
+			this.jobs.complete(job.id, workerId, () => episodeStore.publishEpisode({
+				runId: job.runId,
+				request,
+				sections: generated.sections,
+				audio,
+				textProvider: this.textProviderName,
+				textModel: this.textModel,
+			}));
+			captureTrace('stage', 'committed job and episode transaction', 'derived', 'published');
+		});
 	}
 }
 

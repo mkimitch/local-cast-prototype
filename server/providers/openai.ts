@@ -1,3 +1,7 @@
+import {assertTracedEpisode} from '../debug/validationTrace';
+import {extractOutputText, type OpenAiResponsePayload} from './textOutput';
+import {captureTrace, captureTraceGap, traceEnabled} from '../debug/generationTrace';
+import {episodeDraftSchema, sectionsForResolvedDraft} from '../episodes/draft';
 import fs from 'node:fs';
 import path from 'node:path';
 import {createHash, randomUUID} from 'node:crypto';
@@ -39,22 +43,6 @@ const speechTimeoutMs = 120_000;
 const providerFailure = (code: string, safeMessage: string, retryable: boolean): GenerationError => (
 	new GenerationError(code, safeMessage, retryable, 'failure')
 );
-
-const citationReferenceSchema = z.string().min(3).max(32);
-
-const segmentSchema = z.object({
-	kind: z.literal('factual'),
-	text: z.string().min(1).max(1_200),
-	citations: z.array(citationReferenceSchema).min(1).max(4),
-}).strict();
-
-const draftSchema = z.object({
-	sections: z.array(z.object({
-		title: z.string().min(1).max(120),
-		type: z.enum(['intro', 'news_summary', 'deep_dive', 'outro']),
-		segments: z.array(segmentSchema).min(1).max(10),
-	}).strict()).min(1).max(6),
-}).strict();
 
 const supportSchema = z.object({
 	results: z.array(z.object({
@@ -184,22 +172,6 @@ const chatSupportJsonSchema = {
 	},
 } as const;
 
-type OpenAiResponsePayload = {
-	id?: unknown;
-	status?: string;
-	incomplete_details?: unknown;
-	output?: Array<{
-		type?: string;
-		content?: Array<{type?: string; text?: string}>;
-	}>;
-	usage?: {
-		input_tokens?: unknown;
-		output_tokens?: unknown;
-		total_tokens?: unknown;
-		input_tokens_details?: {cached_tokens?: unknown};
-		output_tokens_details?: {reasoning_tokens?: unknown};
-	};
-};
 
 export interface SafeUsage {
 	inputTokens?: number;
@@ -415,21 +387,13 @@ const readBoundedBytes = async (response: Response, limit: number): Promise<Uint
 	return combined;
 };
 
-const extractOutputText = (payload: OpenAiResponsePayload): string => {
-	if (payload.status !== 'completed') throw providerFailure('OPENAI_INCOMPLETE_RESPONSE', 'The configured OpenAI text provider did not complete its response', true);
-	const texts = payload.output?.flatMap(item => item.type === 'message'
-		? item.content?.filter(content => content.type === 'output_text' && typeof content.text === 'string').map(content => content.text!) || []
-		: []) || [];
-	if (texts.length !== 1 || !texts[0]?.trim()) throw providerFailure('OPENAI_INVALID_RESPONSE', 'The configured OpenAI text provider returned invalid structured output', false);
-	return texts[0];
-};
-
 const requestSerializedJson = async (
 	options: ProviderRequestOptions,
 	apiKey: string,
 	serializedBody: string,
 	externalSignal: AbortSignal,
 	chatLifecycle?: ChatRequestLifecycle,
+	traceStage?: 'draft' | 'support',
 ): Promise<{payload: OpenAiResponsePayload; usage: SafeUsage}> => {
 	const fetchImpl = options.fetchImpl || fetch;
 	const baseUrl = options.baseUrl || productionBaseUrl;
@@ -465,6 +429,7 @@ const requestSerializedJson = async (
 	};
 	try {
 		if (requestSignal.signal.aborted) throw new DOMException('Worker stopped', 'AbortError');
+		if (traceStage) captureTrace(`${traceStage}.request`, 'OpenAI HTTP body, excluding headers', 'raw', serializedBody);
 		const response = await fetchImpl(`${baseUrl}/responses`, {
 			method: 'POST',
 			headers: {'content-type': 'application/json', authorization: `Bearer ${apiKey}`},
@@ -472,7 +437,12 @@ const requestSerializedJson = async (
 			redirect: 'error',
 			signal: requestSignal.signal,
 		});
+		if (traceStage) captureTrace(`${traceStage}.http`, 'OpenAI response metadata', 'raw', {status: response.status, requestId: response.headers.get('x-request-id')});
 		if (!response.ok) {
+			if (traceStage && traceEnabled()) {
+				try { captureTrace(`${traceStage}.response`, 'OpenAI HTTP response body (UTF-8)', 'raw', new TextDecoder().decode(await readBoundedBytes(response, textResponseLimit))); }
+				catch { captureTraceGap(`${traceStage}.response`, 'OpenAI transport', 'unreadable_or_oversized_body'); }
+			}
 			await recordResponse({});
 			await finalize('provider_rejected');
 			throw safeHttpFailure(response.status, 'text');
@@ -490,6 +460,7 @@ const requestSerializedJson = async (
 			}
 			throw error;
 		}
+		if (traceStage) captureTrace(`${traceStage}.response`, 'OpenAI HTTP response body (UTF-8)', 'raw', new TextDecoder().decode(bytes));
 		let payload: OpenAiResponsePayload;
 		try {
 			const parsed = JSON.parse(new TextDecoder().decode(bytes)) as unknown;
@@ -501,6 +472,7 @@ const requestSerializedJson = async (
 			throw providerFailure('OPENAI_INVALID_RESPONSE', 'The configured OpenAI text provider returned malformed structured output', false);
 		}
 		const usage = extractSafeUsage(payload);
+		if (traceStage) captureTrace(`${traceStage}.usage`, 'extractSafeUsage', 'derived', usage);
 		await recordResponse(usage);
 		return {
 			payload,
@@ -555,7 +527,9 @@ export class OpenAiTextProvider {
 		signal: AbortSignal,
 		onDraftComplete: () => void = () => undefined,
 	): Promise<{script: GeneratedEpisodeScript; sections: GeneratedSection[]; narration: string; usage: SafeUsage[]}> {
+		captureTrace('provider', 'text adapter', 'derived', {adapter: 'OpenAI', model: this.model});
 		const catalog = buildEvidenceCatalog(evidence);
+		captureTrace('catalog', 'buildEvidenceCatalog', 'derived', catalog);
 		const userContent = JSON.stringify({
 			stationDirection: request.topicInstruction,
 			mode: request.mode,
@@ -599,55 +573,26 @@ export class OpenAiTextProvider {
 			this.options,
 			this.apiKey,
 			serializeBoundedRequest(draftBody, 'EVIDENCE_INPUT_TOO_LARGE'),
-			signal,
+			signal, undefined, 'draft',
 		);
 		onDraftComplete();
-		let draft: z.infer<typeof draftSchema>;
+		let draft: z.infer<typeof episodeDraftSchema>;
 		try {
-			draft = draftSchema.parse(JSON.parse(extractOutputText(draftResponse.payload)) as unknown);
+			const text = extractOutputText(draftResponse.payload);
+			captureTrace('draft.text', 'extractOutputText', 'transformed', text);
+			draft = episodeDraftSchema.parse(JSON.parse(text) as unknown);
 		} catch (error) {
 			if (error instanceof GenerationError) throw error;
 			throw providerFailure('OPENAI_INVALID_RESPONSE', 'The configured OpenAI text provider returned invalid structured output', false);
 		}
 
+		captureTrace('draft.parsed', 'episodeDraftSchema', 'parsed', draft);
 		const resolvedDraft = resolveEvidenceReferences(draft, catalog);
-		const sectionTitles: Record<GeneratedSection['type'], string> = {
-			intro: 'Introduction',
-			news_summary: 'Source summary',
-			deep_dive: 'Deep dive',
-			outro: 'Closing',
-		};
-		const sections: GeneratedSection[] = resolvedDraft.map((section, sectionIndex) => ({
-			id: `section-${request.runId}-${sectionIndex}`,
-			title: sectionTitles[section.type],
-			type: section.type,
-			segments: section.segments.map((segment, segmentIndex) => {
-				return {
-					id: `claim-${request.runId}-${sectionIndex}-${segmentIndex}`,
-					kind: segment.kind,
-					text: segment.text,
-					citations: segment.citations,
-					supportStatus: 'supported' as const,
-					speakerRole: 'host' as const,
-				};
-			}),
-		}));
-
-		const disclosure: GeneratedSection = {
-			id: `section-${request.runId}-disclosure`,
-			title: 'AI audio disclosure',
-			type: 'intro',
-			segments: [{
-				id: `claim-${request.runId}-disclosure`,
-				kind: 'transition',
-				text: aiAudioDisclosure,
-				citations: [],
-				supportStatus: 'not_required',
-				speakerRole: 'host',
-			}],
-		};
-		const publishedSections = [disclosure, ...sections];
-		assertGeneratedEpisode(request, evidence, publishedSections);
+		captureTrace('citations.resolved', 'resolveEvidenceReferences', 'transformed', resolvedDraft);
+		const publishedSections = sectionsForResolvedDraft(request, resolvedDraft);
+		const sections = publishedSections.slice(1);
+		captureTrace('sections', 'sectionsForResolvedDraft; supportStatus is provisional until semantic validation', 'transformed', publishedSections);
+		assertTracedEpisode(request, evidence, publishedSections);
 
 		const factualClaims = sections.flatMap(section => section.segments).filter(segment => segment.kind === 'factual');
 		if (factualClaims.length === 0) throw providerFailure('OPENAI_INVALID_RESPONSE', 'The configured OpenAI text provider returned no factual claims', false);
@@ -680,7 +625,7 @@ export class OpenAiTextProvider {
 			this.options,
 			this.apiKey,
 			serializeBoundedRequest(supportBody, 'SUPPORT_INPUT_TOO_LARGE'),
-			signal,
+			signal, undefined, 'support',
 		);
 		let support: z.infer<typeof supportSchema>;
 		try {
@@ -689,7 +634,9 @@ export class OpenAiTextProvider {
 			if (error instanceof GenerationError) throw error;
 			throw providerFailure('OPENAI_INVALID_SUPPORT_RESPONSE', 'The configured OpenAI support validation returned invalid structured output', false);
 		}
+		captureTrace('support.parsed', 'supportSchema', 'parsed', support);
 		const resultById = new Map(support.results.map(result => [result.claimId, result.status]));
+		captureTrace('support.decisions', 'verdict association, zero-based claim index', 'derived', factualClaims.map((claim, index) => ({index, claimId: claim.id, status: resultById.get(claim.id) ?? 'missing'})));
 		if (resultById.size !== factualClaims.length || support.results.length !== factualClaims.length || factualClaims.some(claim => resultById.get(claim.id) !== 'supported')) {
 			throw new GenerationError(
 				'UNSUPPORTED_GENERATED_CLAIM',

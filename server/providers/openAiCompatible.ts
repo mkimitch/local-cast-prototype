@@ -1,8 +1,12 @@
+import {assertTracedEpisode} from '../debug/validationTrace';
+import {compatibleOutputText, type ChatCompletionsPayload} from './textOutput';
+import {captureTrace, captureTraceGap, traceEnabled} from '../debug/generationTrace';
+import {episodeDraftSchema, sectionsForResolvedDraft} from '../episodes/draft';
 import {z} from 'zod';
 import {buildEvidenceCatalog, resolveEvidenceReferences} from '../episodes/evidenceCatalog';
 import type {EpisodeEvidence, EpisodeRequestSnapshot, GeneratedEpisodeScript, GeneratedSection} from '../episodes/types';
 import {aiAudioDisclosure, assertEvidenceSufficient, countWords} from '../episodes/modePolicy';
-import {assertGeneratedEpisode, narrationForScript} from '../episodes/validation';
+import {narrationForScript} from '../episodes/validation';
 import {GenerationError} from '../jobs/types';
 
 const responseLimitBytes = 256 * 1024;
@@ -12,30 +16,12 @@ const providerFailure = (code: string, safeMessage: string, retryable: boolean):
 	new GenerationError(code, safeMessage, retryable, 'failure')
 );
 
-const citationReferenceSchema = z.string().min(3).max(32);
-
-const draftSchema = z.object({
-	sections: z.array(z.object({
-		title: z.string().min(1).max(120),
-		type: z.enum(['intro', 'news_summary', 'deep_dive', 'outro']),
-		segments: z.array(z.object({
-			kind: z.literal('factual'),
-			text: z.string().min(1).max(1_200),
-			citations: z.array(citationReferenceSchema).min(1).max(4),
-		}).strict()).min(1).max(10),
-	}).strict()).min(1).max(6),
-}).strict();
-
 const supportSchema = z.object({
 	results: z.array(z.object({
 		claimId: z.string().min(1).max(240),
 		status: z.enum(['supported', 'unsupported', 'uncertain']),
 	}).strict()).max(60),
 }).strict();
-
-type ChatCompletionsPayload = {
-	choices?: Array<{message?: {content?: unknown}}>;
-};
 
 export interface OpenAiCompatibleTextProviderOptions {
 	fetchImpl?: typeof fetch;
@@ -88,14 +74,6 @@ const readBoundedBytes = async (response: Response, limit: number, code: string)
 	return bytes;
 };
 
-const outputText = (payload: ChatCompletionsPayload, code: string): string => {
-	const content = payload.choices?.[0]?.message?.content;
-	if (typeof content !== 'string' || !content.trim()) {
-		throw providerFailure(`${code}_INVALID_RESPONSE`, 'The configured local text provider returned invalid structured output', false);
-	}
-	return content;
-};
-
 export class OpenAiCompatibleTextProvider {
 	constructor(
 		private readonly adapter: 'Ollama' | 'LM Studio',
@@ -110,7 +88,9 @@ export class OpenAiCompatibleTextProvider {
 		signal: AbortSignal,
 		onDraftComplete: () => void = () => undefined,
 	): Promise<{script: GeneratedEpisodeScript; sections: GeneratedSection[]; narration: string}> {
+		captureTrace('provider', 'text adapter', 'derived', {adapter: this.adapter, model: this.model});
 		const catalog = buildEvidenceCatalog(evidence);
+		captureTrace('catalog', 'buildEvidenceCatalog', 'derived', catalog);
 		const userContent = JSON.stringify({
 			stationDirection: request.topicInstruction,
 			mode: request.mode,
@@ -144,49 +124,20 @@ export class OpenAiCompatibleTextProvider {
 			],
 		}, signal, 'EVIDENCE_INPUT_TOO_LARGE');
 		onDraftComplete();
-		let parsedDraft: z.infer<typeof draftSchema>;
+		let parsedDraft: z.infer<typeof episodeDraftSchema>;
 		try {
-			parsedDraft = draftSchema.parse(JSON.parse(draft));
+			parsedDraft = episodeDraftSchema.parse(JSON.parse(draft));
 		} catch {
 			throw providerFailure(`${this.code}_INVALID_RESPONSE`, 'The configured local text provider returned invalid structured output', false);
 		}
 
+		captureTrace('draft.parsed', 'episodeDraftSchema', 'parsed', parsedDraft);
 		const resolvedDraft = resolveEvidenceReferences(parsedDraft, catalog);
-		const titles: Record<GeneratedSection['type'], string> = {
-			intro: 'Introduction',
-			news_summary: 'Source summary',
-			deep_dive: 'Deep dive',
-			outro: 'Closing',
-		};
-		const sections: GeneratedSection[] = resolvedDraft.map((section, sectionIndex) => ({
-			id: `section-${request.runId}-${sectionIndex}`,
-			title: titles[section.type],
-			type: section.type,
-			segments: section.segments.map((segment, segmentIndex) => {
-				return {
-					id: `claim-${request.runId}-${sectionIndex}-${segmentIndex}`,
-					kind: 'factual' as const,
-					text: segment.text,
-					citations: segment.citations,
-					supportStatus: 'supported' as const,
-					speakerRole: 'host' as const,
-				};
-			}),
-		}));
-		const publishedSections: GeneratedSection[] = [{
-			id: `section-${request.runId}-disclosure`,
-			title: 'AI audio disclosure',
-			type: 'intro',
-			segments: [{
-				id: `claim-${request.runId}-disclosure`,
-				kind: 'transition',
-				text: aiAudioDisclosure,
-				citations: [],
-				supportStatus: 'not_required',
-				speakerRole: 'host',
-			}],
-		}, ...sections];
-		const script = assertGeneratedEpisode(request, evidence, publishedSections);
+		captureTrace('citations.resolved', 'resolveEvidenceReferences', 'transformed', resolvedDraft);
+		const publishedSections = sectionsForResolvedDraft(request, resolvedDraft);
+		const sections = publishedSections.slice(1);
+		captureTrace('sections', 'sectionsForResolvedDraft; supportStatus is provisional until semantic validation', 'transformed', publishedSections);
+		const script = assertTracedEpisode(request, evidence, publishedSections);
 		const claims = sections.flatMap(section => section.segments).filter(segment => segment.kind === 'factual');
 		if (claims.length === 0) throw providerFailure(`${this.code}_INVALID_RESPONSE`, 'The configured local text provider returned no factual claims', false);
 		const supportContent = JSON.stringify({claims: claims.map(claim => ({
@@ -212,7 +163,9 @@ export class OpenAiCompatibleTextProvider {
 		} catch {
 			throw providerFailure(`${this.code}_INVALID_SUPPORT_RESPONSE`, 'The configured local text provider returned invalid support validation', false);
 		}
+		captureTrace('support.parsed', 'supportSchema', 'parsed', parsedSupport);
 		const results = new Map(parsedSupport.results.map(result => [result.claimId, result.status]));
+		captureTrace('support.decisions', 'verdict association, zero-based claim index', 'derived', claims.map((claim, index) => ({index, claimId: claim.id, status: results.get(claim.id) ?? 'missing'})));
 		if (results.size !== claims.length || parsedSupport.results.length !== claims.length || claims.some(claim => results.get(claim.id) !== 'supported')) {
 			throw new GenerationError(
 				'UNSUPPORTED_GENERATED_CLAIM',
@@ -245,6 +198,8 @@ export class OpenAiCompatibleTextProvider {
 				false,
 			);
 		}
+		const traceStage = inputLimitCode === 'EVIDENCE_INPUT_TOO_LARGE' ? 'draft' : 'support';
+		captureTrace(`${traceStage}.request`, 'compatible HTTP body, excluding headers', 'raw', serialized);
 		const request = createRequestSignal(externalSignal, this.options.timeoutMs ?? requestTimeoutMs);
 		try {
 			const response = await (this.options.fetchImpl || fetch)(`${this.baseUrl}/chat/completions`, {
@@ -254,17 +209,25 @@ export class OpenAiCompatibleTextProvider {
 				redirect: 'error',
 				signal: request.signal,
 			});
+			captureTrace(`${traceStage}.http`, 'compatible response metadata', 'raw', {status: response.status, requestId: response.headers.get('x-request-id')});
 			if (!response.ok) {
+				if (traceEnabled()) {
+					try { captureTrace(`${traceStage}.response`, 'compatible HTTP response body (UTF-8)', 'raw', new TextDecoder().decode(await readBoundedBytes(response, this.options.responseLimitBytes ?? responseLimitBytes, this.code))); }
+					catch { captureTraceGap(`${traceStage}.response`, 'compatible transport', 'unreadable_or_oversized_body'); }
+				}
 				throw providerFailure(`${this.code}_REQUEST_REJECTED`, 'The configured local text provider rejected the request', response.status >= 500 || response.status === 429);
 			}
 			const bytes = await readBoundedBytes(response, this.options.responseLimitBytes ?? responseLimitBytes, this.code);
+			captureTrace(`${traceStage}.response`, 'compatible HTTP response body (UTF-8)', 'raw', new TextDecoder().decode(bytes));
 			let payload: ChatCompletionsPayload;
 			try {
 				payload = JSON.parse(new TextDecoder().decode(bytes)) as ChatCompletionsPayload;
 			} catch {
 				throw providerFailure(`${this.code}_INVALID_RESPONSE`, 'The configured local text provider returned malformed structured output', false);
 			}
-			return outputText(payload, this.code);
+			const text = compatibleOutputText(payload, this.code);
+			captureTrace(`${traceStage}.text`, 'compatible outputText', 'transformed', text);
+			return text;
 		} catch (error) {
 			if (error instanceof GenerationError) throw error;
 			if (externalSignal.aborted) throw new DOMException('Worker stopped', 'AbortError');

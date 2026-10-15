@@ -103,6 +103,10 @@ export class EpisodeStore {
 		};
 	}
 
+	listRequestNotes(requestId: string): unknown[] {
+		return this.database.prepare('SELECT * FROM generation_request_notes WHERE request_id = ? ORDER BY sort_order').all(requestId);
+	}
+
 	listRequestSources(requestId: string): EpisodeRequestSource[] {
 		const rows = this.database.prepare(`
 			SELECT source_id_snapshot, source_name_snapshot, source_url_snapshot,

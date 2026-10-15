@@ -25,3 +25,5 @@ temp.diff
 test.js
 docs
 *.log
+
+**/.generation-traces

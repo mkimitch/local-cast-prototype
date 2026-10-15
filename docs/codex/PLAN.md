@@ -1,7 +1,7 @@
 # LocalCast autonomous build plan
 
 Status: Slice 4 remains green; Slice 5 is complete 2026-08-21; Slice 6A–6D deterministic checkpoints, Daily Driver 1A, the station evidence-selection repair, the provider-status restart repair, and the generation validation/status repair are complete 2026-10-08
-Current slice: **PROVIDER-STATUS RESTART REPAIR COMPLETE; REMAINING OPERATIONAL SLICE 6 GATES OPEN**
+Current slice: **SLICE 6E GENERATION OBSERVABILITY COMPLETE; REMAINING OPERATIONAL SLICE 6 GATES OPEN**
 Execution policy: one vertical slice, one green checkpoint commit
 
 ## How to use this plan
@@ -422,3 +422,7 @@ Inspect the second October 13 attempt through privacy-safe metadata only. If it 
 ## Authorized maintenance — temporary Compact Brief acceptance range (2026-10-14)
 
 Temporarily accept 50–350 published words for Compact while preserving its 200–350 preferred editorial range, 275 product target, and 300 provider target. Persist a privacy-safe nonfatal warning for completed 50–199-word episodes through existing job events, retain hard rejection below 50/above 350, and leave every evidence, citation, semantic-support, structure, provider, TTS, and publication safeguard unchanged. Standard and Deep remain unchanged. Validate exact boundaries, disclosure accounting, warning projection/accessibility, provider prompts, processor fences, full repository suites/build/smokes, and create one green checkpoint. No live provider call, production mutation, restart, deployment, migration, health/RSS work, or unrelated feature change is authorized. See D-052.
+
+## Slice 6E — Authorized generation observability maintenance (2026-10-15)
+
+Inventory the October 15 failed attempt and independent read-only SQLite audit without restarting production. Add disabled-by-default one-attempt local capture, private bounded retention, file-only inspection and deterministic offline replay using the production parser/resolver/validators. Preserve original support verdicts; do not generate explanations or weaken validation. Gate: focused trace/processor tests, TypeScript, full unit/integration, production build, independent read-only reviews, isolated API/production smokes, artifact privacy/scope checks. Browser behavior is unchanged; the standalone report is escaped/script-free HTML and has explicit injection tests. Commit one checkpoint; no later operational slice, live generation, deployment, push, or production restart is authorized.

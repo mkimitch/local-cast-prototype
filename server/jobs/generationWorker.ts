@@ -1,3 +1,4 @@
+import {sweepGenerationTraces} from '../debug/generationTrace';
 import type {ServerConfig} from '../config';
 import type {GenerationJobStore} from './generationJobStore';
 import type {GenerationProcessor} from './generationProcessor';
@@ -32,6 +33,7 @@ export class GenerationWorker {
 
 	async runOnce(): Promise<boolean> {
 		if (this.stopping) return false;
+		sweepGenerationTraces(this.config.databasePath);
 		const job = this.jobs.claimNext(this.config.workerId, this.config.leaseMs);
 		if (!job) return false;
 

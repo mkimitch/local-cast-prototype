@@ -1358,3 +1358,32 @@ The warning is stored idempotently in the existing current-attempt validating ev
 | final dependency/lockfile, migration/topology, secret-shape, scope, and `git diff --check` scans | PASS — no drift, protected value, unrelated path, or whitespace error |
 
 All provider behavior used deterministic fixtures. No live provider request, production generation/retry, production data/runtime access, process restart, deployment, schema/migration, dependency/lockfile, credential/provider-state, station/source, SQLite-health/RSS change, deferred-fixture, Caddy/Compose/volume, or push occurred.
+
+
+## 2026-10-15 — Slice 6E generation observability and offline replay
+
+The user authorized a read-only October 15 incident inventory plus implementation/validation/commit, expressly excluding production restart, deployment, push, or live generation. Hard preflight passed at `/opt/stacks/local-cast-prototype` on clean `codex/localcast-prototype`. D-053 records the narrow opt-in raw-retention exception; the guide `GENERATION_TRACE.md` retains the immutable job/request/attempt identities, exact safe diagnostic values/timeline, data lifecycle and retroactive recovery boundary, SQLite audit method, proposed disposable two-connection reproduction, exact CLI commands, and retention caveats. No private production source/narration/credential was committed.
+
+The audit used `docker ps`, selected `docker inspect` fields, timestamped health logs filtered to diagnostic events, non-secret provider/model settings, and a network-disabled/read-only disposable container of image `sha256:d9b7e4a846c26a14e44e0decf6f4a568b62df113fe682c3fe6eab2c5fcf739c9`. The data volume was mounted read-only at `/audit`; SQLite opened with `readonly:true,fileMustExist:true` and `query_only=ON`. Quick/integrity checks returned canonical OK, FK count zero, migrations 001–009. Initial metadata counting incorrectly assumed `episode_citations.run_id`; the corrected query joined `transcript_claims` and confirmed zero. App-local health returned unchanged 503 NOT_READY. Worker `/tmp` was empty and the failure-minute log had no lines. No checkpoint/write/restart or speculative repair occurred.
+
+The implementation shares production schema/extraction/section transformation with a network/database-free replay bundle. It captures only when a local arm is present for the station, consumes that arm once, and writes bounded private artifacts with origin/form/time metadata. Failure traces contain the actual draft/support bodies and original verdicts, never a reconstructed explanation. It adds no HTTP route or provider request. Independent read-only reviews found and verified fixes for orphan report cleanup, invalid expiry fallback, interrupted stage labeling, optional read/I/O containment, and the late speech-character-bound diagnostic classification. Only the primary agent edited/staged/committed.
+
+Validation parents were `env -i PATH=/usr/local/bin:/usr/bin:/bin NO_COLOR=1`; Vite-aware commands additionally used the empty `LOCALCAST_VITE_ENV_DIR=/tmp/localcast-trace-validation/vite-env`. Package scripts supplied test runtime, in-memory/default temporary storage; integration and smokes used disposable synthetic databases/media and loopback fixture servers. No production Docker image was built.
+
+| Exact command/check | Result, October 15 |
+| --- | --- |
+| `npm run lint -- --pretty false` | PASS exit 0, including final review correction |
+| `npm run test -- --reporter=dot` | PASS exit 0, final 351/351 across 22 files (18:22:40Z start) |
+| `npm run test:integration -- --reporter=dot` | Initial sandbox run: 87 passed / 31 listener EPERM; approved run PASS 118/118; final PASS 119/119 across 17 files (18:21:11Z start) |
+| `npm run build` | PASS exit 0; existing >500kB web chunk warning; six server bundles |
+| `npm run build:server` | PASS final rebuild after diagnostic-only edge-case fix |
+| `npm run smoke:api` | PASS exit 0, API/worker smoke |
+| `npm run smoke:production` | PASS exit 0, production same-origin smoke |
+| `npm ls --depth=0 --offline` | PASS exit 0 |
+| `node dist-server/generationTrace.js example --root /tmp/localcast-trace-validation/final/.generation-traces` | PASS; explicit synthetic fixture, no provider/DB |
+| `node dist-server/generationTrace.js inspect /tmp/localcast-trace-validation/final/.generation-traces/trace-3878de35-57ae-4f17-b350-74fb93cab0c5.json` | PASS, private sibling HTML; only synthetic report copied into docs |
+| `node dist-server/generationTrace.js replay /tmp/localcast-trace-validation/final/.generation-traces/trace-3878de35-57ae-4f17-b350-74fb93cab0c5.json` | PASS deterministic checks, original uncertain fixture retained, zero provider requests/publication |
+| Headless installed Chromium via `@playwright/test`, local `file:` example | PASS at 1000px/320px; no overflow, nine sections, no HTTP requests |
+| Scope, credential-shape, CLI import, and `git diff --check` / staged checks | PASS; no credentials, database/media artifact, dependency, migration, client, health, or topology changes |
+
+An initial Node `execFileSync` replay wrapper reported sandbox `spawnSync EPERM`; a direct CLI invocation passed. No assertion was changed to address sandbox restrictions. The final standalone report was regenerated after review fixes. Full application Playwright/axe is unaffected because no application browser source/route/behavior changed; report rendering and injection are tested independently. No live service fallback or new offline semantic decision is claimed. The recurring production connection-local readiness issue remains unresolved, and all remaining operational gates remain open. No live provider request, retry/generation, production write, restart, deployment, or push occurred.

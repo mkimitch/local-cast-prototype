@@ -1,14 +1,43 @@
 # LocalCast build state
 
-Last updated: 2026-10-14
+Last updated: 2026-10-15
 Branch: `codex/localcast-prototype`
 Pre-bootstrap HEAD: `910485b77ead63450660b0b97544889960e45e3f`
 Slice 0 base HEAD: `e720d5818ab15efccfa143c94d6514c0c9a2baad`
 Current base checkpoint: Slice 6D security hardening at `176d30a6e18d6da18ef92ae38ab0655673c663d1`
-Current checkpoint: **Temporary Compact Brief acceptance range (this checkpoint)**
-Implementation slice: **TEMPORARY COMPACT BRIEF LENGTH POLICY — COMPLETE**
+Current checkpoint: **Slice 6E generation observability and offline replay (this checkpoint)**
+Implementation slice: **SLICE 6E — GENERATION OBSERVABILITY — COMPLETE**
 Next action: **Await separate deployment authorization; do not initiate a provider call or generation automatically**
 Overall state: **SLICE 5 COMPLETE; SLICE 6A–6D DETERMINISTIC CHECKPOINTS COMPLETE; DAILY DRIVER 1A, STATION EVIDENCE-SELECTION, PROVIDER-RESTART, AND GENERATION VALIDATION/STATUS REPAIRS COMPLETE; OPERATIONAL SLICE 6 AND A11Y-01 GATES REMAIN OPEN**
+
+## October 15 generation observability and offline replay
+
+The read-only inventory located October 15 job `job-05a066a9-0b8d-42e7-b552-8ef6962f6650`, request `request-dc209a63-6995-485c-9a67-409e19dde080`, run `run-653438fc-37f5-4942-a07d-c6de151bc836`, and attempt 1. Semantic support rejected six expected claims after deterministic parsing/reference/citation/length checks; 50 frozen evidence rows remain, but zero transcript/citation/audio rows were published. The rejected draft and individual verdicts were never persisted and cannot be recovered through supported local interfaces. Full lifecycle, timestamps, audit method, limitations, and exact future operator commands are in `GENERATION_TRACE.md`.
+
+First retained app readiness failure was 2026-10-15T11:50:45.042Z, during drafting and before semantic rejection at 11:50:53.495Z. The app's long-lived connection reports one non-OK quick-check row with expected shape, outside a transaction. A new read-only/query-only connection on the same immutable image, with the production volume mounted read-only and network disabled, passes quick/integrity checks, zero FK violations, schema 009. This is correlation, not a root-cause claim. App remains unhealthy; no restart or readiness change occurred.
+
+Implemented one-hour, station-bound, single-attempt arming; 0700/0600 private files beside SQLite; 2 MiB per artifact / 8 MiB per capture / ten retained attempts; default 24-hour configurable retention, idle worker cleanup and explicit purge. Exact requests/raw responses, immutable inputs, parsed drafts, catalog/mappings, gate outcomes/counts, original support results, and stage timing survive rejection. Capture failures cannot bypass validation; optional diagnostic reads are failure-contained. Local escaped/CSP-protected HTML separates raw and derived evidence. Replay shares pure extraction/schema/transformation/resolution/validation, checks source hashes, preserves original semantic verdicts, and has no provider/database/speech/publication imports. Redacted or omitted captures are unproven for exact replay. No migration or dependency was added.
+
+Final validation recorded 2026-10-15T18:24:01Z (test mode/disposable storage; credential-free `env -i` parents):
+
+| Command | Result |
+| --- | --- |
+| `npm run lint -- --pretty false` | PASS, exit 0 (final repeat after review edge-case correction) |
+| `npm run test -- --reporter=dot` | PASS, exit 0, 351 tests / 22 files, final run started 18:22:40Z |
+| `npm run test:integration -- --reporter=dot` | PASS, exit 0, 119 tests / 17 files, final run started 18:21:11Z; isolated loopback approval |
+| `npm run build` | PASS, exit 0, web + six server bundles; existing web chunk-size warning only |
+| `npm run build:server` | PASS, exit 0, final rebuild after diagnostic-only speech-size classification correction |
+| `npm run smoke:api` | PASS, exit 0, isolated API/worker smoke |
+| `npm run smoke:production` | PASS, exit 0, isolated production same-origin smoke |
+| `npm ls --depth=0 --offline` | PASS, exit 0, no dependency/lockfile changes |
+| `node dist-server/generationTrace.js example --root /tmp/localcast-trace-validation/final/.generation-traces` | PASS, synthetic capture only, no provider/database |
+| CLI `inspect` and `replay` on that example | PASS, deterministic PASS, original `uncertain` fixture retained, zero requests/publication; report copied to `GENERATION_TRACE_EXAMPLE.html` |
+| Installed Chromium opening synthetic report by `file:` | PASS, 1000px and 320px, nine report sections, zero horizontal overflow and zero HTTP requests |
+| `git diff --check`, scope/privacy scans, staged review | PASS before checkpoint; final Git status checked after commit |
+
+The initial sandbox integration run passed 87 cases and hit 31 existing loopback `listen EPERM` failures; the approved rerun passed 118/118, and after added snapshot-read containment coverage the final gate passed 119/119. No test contract was weakened. An ad-hoc Node subprocess wrapper for CLI replay hit sandbox `spawnSync EPERM`; direct invocation passed. Unit runs passed at 346, 350, and final 351 after additional review regressions. Two independent read-only reviews found orphan-report/invalid-expiry cleanup gaps and incomplete-stage reporting; these were corrected and re-reviewed. A final review noted speech-size rejection occurs after citation/length success; classification was corrected and a real-validator regression added. There were no repeated deterministic product-test repair failures.
+
+No live provider request, generation/retry, production database/media write, restart, deployment, push, schema/dependency/lockfile, Caddy/topology, or readiness-rule change occurred. Application browser source/routes are unchanged, so the full application Playwright matrix was not rerun; the new standalone report received focused browser and injection checks. Remaining operational Slice 6 gates stay open. Capture is not deployed or armed in production.
 
 ## October 14 temporary Compact Brief acceptance range
 

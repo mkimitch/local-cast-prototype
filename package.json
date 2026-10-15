@@ -8,6 +8,7 @@
   },
   "scripts": {
     "dev": "npm run dev:web",
+    "generation:trace": "node dist-server/generationTrace.js",
     "dev:web": "vite --port=3000 --host=0.0.0.0",
     "dev:api": "NODE_ENV=development LOCALCAST_RUNTIME_MODE=development LOCALCAST_PROCESS_ROLE=app tsx server/index.ts",
     "dev:worker": "NODE_ENV=development LOCALCAST_RUNTIME_MODE=development LOCALCAST_PROCESS_ROLE=worker tsx server/worker.ts",
