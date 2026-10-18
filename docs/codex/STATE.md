@@ -1,14 +1,28 @@
 # LocalCast build state
 
-Last updated: 2026-10-15
+Last updated: 2026-10-17
 Branch: `codex/localcast-prototype`
 Pre-bootstrap HEAD: `910485b77ead63450660b0b97544889960e45e3f`
 Slice 0 base HEAD: `e720d5818ab15efccfa143c94d6514c0c9a2baad`
 Current base checkpoint: Slice 6D security hardening at `176d30a6e18d6da18ef92ae38ab0655673c663d1`
-Current checkpoint: **Slice 6E generation observability and offline replay (this checkpoint)**
-Implementation slice: **SLICE 6E — GENERATION OBSERVABILITY — COMPLETE**
+Current checkpoint: **Slice 6E evidence-driven generation contract and SQLite audit repair (this checkpoint)**
+Implementation slice: **SLICE 6E — CAPTURED-FAILURE REPAIR — COMPLETE OFFLINE**
 Next action: **Await separate deployment authorization; do not initiate a provider call or generation automatically**
 Overall state: **SLICE 5 COMPLETE; SLICE 6A–6D DETERMINISTIC CHECKPOINTS COMPLETE; DAILY DRIVER 1A, STATION EVIDENCE-SELECTION, PROVIDER-RESTART, AND GENERATION VALIDATION/STATUS REPAIRS COMPLETE; OPERATIONAL SLICE 6 AND A11Y-01 GATES REMAIN OPEN**
+
+## October 17 captured-failure repair (offline)
+
+Base: `a83a020d8f263e2d926283b0ef1f2058bf8dee1d`; clean required branch/path preflight passed. The later October 15 protected trace was read directly, without copying it into Git. Unlike the earlier uncaptured attempt below, it preserves the rejected draft and original support verdicts: one supported, three uncertain, one unsupported. Deterministic parsing/reference/citation/Compact checks passed (164 words); support correctly stopped speech/publication. The selected upcoming note was present as E01: its omission was editorial, not evidence loss.
+
+Generation: both adapters now share a body-only drafting view, omitting headline/author/URL fields while retaining full frozen provenance locally. Shared instructions make the model responsible for grounded spoken leads/takeaways and LocalCast responsible only for disclosure and neutral unspoken headings. They prohibit inferred resumed events, headline-derived numbers, rankings and predictions; request relevant, directly supported personal reminders without requiring irrelevant notes; and preserve natural paraphrases. Acceptance, semantic thresholds, Compact 50–350/preferred target and paid retry behavior are unchanged. Mocked verdict tests prove wiring and rejection, not future model compliance or guaranteed reminder inclusion.
+
+SQLite: production read-only logs place the first failure at `2026-10-15T19:12:37.903108863Z`, before the drafting response and semantic rejection. Sanitized fields: `database_audit / quick_check_failed / non_ok_result`, one row, expected shape, outside a transaction, read-write connection, 6.366ms. App remains unhealthy and worker healthy, both without restarts. Independent read-only/query-only quick/integrity/FK/schema checks pass (009). No production container, configuration or database was changed.
+
+Disposable reproduction on both local dependencies and the exact deployed image (`sha256:b975545899905768f89130c3a3cbaa091cb823f7a65c4d15cd7abbaabc834913`, network disabled, temporary storage only) returned `fts5: checksum mismatch for table "material_fts"` on the stale connection after another WAL connection committed valid content; a fresh connection passed. SQLite 3.53.2 source ID: `2026-06-03 19:12:13 d6e03d8c777cfa2d35e3b60d8ec3e0187f3e9f99d8e2ee9cac695fd6fcdf1a24`. Bundled FTS5 source shows xIntegrity bypassing xOpen's data-version cache invalidation. A real rowid cursor fixes this; LIMIT 0 does not. The audit now opens that cursor and runs unchanged strict checks in one deferred read transaction. It neither writes/rebuilds the index nor closes/retries the connection. Diagnostic `inTransaction:true` is now expected within the audit. Deliberate shadow-table corruption still fails on all connections.
+
+Real initialization, fresh/008→009 migrations, enqueue/claim/stage/failure operations, worker feed-content writes, pinned readers and rollback passed 24 mocked attempts/594 connection-audit samples. Production's original pragma text was discarded, so exact incident attribution remains unproven; the smallest remaining discriminator is that text from the same failing process, not another connection. No resource-incident causation is asserted.
+
+Final validation recorded `2026-10-18T03:53:33Z` (October 17 local): TypeScript, 358 unit tests, 122 integration tests, production build, isolated API/worker smoke and production same-origin smoke PASS, exit 0. Commands/environment and authoring failures are in BUILD_LOG. Two independent read-only reviews found no blocking issue. Both repairs are independently ready for deployment consideration; deployment and real-provider behavior remain untested for this revision and require separate authorization.
 
 ## October 15 generation observability and offline replay
 

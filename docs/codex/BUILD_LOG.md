@@ -1387,3 +1387,28 @@ Validation parents were `env -i PATH=/usr/local/bin:/usr/bin:/bin NO_COLOR=1`; V
 | Scope, credential-shape, CLI import, and `git diff --check` / staged checks | PASS; no credentials, database/media artifact, dependency, migration, client, health, or topology changes |
 
 An initial Node `execFileSync` replay wrapper reported sandbox `spawnSync EPERM`; a direct CLI invocation passed. No assertion was changed to address sandbox restrictions. The final standalone report was regenerated after review fixes. Full application Playwright/axe is unaffected because no application browser source/route/behavior changed; report rendering and injection are tested independently. No live service fallback or new offline semantic decision is claimed. The recurring production connection-local readiness issue remains unresolved, and all remaining operational gates remain open. No live provider request, retry/generation, production write, restart, deployment, or push occurred.
+
+## 2026-10-17 — captured generation repair and SQLite reproduction
+
+Final evidence timestamp: `2026-10-18T03:53:33Z` (October 17 local). Base `a83a020d8f263e2d926283b0ef1f2058bf8dee1d`; required clean branch/path passed. Primary was sole writer; independent generation and SQLite read-only reviews found no blocking issue. STATE records original trace findings, sanitized production diagnostics, exact-image reproduction and attribution limits. No private trace/HTML was copied into the repository.
+
+All validation parents: `env -i PATH=/usr/local/bin:/usr/bin:/bin NO_COLOR=1`; build additionally `LOCALCAST_VITE_ENV_DIR=/tmp/localcast-oct17-empty-vite-env` (empty directory). Package tests select test mode/in-memory defaults; reproductions use disposable temporary storage and synthetic configuration. No provider network request occurs.
+
+| Exact command | Final result |
+| --- | --- |
+| `npm run lint -- --pretty false` | PASS exit 0 |
+| `npm run test -- --reporter=dot` | PASS exit 0, 358/358, 23 files |
+| `npm run test:integration -- --reporter=dot` | PASS exit 0, 122/122, 18 files; start 2026-10-18T03:51:11Z |
+| `npm run build` | PASS exit 0; existing >500kB chunk warning only |
+| `npm run smoke:api` | PASS exit 0, disposable API/worker |
+| `npm run smoke:production` | PASS exit 0, disposable same-origin production mode |
+
+Focused repeatable reproduction (no production paths or credentials):
+
+```sh
+env -i PATH=/usr/local/bin:/usr/bin:/bin NO_COLOR=1 NODE_ENV=test LOCALCAST_RUNTIME_MODE=test DATABASE_PATH=:memory: MEDIA_PATH=/tmp/localcast-vitest-media ./node_modules/.bin/vitest run tests/integration/sqlite-generation-health.test.ts --reporter=dot
+```
+
+Authoring evidence: initial mock Responses envelope lacked the completed/message fields and an upgrade fixture named the wrong request columns; each was corrected to the actual contract. The first lifecycle reproduction exposed the FTS defect and motivated the cursor/snapshot fix. Deliberate corruption initially hit SQLite defensive mode; unsafeMode is enabled only around that mutation in the disposable regression. The first full integration run passed 91 assertions but had 31 loopback `listen EPERM` failures; approved loopback rerun passed all 122 without assertion changes. No repeated speculative product repair occurred.
+
+No frontend change required a browser rerun. Production remained untouched: no live generation/provider/TTS, deploy/restart/recreate, configuration/credential change, schema migration, dependency change, Caddy change or push. The production database was only independently inspected through a read-only mount/connection; the exact-image failure reproduction used separate disposable storage with networking disabled.

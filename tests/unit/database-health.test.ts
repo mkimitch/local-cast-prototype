@@ -6,6 +6,7 @@ import {createHealthDiagnostics} from '../../server/routes/healthDiagnostics';
 const databaseWithQuickCheck = (value: unknown, options: {throws?: boolean; inTransaction?: boolean; readonly?: boolean} = {}): Database.Database => ({
 	readonly: options.readonly ?? false,
 	inTransaction: options.inTransaction ?? false,
+	transaction: (callback: () => unknown) => ({deferred: callback}),
 	prepare: vi.fn((sql: string) => ({
 		get: () => sql.includes('sqlite_version') ? {version: '3.53.2'} : {enabled: 1},
 	})),

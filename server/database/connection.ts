@@ -155,7 +155,11 @@ const inspectQuickCheck = (database: Database.Database): 'ok' => {
 	return 'ok';
 };
 
-export const inspectDatabaseHealth = (database: Database.Database): DatabaseHealth => {
+const inspectDatabaseSnapshot = (database: Database.Database): DatabaseHealth => {
+	// SQLite 3.53.2 FTS5 xIntegrity can reuse an obsolete index structure after
+	// another WAL connection commits. A real FTS cursor runs xOpen's cache
+	// invalidation; LIMIT 0 does not. No content is fetched or index rebuilt.
+	database.prepare('SELECT rowid FROM material_fts LIMIT 1').get();
 	const sqliteVersion = (database.prepare('SELECT sqlite_version() AS version').get() as {version: string}).version;
 	const fts5 = (database.prepare("SELECT sqlite_compileoption_used('ENABLE_FTS5') AS enabled").get() as {enabled: number}).enabled === 1;
 	const quickCheck = inspectQuickCheck(database);
@@ -176,6 +180,13 @@ export const inspectDatabaseHealth = (database: Database.Database): DatabaseHeal
 		schemaVersion: migrationIds.at(-1) || 'none',
 	};
 };
+
+export const inspectDatabaseHealth = (database: Database.Database): DatabaseHealth => (
+	// Pin the cursor refresh and every audit to the same read snapshot. A writer
+	// may otherwise commit between refresh and quick_check. Nested callers use
+	// a savepoint and retain their original transaction/snapshot.
+	database.transaction(() => inspectDatabaseSnapshot(database)).deferred()
+);
 
 export const openDatabase = (config: ServerConfig, options: OpenDatabaseOptions = {}): Database.Database => {
 	verifyStorage(config, {allowMissingDatabase: options.initializingStorage === true});
