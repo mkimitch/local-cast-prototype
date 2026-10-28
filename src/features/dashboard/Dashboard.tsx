@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Play, Activity, Clock, Rss, Calendar, RefreshCw, AlertCircle } from 'lucide-react';
-import { sourceService, briefingService, providerService } from '../../services';
-import { Source, BriefingRun, AppSettings } from '../../types';
+import { Play, Activity, Clock, Rss, RefreshCw, AlertCircle } from 'lucide-react';
+import { sourceService, briefingService, providerService, stationService } from '../../services';
+import { Source, BriefingRun, AppSettings, Station } from '../../types';
 import { ViewState } from '../../App';
 
 interface DashboardProps {
@@ -13,76 +13,62 @@ export default function Dashboard({ onNavigateToRun, onNavigate }: DashboardProp
   const [sources, setSources] = useState<Source[]>([]);
   const [runs, setRuns] = useState<BriefingRun[]>([]);
   const [settings, setSettings] = useState<AppSettings | null>(null);
+  const [stations, setStations] = useState<Station[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isEnqueueing, setIsEnqueueing] = useState(false);
+  const [loadError, setLoadError] = useState<string>();
 
   useEffect(() => {
-    async function load() {
-      const [allSources, allRuns, appSettings] = await Promise.all([
-        sourceService.getSources(),
-        briefingService.getRuns(),
-        providerService.getSettings()
-      ]);
-      setSources(allSources.filter(s => s.isActive));
-      setRuns(allRuns);
-      setSettings(appSettings);
-      setIsLoading(false);
-    }
-    load();
+    const load = async () => {
+      try {
+        const [allSources, allRuns, appSettings, savedStations] = await Promise.all([
+          sourceService.getSources(),
+          briefingService.getRuns(),
+          providerService.getSettings(),
+          stationService.getStations(),
+        ]);
+        setSources(allSources.filter(s => s.isActive && s.type === 'rss'));
+        setRuns(allRuns);
+        setSettings(appSettings);
+        setStations(savedStations);
+      } catch {
+        setLoadError('LocalCast could not reach its local API. Check that the application service is running.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    void load();
   }, []);
 
-  useEffect(() => {
-    // Simple mock scheduler check
-    const interval = setInterval(async () => {
-      if (!settings?.isScheduleActive || !settings?.scheduleTime) return;
-      
-      const now = new Date();
-      const currentHours = now.getHours().toString().padStart(2, '0');
-      const currentMinutes = now.getMinutes().toString().padStart(2, '0');
-      const currentTimeStr = `${currentHours}:${currentMinutes}`;
-      
-      // Prevent multiple runs in the same minute
-      const lastRunStr = localStorage.getItem('lastScheduledRunTime');
-      
-      if (currentTimeStr === settings.scheduleTime && lastRunStr !== currentTimeStr) {
-        localStorage.setItem('lastScheduledRunTime', currentTimeStr);
-        const activeSourceIds = sources.map(s => s.id);
-        if (activeSourceIds.length > 0) {
-          const newRun = await briefingService.startRun(activeSourceIds);
-          setRuns(prev => [newRun, ...prev]);
-        }
-      }
-    }, 30000); // Check every 30 seconds
-
-    return () => clearInterval(interval);
-  }, [settings, sources]);
-
   const handleQuickGenerate = async () => {
-    const activeSourceIds = sources.map(s => s.id);
-    const newRun = await briefingService.startRun(activeSourceIds);
-    onNavigateToRun(newRun.id);
+    if (isEnqueueing) return;
+    setIsEnqueueing(true);
+    try {
+      const station = stations[0];
+      if (!station) return;
+      const newRun = await briefingService.startStationRun(station.id, station.defaultMode);
+      onNavigateToRun(newRun.id);
+    } catch {
+      setLoadError('LocalCast could not enqueue this briefing. Check provider status and try again.');
+      setIsEnqueueing(false);
+    }
   };
 
-  const toggleSchedule = async () => {
-    if (!settings) return;
-    const newSettings = { ...settings, isScheduleActive: !settings.isScheduleActive };
-    setSettings(newSettings);
-    await providerService.saveSettings(newSettings);
-  };
+  if (isLoading) return <div className="loading-skeleton" aria-label="Loading dashboard" />;
+  if (loadError || !settings) return <div className="empty-state" role="alert">{loadError || 'Dashboard settings are unavailable.'}</div>;
 
-  const updateScheduleTime = async (time: string) => {
-    if (!settings) return;
-    const newSettings = { ...settings, scheduleTime: time };
-    setSettings(newSettings);
-    await providerService.saveSettings(newSettings);
-  };
-
-  if (isLoading || !settings) return <div className="loading-skeleton" aria-label="Loading dashboard" />;
+  const canGenerate = settings.generationEnabled && Boolean(stations[0] && stations[0].noteIds.length + stations[0].sourceIds.length > 0);
+  const generationHelp = !settings.generationEnabled
+    ? 'Generation is unavailable until text and speech providers are configured on the server.'
+    : stations.length === 0
+      ? 'Save a station with supplied material before generating.'
+      : 'OpenAI receives the selected station direction and evidence; OpenAI TTS receives the final narration. Audio is AI-generated.';
 
   return (
     <div className="page page--wide">
       <div className="page-header">
         <div>
-          <h1 className="page-title">Dashboard</h1>
+          <h1 tabIndex={-1} className="page-title">Dashboard</h1>
           <p className="page-description">Welcome to LocalCast. Manage your personal audio briefings.</p>
         </div>
       </div>
@@ -90,8 +76,8 @@ export default function Dashboard({ onNavigateToRun, onNavigate }: DashboardProp
       <div className="metrics-grid">
         <div className="card metric-card">
           <div className="metric-card__label">
-            <Rss size={20} />
-            <h3>Active Sources</h3>
+            <Rss size={20} aria-hidden="true" />
+            <h2>Active Sources</h2>
           </div>
           <div className="metric-card__value-row">
             <p className="metric-card__value">{sources.length}</p>
@@ -120,8 +106,8 @@ export default function Dashboard({ onNavigateToRun, onNavigate }: DashboardProp
 
         <div className="card metric-card">
           <div className="metric-card__label">
-            <Activity size={20} />
-            <h3>Total Runs</h3>
+            <Activity size={20} aria-hidden="true" />
+            <h2>Total Runs</h2>
           </div>
           <p className="metric-card__value">{runs.length}</p>
           <button 
@@ -132,47 +118,19 @@ export default function Dashboard({ onNavigateToRun, onNavigate }: DashboardProp
           </button>
         </div>
 
-        <div className="card metric-card schedule-card">
-          <div>
-            <div className="schedule-card__header">
-              <div className="metric-card__label">
-                <Calendar size={20} />
-                <h3>Schedule</h3>
-              </div>
-              <button 
-                onClick={toggleSchedule}
-                className="switch"
-                data-active={settings.isScheduleActive ? 'true' : 'false'}
-                aria-pressed={settings.isScheduleActive}
-                aria-label="Toggle schedule"
-              >
-                <span className="switch__thumb" />
-              </button>
-            </div>
-            
-            {settings.isScheduleActive ? (
-              <input 
-                type="time" 
-                value={settings.scheduleTime || '07:00'}
-                onChange={e => updateScheduleTime(e.target.value)}
-                className="control control--time"
-              />
-            ) : (
-              <p className="schedule-card__off">Off</p>
-            )}
-          </div>
-        </div>
-
         <div className="hero-action-card">
-          <h3 className="hero-action-card__title">Ready to listen?</h3>
+          <h2 className="hero-action-card__title">Create on demand</h2>
+          <p id="generation-help">{generationHelp}</p>
           <button 
             onClick={handleQuickGenerate}
-            disabled={sources.length === 0}
+            disabled={!canGenerate || isEnqueueing}
+            aria-describedby="generation-help"
             className="button button--inverse"
           >
-            <Play size={18} />
-            Generate
+            <Play size={18} aria-hidden="true" />
+            {isEnqueueing ? 'Enqueueing...' : 'Sync and generate'}
           </button>
+          {stations.length === 0 && <button className="button button--link" onClick={() => onNavigate('stations')}>Create a station &rarr;</button>}
         </div>
       </div>
 

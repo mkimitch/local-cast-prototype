@@ -1,32 +1,23 @@
 import type {AppSettings} from '../../src/types';
 import {serverConfig} from '../config';
 import {db} from '../database/index';
+import {openAiCredentialService, type OpenAiCredentialService} from './openAiCredentialService';
 
-const aiProviders: AppSettings['aiProvider'][] = ['mock', 'openai_placeholder', 'gemini_placeholder', 'lmstudio_placeholder', 'ollama_placeholder'];
-const ttsProviders: AppSettings['ttsProvider'][] = ['local', 'openai', 'elevenlabs'];
-const themes: AppSettings['theme'][] = ['system', 'light', 'dark'];
-const contrastModes: AppSettings['contrastMode'][] = ['normal', 'high'];
-const colorVisionModes: AppSettings['colorVisionMode'][] = ['default', 'protanopia', 'deuteranopia', 'tritanopia', 'achromatopsia'];
-const textSizes: AppSettings['textSize'][] = ['small', 'normal', 'large', 'extra-large'];
-const densities: AppSettings['density'][] = ['compact', 'normal', 'comfortable'];
+type AppearanceSettings = Omit<AppSettings, 'providers' | 'credentials' | 'generationEnabled'>;
 
-const frontendProviderFromBackend = (): AppSettings['aiProvider'] => {
-	if (serverConfig.aiProvider === 'gemini') return 'gemini_placeholder';
-	if (serverConfig.aiProvider === 'openai_compatible') return 'lmstudio_placeholder';
-	return 'mock';
-};
+const themes: AppearanceSettings['theme'][] = ['system', 'light', 'dark'];
+const contrastModes: AppearanceSettings['contrastMode'][] = ['normal', 'high'];
+const colorVisionModes: AppearanceSettings['colorVisionMode'][] = ['default', 'protanopia', 'deuteranopia', 'tritanopia', 'achromatopsia'];
+const textSizes: AppearanceSettings['textSize'][] = ['small', 'normal', 'large', 'extra-large'];
+const densities: AppearanceSettings['density'][] = ['compact', 'normal', 'comfortable'];
 
-class SettingsStore {
-	private defaultSettings: AppSettings = {
-		aiProvider: frontendProviderFromBackend(),
-		aiConfig: {
-			model: serverConfig.aiModel,
-			baseUrl: serverConfig.aiBaseUrl || undefined,
-		},
-		ttsProvider: 'local',
-		ttsConfig: {},
-		scheduleTime: '07:00',
-		isScheduleActive: false,
+export class SettingsStore {
+	constructor(
+		private readonly config = serverConfig,
+		private readonly credentials: Pick<OpenAiCredentialService, 'metadata' | 'providerSummary'> = openAiCredentialService,
+	) {}
+
+	private readonly defaultAppearance: AppearanceSettings = {
 		orbTheme: 'amber',
 		theme: 'system',
 		contrastMode: 'normal',
@@ -35,64 +26,63 @@ class SettingsStore {
 		density: 'normal',
 	};
 
-	constructor() {
-		this.seedSettingsIfEmpty();
-	}
-
-	private seedSettingsIfEmpty(): void {
-		const row = db.prepare('SELECT COUNT(*) AS count FROM app_settings').get() as {count: number};
-		if (row.count > 0) return;
-
-		this.writeSettings(this.defaultSettings);
-	}
-
 	private choose<T extends string>(value: unknown, options: readonly T[], fallback: T): T {
 		return typeof value === 'string' && options.includes(value as T) ? value as T : fallback;
 	}
 
-	private sanitizeSettings(settings: AppSettings): AppSettings {
+	private sanitizeAppearance(settings: Partial<AppearanceSettings>): AppearanceSettings {
 		return {
-			...this.defaultSettings,
-			...settings,
-			aiProvider: this.choose(settings.aiProvider, aiProviders, this.defaultSettings.aiProvider),
-			aiConfig: {
-				model: settings.aiConfig?.model,
-				baseUrl: settings.aiConfig?.baseUrl,
+			orbTheme: typeof settings.orbTheme === 'string' ? settings.orbTheme : this.defaultAppearance.orbTheme,
+			theme: this.choose(settings.theme, themes, this.defaultAppearance.theme),
+			contrastMode: this.choose(settings.contrastMode, contrastModes, this.defaultAppearance.contrastMode),
+			colorVisionMode: this.choose(settings.colorVisionMode, colorVisionModes, this.defaultAppearance.colorVisionMode),
+			textSize: this.choose(settings.textSize, textSizes, this.defaultAppearance.textSize),
+			density: this.choose(settings.density, densities, this.defaultAppearance.density),
+		};
+	}
+
+	private withProviderStatus(appearance: AppearanceSettings): AppSettings {
+		const status = this.credentials.providerSummary(this.config);
+		const managedCredential = this.credentials.metadata(this.config);
+		const persistedOpenAiStatus = [status.text, status.speech].some(provider => (
+			provider.adapter === 'OpenAI' && provider.status !== 'NOT CONFIGURED'
+		));
+		return {
+			...appearance,
+			providers: {text: status.text, speech: status.speech},
+			credentials: {
+				openAi: {
+					configured: managedCredential.configured || persistedOpenAiStatus,
+					...(managedCredential.displayHint ? {displayHint: managedCredential.displayHint} : {}),
+				},
 			},
-			ttsProvider: this.choose(settings.ttsProvider, ttsProviders, this.defaultSettings.ttsProvider),
-			ttsConfig: {
-				model: settings.ttsConfig?.model,
-				baseUrl: settings.ttsConfig?.baseUrl,
-			},
-			theme: this.choose(settings.theme, themes, this.defaultSettings.theme),
-			contrastMode: this.choose(settings.contrastMode, contrastModes, this.defaultSettings.contrastMode),
-			colorVisionMode: this.choose(settings.colorVisionMode, colorVisionModes, this.defaultSettings.colorVisionMode),
-			textSize: this.choose(settings.textSize, textSizes, this.defaultSettings.textSize),
-			density: this.choose(settings.density, densities, this.defaultSettings.density),
+			generationEnabled: status.generationEnabled,
 		};
 	}
 
 	getSettings(): AppSettings {
 		const row = db.prepare('SELECT settings_json FROM app_settings WHERE id = ?').get('default') as {settings_json: string} | undefined;
-		if (!row) {
-			this.writeSettings(this.defaultSettings);
-			return this.sanitizeSettings(this.defaultSettings);
+		let appearance = this.defaultAppearance;
+
+		if (row) {
+			try {
+				appearance = this.sanitizeAppearance(JSON.parse(row.settings_json) as Partial<AppearanceSettings>);
+			} catch {
+				appearance = this.defaultAppearance;
+			}
 		}
 
-		try {
-			return this.sanitizeSettings(JSON.parse(row.settings_json) as AppSettings);
-		} catch {
-			this.writeSettings(this.defaultSettings);
-			return this.sanitizeSettings(this.defaultSettings);
-		}
+		this.writeAppearance(appearance);
+		return this.withProviderStatus(appearance);
 	}
 
-	saveSettings(settings: AppSettings): AppSettings {
-		this.writeSettings(this.sanitizeSettings(settings));
-		return this.getSettings();
+	saveSettings(settings: Partial<AppSettings>): AppSettings {
+		const appearance = this.sanitizeAppearance(settings);
+		this.writeAppearance(appearance);
+		return this.withProviderStatus(appearance);
 	}
 
-	private writeSettings(settings: AppSettings): void {
+	private writeAppearance(settings: AppearanceSettings): void {
 		db.prepare(`
 			INSERT INTO app_settings (id, settings_json, updated_at)
 			VALUES (@id, @settingsJson, @updatedAt)

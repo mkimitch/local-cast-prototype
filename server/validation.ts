@@ -1,202 +1,115 @@
-import type {AppSettings, Source, SourceStatus, SourceType} from '../src/types';
+import {z} from 'zod';
+import {defaultBriefLengthPreset, type AppSettings, type EpisodeMode} from '../src/types';
+import {isBoundedLocalCastText, isWellFormedLocalCastText} from '../src/types';
 import type {CreateSourceInput, UpdateSourceInput} from './services/sourceStore';
+import type {SaveNoteInput, SaveStationInput} from './services/stationStore';
+import {hasEmbeddedUrlCredential} from './services/safeFeedFetcher';
+import {openAiApiKeySchema} from './credentials/openAiCredentialStore';
 
 type ValidationResult<T> = {ok: true; value: T} | {ok: false; error: string};
+const feedUrlSchema = z.string().trim().url().max(2048).refine(value => {
+	const url = new URL(value);
+	return (url.protocol === 'http:' || url.protocol === 'https:') && !hasEmbeddedUrlCredential(url) && !url.hash;
+}, {message: 'feed URL must be a credential-free HTTP(S) URL without a fragment'}).transform(value => new URL(value).href);
 
-const sourceTypes: SourceType[] = ['rss', 'manual_topic', 'local_file', 'gmail_placeholder', 'calendar_placeholder'];
-const sourceStatuses: SourceStatus[] = ['healthy', 'error', 'syncing'];
-const aiProviders: AppSettings['aiProvider'][] = ['mock', 'openai_placeholder', 'gemini_placeholder', 'lmstudio_placeholder', 'ollama_placeholder'];
-const ttsProviders: AppSettings['ttsProvider'][] = ['local', 'openai', 'elevenlabs'];
-const themes: AppSettings['theme'][] = ['system', 'light', 'dark'];
-const contrastModes: AppSettings['contrastMode'][] = ['normal', 'high'];
-const colorVisionModes: AppSettings['colorVisionMode'][] = ['default', 'protanopia', 'deuteranopia', 'tritanopia', 'achromatopsia'];
-const textSizes: AppSettings['textSize'][] = ['small', 'normal', 'large', 'extra-large'];
-const densities: AppSettings['density'][] = ['compact', 'normal', 'comfortable'];
+const createSourceSchema = z.object({
+	type: z.literal('rss'),
+	name: z.string().trim().min(1).max(200),
+	url: feedUrlSchema,
+	description: z.string().trim().min(1).max(2_000).optional(),
+	category: z.string().trim().min(1).max(100).optional(),
+	isActive: z.boolean().default(true),
+}).strict();
 
-const isRecord = (value: unknown): value is Record<string, unknown> => (
-  typeof value === 'object' && value !== null && !Array.isArray(value)
-);
+const updateSourceSchema = z.object({
+	name: z.string().trim().min(1).max(200).optional(),
+	url: feedUrlSchema.optional(),
+	description: z.union([z.string().trim().min(1).max(2_000), z.null()]).optional(),
+	category: z.union([z.string().trim().min(1).max(100), z.null()]).optional(),
+	isActive: z.boolean().optional(),
+}).strict().refine(value => Object.keys(value).length > 0, {message: 'at least one source field is required'});
 
-const optionalString = (value: unknown): string | undefined => (
-  typeof value === 'string' && value.trim() ? value.trim() : undefined
-);
+const stationBriefingRunSchema = z.object({
+	stationId: z.string().trim().min(1).max(200),
+	mode: z.enum(['brief', 'deep']).optional(),
+}).strict();
 
-const isSourceType = (value: unknown): value is SourceType => (
-  typeof value === 'string' && sourceTypes.includes(value as SourceType)
-);
+const httpUrlSchema = z.string().trim().url().max(2048).refine(value => {
+	const url = new URL(value);
+	return (url.protocol === 'http:' || url.protocol === 'https:') && !hasEmbeddedUrlCredential(url);
+}, {message: 'original URL must use http or https'});
 
-const isSourceStatus = (value: unknown): value is SourceStatus => (
-  typeof value === 'string' && sourceStatuses.includes(value as SourceStatus)
-);
+const noteSchema = z.object({
+	title: z.string().trim().min(1).max(200),
+	body: z.string().trim().min(1).max(50_000),
+	author: z.string().trim().min(1).max(200).optional(),
+	originalUrl: httpUrlSchema.optional(),
+}).strict();
 
-const isOneOf = <T extends string>(value: unknown, options: readonly T[]): value is T => (
-  typeof value === 'string' && options.includes(value as T)
-);
+const stationSchema = z.object({
+	name: z.string().trim().min(1).max(200),
+	topicInstruction: z.string().trim().min(1).max(4_000),
+	defaultMode: z.enum(['brief', 'deep']),
+	briefLengthPreset: z.enum(['compact', 'standard']).optional().default(defaultBriefLengthPreset),
+	noteIds: z.array(z.string().trim().min(1).max(200)).max(200),
+	sourceIds: z.array(z.string().trim().min(1).max(200)).max(20),
+}).strict();
 
-const validateProviderConfig = (value: unknown, fieldName: string): ValidationResult<void> => {
-  if (value === undefined) return {ok: true, value: undefined};
-  if (!isRecord(value)) return {ok: false, error: `${fieldName} must be an object`};
+const chatQuestionSchema = z.object({question: z.string()}).strict();
 
-  for (const key of ['apiKey', 'model', 'baseUrl']) {
-    if (value[key] !== undefined && typeof value[key] !== 'string') {
-      return {ok: false, error: `${fieldName}.${key} must be a string`};
-    }
-  }
+const idempotencyKeySchema = z.string().refine(value => (
+	value === value.trim() && isBoundedLocalCastText(value, 8, 200)
+), {message: 'Idempotency-Key must contain between 8 and 200 valid characters without surrounding whitespace'});
 
-  return {ok: true, value: undefined};
+const settingsSchema = z.object({
+	orbTheme: z.string().trim().min(1).max(80).optional(),
+	theme: z.enum(['system', 'light', 'dark']),
+	contrastMode: z.enum(['normal', 'high']),
+	colorVisionMode: z.enum(['default', 'protanopia', 'deuteranopia', 'tritanopia', 'achromatopsia']),
+	textSize: z.enum(['small', 'normal', 'large', 'extra-large']),
+	density: z.enum(['compact', 'normal', 'comfortable']),
+}).strict();
+
+const openAiCredentialSchema = z.object({apiKey: openAiApiKeySchema}).strict();
+
+const parse = <T>(schema: z.ZodType<T>, value: unknown): ValidationResult<T> => {
+	const result = schema.safeParse(value);
+	if (result.success) return {ok: true, value: result.data};
+
+	return {ok: false, error: result.error.issues[0]?.message || 'Request validation failed'};
 };
 
-export const parseCreateSourceInput = (body: unknown): ValidationResult<CreateSourceInput> => {
-  if (!isRecord(body)) return {ok: false, error: 'source body must be an object'};
-  if (!isSourceType(body.type)) return {ok: false, error: 'type must be a valid source type'};
-
-  const name = optionalString(body.name);
-  if (!name) return {ok: false, error: 'name is required'};
-
-  const url = optionalString(body.url);
-  const description = optionalString(body.description);
-
-  if (body.type === 'rss' && !url) {
-    return {ok: false, error: 'url is required for rss sources'};
-  }
-
-  if (body.type === 'manual_topic' && !description) {
-    return {ok: false, error: 'description is required for manual topic sources'};
-  }
-
-  return {
-    ok: true,
-    value: {
-      type: body.type,
-      name,
-      url,
-      description,
-      category: optionalString(body.category),
-      isActive: typeof body.isActive === 'boolean' ? body.isActive : true,
-      status: isSourceStatus(body.status) ? body.status : 'healthy',
-    },
-  };
-};
+export const parseCreateSourceInput = (body: unknown): ValidationResult<CreateSourceInput> => parse(createSourceSchema as z.ZodType<CreateSourceInput>, body);
 
 export const parseUpdateSourceInput = (body: unknown): ValidationResult<UpdateSourceInput> => {
-  if (!isRecord(body)) return {ok: false, error: 'source update body must be an object'};
-
-  const input: UpdateSourceInput = {};
-
-  if (body.type !== undefined) {
-    if (!isSourceType(body.type)) return {ok: false, error: 'type must be a valid source type'};
-    input.type = body.type;
-  }
-
-  if (body.name !== undefined) {
-    const name = optionalString(body.name);
-    if (!name) return {ok: false, error: 'name must be a non-empty string'};
-    input.name = name;
-  }
-
-  if (body.url !== undefined) {
-    if (body.url !== null && typeof body.url !== 'string') return {ok: false, error: 'url must be a string'};
-    input.url = optionalString(body.url);
-  }
-
-  if (body.description !== undefined) {
-    if (body.description !== null && typeof body.description !== 'string') return {ok: false, error: 'description must be a string'};
-    input.description = optionalString(body.description);
-  }
-
-  if (body.category !== undefined) {
-    if (body.category !== null && typeof body.category !== 'string') return {ok: false, error: 'category must be a string'};
-    input.category = optionalString(body.category);
-  }
-
-  if (body.isActive !== undefined) {
-    if (typeof body.isActive !== 'boolean') return {ok: false, error: 'isActive must be a boolean'};
-    input.isActive = body.isActive;
-  }
-
-  if (body.status !== undefined) {
-    if (!isSourceStatus(body.status)) return {ok: false, error: 'status must be a valid source status'};
-    input.status = body.status;
-  }
-
-  if (Object.keys(input).length === 0) {
-    return {ok: false, error: 'at least one source field is required'};
-  }
-
-  return {ok: true, value: input};
+	const parsed = parse(updateSourceSchema, body);
+	if (!parsed.ok) return parsed;
+	return {ok: true, value: parsed.value};
 };
 
-export const parseBriefingRunRequest = (body: unknown): ValidationResult<{sourceIds: string[]}> => {
-  if (body === undefined || body === null) return {ok: true, value: {sourceIds: []}};
-  if (!isRecord(body)) return {ok: false, error: 'briefing run body must be an object'};
-  if (body.sourceIds === undefined) return {ok: true, value: {sourceIds: []}};
-  if (!Array.isArray(body.sourceIds) || !body.sourceIds.every(id => typeof id === 'string' && id.trim())) {
-    return {ok: false, error: 'sourceIds must be an array of source id strings'};
-  }
+export type BriefingRunRequest = {stationId: string; mode?: EpisodeMode};
 
-  return {ok: true, value: {sourceIds: body.sourceIds.map(id => id.trim())}};
+export const parseBriefingRunRequest = (body: unknown): ValidationResult<BriefingRunRequest> => parse(stationBriefingRunSchema, body);
+
+export const parseNoteBody = (body: unknown): ValidationResult<SaveNoteInput> => parse(noteSchema, body);
+
+export const parseStationBody = (body: unknown): ValidationResult<SaveStationInput> => parse(stationSchema, body);
+
+export const parseIdempotencyKey = (value: unknown): ValidationResult<string | undefined> => {
+	if (value === undefined) return {ok: true, value: undefined};
+	return parse(idempotencyKeySchema, value);
 };
 
-export const parseFollowUpRequest = (body: unknown): ValidationResult<{question: string; context?: string; runId?: string}> => {
-  if (!isRecord(body)) return {ok: false, error: 'follow-up body must be an object'};
-
-  const question = optionalString(body.question);
-  if (!question) return {ok: false, error: 'question is required'};
-
-  if (body.context !== undefined && typeof body.context !== 'string') {
-    return {ok: false, error: 'context must be a string'};
-  }
-
-  if (body.runId !== undefined && typeof body.runId !== 'string') {
-    return {ok: false, error: 'runId must be a string'};
-  }
-
-  return {
-    ok: true,
-    value: {
-      question,
-      context: optionalString(body.context),
-      runId: optionalString(body.runId),
-    },
-  };
+export const parseChatQuestionRequest = (body: unknown): ValidationResult<{question: string}> => {
+	const parsed = parse(chatQuestionSchema, body);
+	if (!parsed.ok) return parsed;
+	const question = parsed.value.question.trim();
+	if (!isWellFormedLocalCastText(parsed.value.question) || !isBoundedLocalCastText(question, 1, 1_000)) {
+		return {ok: false, error: 'Question must contain between 1 and 1000 well-formed characters'};
+	}
+	return {ok: true, value: {question}};
 };
 
-export const parseSettingsBody = (body: unknown): ValidationResult<AppSettings> => {
-  if (!isRecord(body)) return {ok: false, error: 'settings body must be an object'};
+export const parseSettingsBody = (body: unknown): ValidationResult<Partial<AppSettings>> => parse(settingsSchema, body);
 
-  const configValidation = validateProviderConfig(body.aiConfig, 'aiConfig');
-  if (configValidation.ok === false) return {ok: false, error: configValidation.error};
-
-  const ttsConfigValidation = validateProviderConfig(body.ttsConfig, 'ttsConfig');
-  if (ttsConfigValidation.ok === false) return {ok: false, error: ttsConfigValidation.error};
-
-  const enumChecks: Array<[string, unknown, readonly string[]]> = [
-    ['aiProvider', body.aiProvider, aiProviders],
-    ['ttsProvider', body.ttsProvider, ttsProviders],
-    ['theme', body.theme, themes],
-    ['contrastMode', body.contrastMode, contrastModes],
-    ['colorVisionMode', body.colorVisionMode, colorVisionModes],
-    ['textSize', body.textSize, textSizes],
-    ['density', body.density, densities],
-  ];
-
-  for (const [fieldName, value, options] of enumChecks) {
-    if (value !== undefined && !isOneOf(value, options)) {
-      return {ok: false, error: `${fieldName} has an invalid value`};
-    }
-  }
-
-  if (body.scheduleTime !== undefined && typeof body.scheduleTime !== 'string') {
-    return {ok: false, error: 'scheduleTime must be a string'};
-  }
-
-  if (body.isScheduleActive !== undefined && typeof body.isScheduleActive !== 'boolean') {
-    return {ok: false, error: 'isScheduleActive must be a boolean'};
-  }
-
-  if (body.orbTheme !== undefined && typeof body.orbTheme !== 'string') {
-    return {ok: false, error: 'orbTheme must be a string'};
-  }
-
-  return {ok: true, value: body as unknown as AppSettings};
-};
+export const parseOpenAiCredentialBody = (body: unknown): ValidationResult<{apiKey: string}> => parse(openAiCredentialSchema, body);

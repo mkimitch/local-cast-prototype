@@ -1,0 +1,152 @@
+import {z} from 'zod';
+
+export const jobPhases = ['queued', 'syncing', 'selecting', 'drafting', 'validating', 'rendering_audio', 'complete', 'failed'] as const;
+export const activeJobPhases = ['syncing', 'selecting', 'drafting', 'validating', 'rendering_audio'] as const;
+const legacyGenerationJobPayloadSchema = z.object({
+	version: z.literal(1),
+	sourceIds: z.array(z.string().min(1)).max(200),
+	requestedAt: z.iso.datetime(),
+}).strict();
+
+const stationGenerationJobPayloadSchema = z.object({
+	version: z.literal(2),
+	requestId: z.string().min(1).max(200),
+	requestedAt: z.iso.datetime(),
+}).strict();
+
+export const generationJobPayloadSchema = z.discriminatedUnion('version', [
+	legacyGenerationJobPayloadSchema,
+	stationGenerationJobPayloadSchema,
+]);
+
+export type JobPhase = typeof jobPhases[number];
+export type ActiveJobPhase = typeof activeJobPhases[number];
+export type JobState = 'queued' | 'running' | 'complete' | 'failed';
+export type GenerationJobPayload = z.infer<typeof generationJobPayloadSchema>;
+export type ProviderStatusImpact = 'preserve' | 'failure';
+
+export interface GenerationDiagnostic {
+	stage: 'evidence_catalog' | 'citation_reference_resolution' | 'citation_validation' | 'semantic_support' | 'length_validation';
+	category:
+		| 'uncitable_body'
+		| 'unknown_reference'
+		| 'repeated_reference'
+		| 'repeated_snapshot'
+		| 'uncited_claim'
+		| 'invalid_membership'
+		| 'unsupported_claims'
+		| 'length_out_of_range';
+	sectionIndex?: number;
+	segmentIndex?: number;
+	citationIndex?: number;
+	referenceCount?: number;
+	rejectedCount?: number;
+	actualWords?: number;
+	minimumWords?: number;
+	maximumWords?: number;
+	direction?: 'below' | 'above';
+}
+
+export const compactEditorialLengthWarningCode = 'COMPACT_EDITORIAL_LENGTH_BELOW_PREFERRED' as const;
+
+export const editorialLengthWarningSchema = z.object({
+	code: z.literal(compactEditorialLengthWarningCode),
+	category: z.literal('editorial_length'),
+	actualWords: z.number().int().min(0).max(100_000),
+	preferredMinimumWords: z.number().int().min(0).max(100_000),
+	preferredMaximumWords: z.number().int().min(0).max(100_000),
+}).strict();
+
+export type EditorialLengthWarning = z.infer<typeof editorialLengthWarningSchema>;
+
+export const serializeEditorialLengthWarning = (warning: EditorialLengthWarning): string => JSON.stringify(editorialLengthWarningSchema.parse(warning));
+
+export const parseEditorialLengthWarning = (value: string | undefined): EditorialLengthWarning | undefined => {
+	if (!value) return undefined;
+	try {
+		const parsed = editorialLengthWarningSchema.safeParse(JSON.parse(value) as unknown);
+		return parsed.success ? parsed.data : undefined;
+	} catch {
+		return undefined;
+	}
+};
+
+const boundedDiagnosticNumber = (value: number | undefined): number | undefined => (
+	Number.isSafeInteger(value) && value !== undefined && value >= 0 && value <= 10_000 ? value : undefined
+);
+
+const boundedWordCount = (value: number | undefined): number | undefined => (
+	Number.isSafeInteger(value) && value !== undefined && value >= 0 && value <= 100_000 ? value : undefined
+);
+
+export const serializeGenerationDiagnostic = (code: string, diagnostic?: GenerationDiagnostic): string => {
+	if (!diagnostic) return code;
+	return JSON.stringify({
+		code,
+		stage: diagnostic.stage,
+		category: diagnostic.category,
+		sectionIndex: boundedDiagnosticNumber(diagnostic.sectionIndex),
+		segmentIndex: boundedDiagnosticNumber(diagnostic.segmentIndex),
+		citationIndex: boundedDiagnosticNumber(diagnostic.citationIndex),
+		referenceCount: boundedDiagnosticNumber(diagnostic.referenceCount),
+		rejectedCount: boundedDiagnosticNumber(diagnostic.rejectedCount),
+		actualWords: boundedWordCount(diagnostic.actualWords),
+		minimumWords: boundedWordCount(diagnostic.minimumWords),
+		maximumWords: boundedWordCount(diagnostic.maximumWords),
+		direction: diagnostic.direction === 'below' || diagnostic.direction === 'above' ? diagnostic.direction : undefined,
+	});
+};
+
+export class GenerationError extends Error {
+	constructor(
+		public readonly code: string,
+		public readonly safeMessage: string,
+		public readonly retryable: boolean,
+		public readonly providerStatusImpact: ProviderStatusImpact = 'preserve',
+		public readonly diagnostic?: GenerationDiagnostic,
+	) {
+		super(safeMessage);
+		this.name = 'GenerationError';
+	}
+}
+
+export interface GenerationJob {
+	id: string;
+	runId: string;
+	idempotencyKey?: string;
+	payload: GenerationJobPayload;
+	state: JobState;
+	phase: JobPhase;
+	attemptCount: number;
+	leaseOwner?: string;
+	leaseExpiresAt?: string;
+	errorCode?: string;
+	errorMessage?: string;
+	failedPhase?: ActiveJobPhase;
+	retryable: boolean;
+	createdAt: string;
+	updatedAt: string;
+	startedAt?: string;
+	completedAt?: string;
+}
+
+export interface JobAttempt {
+	id: string;
+	jobId: string;
+	attemptNumber: number;
+	workerId: string;
+	startedAt: string;
+	finishedAt?: string;
+	outcome: 'running' | 'complete' | 'failed' | 'interrupted' | 'recovered';
+	errorCode?: string;
+	errorMessage?: string;
+}
+
+export interface JobEvent {
+	id: number;
+	jobId: string;
+	attemptNumber?: number;
+	phase: JobPhase;
+	detail?: string;
+	createdAt: string;
+}

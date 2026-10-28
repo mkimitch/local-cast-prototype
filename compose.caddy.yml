@@ -1,0 +1,14 @@
+# Production attachment for the operator-owned Caddy boundary. Only the app
+# joins the external proxy network; the worker remains on LocalCast's network.
+services:
+  app:
+    networks:
+      default:
+      caddy:
+        aliases:
+          - localcast-app
+
+networks:
+  caddy:
+    external: true
+    name: ${LOCALCAST_CADDY_NETWORK:-caddy_default}

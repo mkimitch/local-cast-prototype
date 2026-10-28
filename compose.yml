@@ -1,0 +1,97 @@
+x-localcast-common: &localcast-common
+  image: localcast:${LOCALCAST_IMAGE_TAG:-prototype}
+  build:
+    context: .
+    dockerfile: Dockerfile
+  environment: &localcast-environment
+    NODE_ENV: production
+    LOCALCAST_RUNTIME_MODE: production
+    LOCALCAST_HOST: 0.0.0.0
+    PORT: "8787"
+    DATABASE_PATH: /var/lib/localcast/data/localcast.sqlite
+    MEDIA_PATH: /var/lib/localcast/media
+    LOCALCAST_WEB_DIST_PATH: /app/dist
+    LOCALCAST_INSTALLATION_ID: ${LOCALCAST_INSTALLATION_ID:?Set a unique LocalCast installation ID}
+    LOCALCAST_TRUSTED_ORIGINS: ${LOCALCAST_TRUSTED_ORIGINS:?Set the exact Caddy origin}
+    TEXT_PROVIDER: ${TEXT_PROVIDER:-openai}
+    SPEECH_PROVIDER: ${SPEECH_PROVIDER:-openai}
+    OPENAI_TEXT_MODEL: ${OPENAI_TEXT_MODEL:-gpt-5.4-mini}
+    OPENAI_REASONING_EFFORT: ${OPENAI_REASONING_EFFORT:-low}
+    OPENAI_SPEECH_MODEL: ${OPENAI_SPEECH_MODEL:-gpt-4o-mini-tts}
+    OPENAI_SPEECH_VOICE: ${OPENAI_SPEECH_VOICE:-marin}
+    OPENAI_SPEECH_FORMAT: ${OPENAI_SPEECH_FORMAT:-mp3}
+    FFPROBE_PATH: /usr/bin/ffprobe
+    FFMPEG_PATH: /usr/bin/ffmpeg
+    LOCALCAST_ALLOW_FAKE_PROVIDERS: "false"
+    LOCALCAST_RSS_PRIVATE_HOSTS: ${LOCALCAST_RSS_PRIVATE_HOSTS:-}
+  volumes:
+    - localcast_data:/var/lib/localcast/data
+    - localcast_media:/var/lib/localcast/media
+  read_only: true
+  tmpfs:
+    - /tmp:size=64m,mode=1777
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  logging:
+    driver: json-file
+    options:
+      max-size: 10m
+      max-file: "5"
+  stop_grace_period: 30s
+
+services:
+  storage-init:
+    <<: *localcast-common
+    profiles: ["init"]
+    command: ["node", "dist-server/storageInit.js"]
+    environment:
+      <<: *localcast-environment
+      LOCALCAST_PROCESS_ROLE: storage-init
+    restart: "no"
+
+  app:
+    <<: *localcast-common
+    command: ["node", "dist-server/index.js"]
+    environment:
+      <<: *localcast-environment
+      LOCALCAST_PROCESS_ROLE: app
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:?Set the canonical LocalCast HTTPS origin}
+      LOCALCAST_PODCAST_TOKEN_FILE: /run/secrets/localcast-podcast-token
+    secrets:
+      - source: localcast_podcast_token
+        target: localcast-podcast-token
+    expose:
+      - "8787"
+    healthcheck:
+      test: ["CMD", "node", "-e", "const http=require('node:http');const origin=new URL(process.env.PUBLIC_BASE_URL);const req=http.request({host:'127.0.0.1',port:8787,path:'/api/health',headers:{Host:origin.host}},res=>{res.resume();if(res.statusCode!==200)process.exitCode=1});req.on('error',()=>process.exit(1));req.end()"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+      start_period: 2s
+    restart: unless-stopped
+
+  worker:
+    <<: *localcast-common
+    command: ["node", "dist-server/worker.js"]
+    environment:
+      <<: *localcast-environment
+      LOCALCAST_PROCESS_ROLE: worker
+      LOCALCAST_WORKER_ID: compose-worker
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    healthcheck:
+      test: ["CMD", "node", "-e", "const fs=require('node:fs');const cmd=fs.readFileSync('/proc/1/cmdline','utf8');if(!cmd.includes('worker.js')||!fs.existsSync(process.env.DATABASE_PATH))process.exit(1)"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+      start_period: 2s
+    restart: unless-stopped
+
+volumes:
+  localcast_data:
+  localcast_media:
+
+secrets:
+  localcast_podcast_token:
+    file: ${LOCALCAST_PODCAST_TOKEN_SOURCE:-./.secrets/podcast-token}

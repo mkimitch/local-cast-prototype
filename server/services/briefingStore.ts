@@ -1,11 +1,23 @@
 import type {AudioAsset, BriefingRun, BriefingSection, RunStatus} from '../../src/types';
+import type Database from 'better-sqlite3';
 import {db} from '../database/index';
-import {sourceStore} from './sourceStore';
+import {parseEditorialLengthWarning} from '../jobs/types';
 
 const cloneRun = (run: BriefingRun): BriefingRun => ({
 	...run,
-	sections: run.sections.map(section => ({...section, followUpPrompts: [...section.followUpPrompts], sourceItemIds: [...section.sourceItemIds]})),
+	sections: run.sections.map(section => ({
+		...section,
+		followUpPrompts: [...section.followUpPrompts],
+		sourceItemIds: [...section.sourceItemIds],
+		segments: section.segments?.map(segment => ({
+			...segment,
+			citations: segment.citations.map(citation => ({...citation})),
+		})),
+	})),
 	audioAsset: run.audioAsset ? {...run.audioAsset} : undefined,
+	station: run.station ? {...run.station} : undefined,
+	providers: run.providers ? {text: {...run.providers.text}, speech: {...run.providers.speech}} : undefined,
+	warnings: run.warnings?.map(warning => ({...warning})),
 });
 
 type BriefingRunRow = {
@@ -15,6 +27,17 @@ type BriefingRunRow = {
 	created_at: string;
 	completed_at: string | null;
 	summary: string | null;
+	mode: BriefingRun['mode'] | null;
+	station_id_snapshot: string | null;
+	station_name_snapshot: string | null;
+	station_revision: number | null;
+	text_provider: string | null;
+	text_model: string | null;
+	speech_provider: string | null;
+	speech_model: string | null;
+	speech_voice: string | null;
+	ai_generated: number;
+	script_format_version: 1 | null;
 };
 
 type BriefingSectionRow = {
@@ -32,33 +55,36 @@ type AudioAssetRow = {
 	url: string;
 	duration_ms: number;
 	format: string;
+	mime_type: string | null;
+	byte_length: number | null;
+	sha256: string | null;
+	validated_at: string | null;
+	provider: string | null;
+	model: string | null;
+	voice: string | null;
+	ai_generated: number;
 };
 
-const initialRun: BriefingRun = {
-	id: 'run-1',
-	title: 'Morning Briefing',
-	status: 'complete',
-	createdAt: new Date(Date.now() - 86400000).toISOString(),
-	completedAt: new Date(Date.now() - 86400000 + 300000).toISOString(),
-	summary: "A quick overview of today's top stories in AI and tech startups.",
-	audioAsset: {id: 'audio-1', url: '#', durationMs: 270000, format: 'mp3'},
-	sections: [
-		{
-			id: 'sec-1',
-			title: 'Technology & Startups',
-			type: 'news_summary',
-			spokenText:
-				"In today's top news from TechCrunch, several major funding rounds were announced in the autonomous vehicle space. Analysts note that this signals a resurgence in hard-tech investments. Meanwhile, the AI sector continues to dominate headlines with the release of new models focused on reasoning over pure generation.",
-			sourceItemIds: ['src-1', 'src-2'],
-			importanceScore: 8,
-			followUpPrompts: ['What were the specific funding rounds mentioned?', 'Can you elaborate on the new reasoning models?'],
-		},
-	],
+type ClaimRow = {
+	id: string;
+	kind: 'factual' | 'transition';
+	text: string;
+	support_status: 'supported' | 'not_required';
+	speaker_role: 'host';
+	speaker_label: string | null;
+	voice_profile: string | null;
 };
 
-const initialRunSourceIds = ['src-1', 'src-2'];
-
-const createId = (prefix: string): string => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+type CitationRow = {
+	snapshot_id: string;
+	title: string;
+	kind: 'note' | 'feed';
+	source_name_snapshot: string | null;
+	excerpt: string;
+	author: string | null;
+	original_url: string | null;
+	published_at: string | null;
+};
 
 const parseStringArray = (value: string): string[] => {
 	try {
@@ -81,64 +107,37 @@ const sectionFromRow = (row: BriefingSectionRow): BriefingSection => ({
 
 const audioAssetFromRow = (row: AudioAssetRow): AudioAsset => ({
 	id: row.id,
-	url: row.url,
+	url: `/media/${encodeURIComponent(row.id)}`,
 	durationMs: row.duration_ms,
 	format: row.format,
+	mimeType: row.mime_type || undefined,
+	byteLength: row.byte_length ?? undefined,
+	sha256: row.sha256 || undefined,
+	validatedAt: row.validated_at || undefined,
+	provider: row.provider || undefined,
+	model: row.model || undefined,
+	voice: row.voice || undefined,
+	aiGenerated: row.ai_generated === 1,
 });
 
-class BriefingStore {
-	constructor() {
-		sourceStore.listSources();
-		this.seedRunsIfEmpty();
-	}
-
-	private seedRunsIfEmpty(): void {
-		const row = db.prepare('SELECT COUNT(*) AS count FROM briefing_runs').get() as {count: number};
-		if (row.count > 0) return;
-
-		const seed = db.transaction(() => {
-			this.insertRun(initialRun);
-			this.replaceRunSourceIds(initialRun.id, initialRunSourceIds);
-			this.replaceSections(initialRun.id, initialRun.sections);
-			if (initialRun.audioAsset) this.replaceAudioAsset(initialRun.id, initialRun.audioAsset);
-		});
-
-		seed();
-	}
+export class BriefingStore {
+	constructor(private readonly database: Database.Database = db) {}
 
 	listRuns(): BriefingRun[] {
-		const rows = db.prepare('SELECT * FROM briefing_runs ORDER BY datetime(created_at) DESC').all() as BriefingRunRow[];
+		const rows = this.database.prepare('SELECT * FROM briefing_runs ORDER BY datetime(created_at) DESC').all() as BriefingRunRow[];
 		return rows.map(row => cloneRun(this.hydrateRun(row)));
 	}
 
 	getRun(id: string): BriefingRun | undefined {
-		const row = db.prepare('SELECT * FROM briefing_runs WHERE id = ?').get(id) as BriefingRunRow | undefined;
+		const row = this.database.prepare('SELECT * FROM briefing_runs WHERE id = ?').get(id) as BriefingRunRow | undefined;
 		return row ? cloneRun(this.hydrateRun(row)) : undefined;
-	}
-
-	createRun(sourceIds: string[]): BriefingRun {
-		const run: BriefingRun = {
-			id: createId('run'),
-			title: `Briefing - ${new Date().toLocaleDateString()}`,
-			status: 'queued',
-			createdAt: new Date().toISOString(),
-			sections: [],
-		};
-
-		const create = db.transaction(() => {
-			this.insertRun(run);
-			this.replaceRunSourceIds(run.id, sourceIds);
-		});
-
-		create();
-		return cloneRun(run);
 	}
 
 	updateRun(id: string, patch: Partial<BriefingRun>): BriefingRun | undefined {
 		const current = this.getRun(id);
 		if (!current) return undefined;
 
-		const update = db.transaction(() => {
+		const update = this.database.transaction(() => {
 			const assignments: string[] = [];
 			const values: Record<string, string | null> = {id};
 
@@ -168,7 +167,7 @@ class BriefingStore {
 			}
 
 			if (assignments.length > 0) {
-				db.prepare(`UPDATE briefing_runs SET ${assignments.join(', ')} WHERE id = @id`).run(values);
+				this.database.prepare(`UPDATE briefing_runs SET ${assignments.join(', ')} WHERE id = @id`).run(values);
 			}
 
 			if (patch.sections !== undefined) this.replaceSections(id, patch.sections);
@@ -184,13 +183,13 @@ class BriefingStore {
 	}
 
 	getRunSourceIds(id: string): string[] {
-		const rows = db.prepare('SELECT source_id FROM briefing_run_sources WHERE run_id = ? ORDER BY source_id').all(id) as {source_id: string}[];
+		const rows = this.database.prepare('SELECT source_id FROM briefing_run_sources WHERE run_id = ? ORDER BY source_id').all(id) as {source_id: string}[];
 		return rows.map(row => row.source_id);
 	}
 
 	private hydrateRun(row: BriefingRunRow): BriefingRun {
-		const sectionRows = db.prepare('SELECT * FROM briefing_sections WHERE run_id = ? ORDER BY sort_order ASC').all(row.id) as BriefingSectionRow[];
-		const audioRow = db.prepare('SELECT * FROM audio_assets WHERE run_id = ?').get(row.id) as AudioAssetRow | undefined;
+		const sectionRows = this.database.prepare('SELECT * FROM briefing_sections WHERE run_id = ? ORDER BY sort_order ASC').all(row.id) as BriefingSectionRow[];
+		const audioRow = this.database.prepare('SELECT * FROM audio_assets WHERE run_id = ?').get(row.id) as AudioAssetRow | undefined;
 
 		return {
 			id: row.id,
@@ -199,36 +198,117 @@ class BriefingStore {
 			createdAt: row.created_at,
 			completedAt: row.completed_at || undefined,
 			summary: row.summary || undefined,
-			sections: sectionRows.map(sectionFromRow),
+			sections: sectionRows.map(section => ({...sectionFromRow(section), segments: this.hydrateSegments(section.id)})),
 			audioAsset: audioRow ? audioAssetFromRow(audioRow) : undefined,
+			scriptFormatVersion: row.script_format_version === 1 ? 1 : undefined,
+			warnings: this.hydrateWarnings(row.id, row.status),
+			mode: row.mode || undefined,
+			station: row.station_id_snapshot && row.station_name_snapshot && row.station_revision
+				? {id: row.station_id_snapshot, name: row.station_name_snapshot, revision: row.station_revision}
+				: undefined,
+			providers: row.text_provider && row.text_model && row.speech_provider && row.speech_model
+				? {
+					text: {adapter: row.text_provider, model: row.text_model},
+					speech: {adapter: row.speech_provider, model: row.speech_model, voice: row.speech_voice || undefined},
+				}
+				: undefined,
+			aiGenerated: row.ai_generated === 1,
 		};
 	}
 
-	private insertRun(run: BriefingRun): void {
-		db.prepare(`
-			INSERT INTO briefing_runs (id, title, status, created_at, completed_at, summary)
-			VALUES (@id, @title, @status, @createdAt, @completedAt, @summary)
-		`).run({
-			id: run.id,
-			title: run.title,
-			status: run.status,
-			createdAt: run.createdAt,
-			completedAt: run.completedAt ?? null,
-			summary: run.summary ?? null,
+	private hydrateSegments(sectionId: string): NonNullable<BriefingSection['segments']> {
+		const claims = this.database.prepare('SELECT * FROM transcript_claims WHERE section_id = ? ORDER BY sort_order').all(sectionId) as ClaimRow[];
+		return claims.map(claim => {
+			const citations = this.database.prepare(`
+				SELECT ec.snapshot_id, ec.excerpt, ees.title, ees.kind, ees.source_name_snapshot,
+					ees.author, ees.original_url, ees.published_at
+				FROM episode_citations ec
+				JOIN episode_evidence_snapshots ees ON ees.id = ec.snapshot_id
+				WHERE ec.claim_id = ?
+				ORDER BY ec.sort_order
+			`).all(claim.id) as CitationRow[];
+			return {
+				id: claim.id,
+				kind: claim.kind,
+				text: claim.text,
+				supportStatus: claim.support_status,
+				speakerRole: claim.speaker_role,
+				speakerLabel: claim.speaker_label || undefined,
+				voiceProfile: claim.voice_profile || undefined,
+				citations: citations.map(citation => ({
+					snapshotId: citation.snapshot_id,
+					title: citation.title,
+					sourceName: citation.source_name_snapshot || (citation.kind === 'note' ? 'Pasted note' : 'RSS/Atom source'),
+					kind: citation.kind,
+					excerpt: citation.excerpt,
+					author: citation.author || undefined,
+					originalUrl: citation.original_url || undefined,
+					publishedAt: citation.published_at || undefined,
+				})),
+			};
 		});
 	}
 
-	private replaceRunSourceIds(runId: string, sourceIds: string[]): void {
-		db.prepare('DELETE FROM briefing_run_sources WHERE run_id = ?').run(runId);
-
-		const insert = db.prepare('INSERT OR IGNORE INTO briefing_run_sources (run_id, source_id) VALUES (?, ?)');
-		for (const sourceId of sourceIds) insert.run(runId, sourceId);
+	private hydrateWarnings(runId: string, status: RunStatus): NonNullable<BriefingRun['warnings']> {
+		const rows = this.database.prepare(`
+			SELECT grs.source_id_snapshot, grs.source_name_snapshot, grs.sync_error_code, grs.synced_at,
+				EXISTS (
+					SELECT 1 FROM episode_evidence_snapshots ees
+					WHERE ees.run_id = gr.run_id AND ees.source_id_snapshot = grs.source_id_snapshot
+				) AS cached_evidence_used
+			FROM generation_requests gr
+			JOIN generation_request_sources grs ON grs.request_id = gr.id
+			WHERE gr.run_id = ? AND grs.sync_status = 'error'
+			ORDER BY grs.sort_order
+		`).all(runId) as Array<{
+			source_id_snapshot: string;
+			source_name_snapshot: string | null;
+			sync_error_code: string | null;
+			synced_at: string | null;
+			cached_evidence_used: number;
+		}>;
+		const warnings: NonNullable<BriefingRun['warnings']> = rows.map(row => {
+			const sourceName = row.source_name_snapshot || 'Selected RSS/Atom source';
+			const cachedEvidenceUsed = row.cached_evidence_used === 1;
+			return {
+				kind: 'source_sync',
+				code: row.sync_error_code || 'SOURCE_SYNC_FAILED',
+				message: cachedEvidenceUsed
+					? `${sourceName} could not be refreshed; this episode used previously stored items.`
+					: `${sourceName} could not be refreshed and supplied no material to this episode.`,
+				sourceName,
+				occurredAt: row.synced_at || undefined,
+				cachedEvidenceUsed,
+			};
+		});
+		if (status !== 'complete') return warnings;
+		const eventRows = this.database.prepare(`
+			SELECT gje.detail, gje.created_at
+			FROM generation_jobs gj
+			JOIN generation_job_events gje ON gje.job_id = gj.id AND gje.attempt_number = gj.attempt_count
+			WHERE gj.run_id = ? AND gje.phase = 'validating'
+			ORDER BY gje.id
+		`).all(runId) as Array<{detail: string | null; created_at: string}>;
+		for (const row of eventRows) {
+			const warning = parseEditorialLengthWarning(row.detail ?? undefined);
+			if (!warning) continue;
+			warnings.push({
+				kind: 'editorial_length',
+				code: warning.code,
+				message: `This Compact briefing is ${warning.actualWords} published words, below the preferred ${warning.preferredMinimumWords}–${warning.preferredMaximumWords}-word editorial range.`,
+				occurredAt: row.created_at,
+				actualWords: warning.actualWords,
+				preferredMinimumWords: warning.preferredMinimumWords,
+				preferredMaximumWords: warning.preferredMaximumWords,
+			});
+		}
+		return warnings;
 	}
 
 	private replaceSections(runId: string, sections: BriefingSection[]): void {
-		db.prepare('DELETE FROM briefing_sections WHERE run_id = ?').run(runId);
+		this.database.prepare('DELETE FROM briefing_sections WHERE run_id = ?').run(runId);
 
-		const insert = db.prepare(`
+		const insert = this.database.prepare(`
 			INSERT INTO briefing_sections (
 				id,
 				run_id,
@@ -259,10 +339,10 @@ class BriefingStore {
 	}
 
 	private replaceAudioAsset(runId: string, audioAsset: AudioAsset | undefined): void {
-		db.prepare('DELETE FROM audio_assets WHERE run_id = ?').run(runId);
+		this.database.prepare('DELETE FROM audio_assets WHERE run_id = ?').run(runId);
 		if (!audioAsset) return;
 
-		db.prepare(`
+		this.database.prepare(`
 			INSERT INTO audio_assets (id, run_id, url, duration_ms, format)
 			VALUES (@id, @runId, @url, @durationMs, @format)
 		`).run({

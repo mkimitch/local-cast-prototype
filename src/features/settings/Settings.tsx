@@ -1,36 +1,112 @@
-import { useEffect, useState } from 'react';
-import { Save, Server, Mic, Key, Palette, Eye, Type, Layout, Moon, Sun, Monitor } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Save, Server, Palette, Eye, Type, Layout, Moon, Sun, Monitor, KeyRound, RefreshCw } from 'lucide-react';
 import { providerService } from '../../services';
 import { AppSettings } from '../../types';
 import { ORB_THEMES, OrbThemeName } from '../audio/OrbVisualizer';
+import PodcastSetup from './PodcastSetup';
+import SecretCredentialDialog from '../../components/layout/SecretCredentialDialog';
 
 export default function SettingsView() {
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string>();
+  const [credentialDialogOpen, setCredentialDialogOpen] = useState(false);
+  const [isTestingConnection, setIsTestingConnection] = useState(false);
+  const [providerFeedback, setProviderFeedback] = useState<{kind: 'status' | 'alert'; message: string}>();
+  const replaceCredentialButton = useRef<HTMLButtonElement>(null);
+
+  const loadSettings = async () => {
+    setError(undefined);
+    try {
+      setSettings(await providerService.getSettings());
+    } catch {
+      setError('LocalCast could not load settings from its local API.');
+    }
+  };
 
   useEffect(() => {
-    providerService.getSettings().then(setSettings);
+    void loadSettings();
   }, []);
-
-  if (!settings) return null;
 
   const handleSave = async (settingsToSave: AppSettings) => {
     setIsSaving(true);
-    await providerService.saveSettings(settingsToSave);
-    setTimeout(() => setIsSaving(false), 600);
+    setError(undefined);
+    try {
+      await providerService.saveSettings(settingsToSave);
+    } catch {
+      setError('LocalCast could not save appearance settings. Your previous server settings remain unchanged.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const updateSetting = (newSettings: AppSettings) => {
     setSettings(newSettings);
-    handleSave(newSettings);
+    void handleSave(newSettings);
   };
+
+  const closeCredentialDialog = () => {
+    setCredentialDialogOpen(false);
+    window.setTimeout(() => replaceCredentialButton.current?.focus(), 0);
+  };
+
+  const replaceOpenAiApiKey = async (apiKey: string) => {
+    await providerService.replaceOpenAiApiKey(apiKey);
+    setProviderFeedback({kind: 'status', message: 'OpenAI API key replaced. LocalCast will use it for new provider work.'});
+    closeCredentialDialog();
+    void providerService.getSettings()
+      .then(setSettings)
+      .catch(() => setProviderFeedback({
+        kind: 'alert',
+        message: 'OpenAI API key was replaced, but LocalCast could not refresh provider status. Reload Settings to try again.',
+      }));
+  };
+
+  const testOpenAiConnection = async () => {
+    setIsTestingConnection(true);
+    setProviderFeedback(undefined);
+    try {
+      const result = await providerService.testOpenAiConnection();
+      setSettings(await providerService.getSettings());
+      const labels = result.capabilities.map(capability => capability === 'text' ? 'text' : 'speech').join(' and ');
+      setProviderFeedback({kind: 'status', message: `OpenAI connection verified for ${labels}.`});
+    } catch (failure) {
+      setSettings(await providerService.getSettings().catch(() => settings));
+      setProviderFeedback({
+        kind: 'alert',
+        message: failure instanceof Error ? failure.message : 'LocalCast could not verify the OpenAI connection.',
+      });
+    } finally {
+      setIsTestingConnection(false);
+    }
+  };
+
+  if (!settings) {
+    return (
+      <div className="page page--narrow">
+        <div className="page-header page-header--bottom-aligned">
+          <div>
+            <h1 tabIndex={-1} className="page-title">Settings</h1>
+            <p className="page-description">Review private delivery and server-side provider status, then adjust appearance.</p>
+          </div>
+          <div className="saving-status" />
+        </div>
+        {error ? (
+          <div className="empty-state" role="alert">
+            <p>{error}</p>
+            <button className="button button--secondary" onClick={() => void loadSettings()}>Try again</button>
+          </div>
+        ) : <p role="status">Loading settings...</p>}
+      </div>
+    );
+  }
 
   return (
     <div className="page page--narrow">
       <div className="page-header page-header--bottom-aligned">
         <div>
-          <h1 className="page-title">Settings</h1>
-          <p className="page-description">Configure AI providers, appearance, and local integrations.</p>
+          <h1 tabIndex={-1} className="page-title">Settings</h1>
+          <p className="page-description">Review private delivery and server-side provider status, then adjust appearance.</p>
         </div>
         <div className="saving-status">
           {isSaving && (
@@ -40,6 +116,19 @@ export default function SettingsView() {
           )}
         </div>
       </div>
+
+      {error && <p className="empty-state" role="alert">{error}</p>}
+
+      {credentialDialogOpen && (
+        <SecretCredentialDialog
+          title="Replace OpenAI API key"
+          description="This replaces the installation credential for future OpenAI requests from LocalCast. It does not change completed episodes."
+          onCancel={closeCredentialDialog}
+          onReplace={replaceOpenAiApiKey}
+        />
+      )}
+
+      <PodcastSetup />
 
       <div className="card">
         <div className="card__header card__header--plain">
@@ -146,109 +235,89 @@ export default function SettingsView() {
 
       <div className="card">
         <div className="card__header card__header--plain">
-          <Server size={20} className="icon-primary" />
-          <h2 className="card__title">AI Providers (Transcription & Synthesis)</h2>
+          <Server size={20} className="icon-primary" aria-hidden="true" />
+          <h2 className="card__title">Provider Status</h2>
         </div>
         <div className="card__body settings-stack">
-          <div className="field">
-            <label className="field-label">Provider Engine</label>
-            <select 
-              value={settings.aiProvider}
-              onChange={e => updateSetting({...settings, aiProvider: e.target.value as AppSettings['aiProvider']})}
-              className="control"
-            >
-              <option value="mock">Mock Provider</option>
-              <option value="gemini_placeholder">Google Gemini</option>
-              <option value="openai_placeholder">OpenAI</option>
-              <option value="lmstudio_placeholder">LM Studio (Local)</option>
-              <option value="ollama_placeholder">Ollama (Local)</option>
-            </select>
-          </div>
-
-          {settings.aiProvider !== 'mock' && (
-            <div className="settings-stack">
-              {(settings.aiProvider === 'lmstudio_placeholder' || settings.aiProvider === 'ollama_placeholder') && (
-                <div className="field">
-                  <label className="field-label">Base URL</label>
-                  <input 
-                    type="text" 
-                    placeholder="http://localhost:11434"
-                    value={settings.aiConfig.baseUrl || ''}
-                    onChange={e => setSettings({ ...settings, aiConfig: { ...settings.aiConfig, baseUrl: e.target.value }})}
-                    onBlur={() => handleSave(settings)}
-                    className="control"
-                  />
-                </div>
-              )}
-
-              {(settings.aiProvider === 'gemini_placeholder' || settings.aiProvider === 'openai_placeholder' || settings.aiProvider === 'lmstudio_placeholder') && (
-                <div className="field">
-                  <label className="field-label">
-                    <Key size={16} className="icon-muted" />
-                    API Key
-                  </label>
-                  <input 
-                    type="password" 
-                    placeholder="sk-..."
-                    value={settings.aiConfig.apiKey || ''}
-                    onChange={e => setSettings({ ...settings, aiConfig: { ...settings.aiConfig, apiKey: e.target.value }})}
-                    onBlur={() => handleSave(settings)}
-                    className="control"
-                  />
-                  <p className="field-help">Keys are stored locally in your browser and never sent to our servers.</p>
-                </div>
-              )}
-
-              <div className="field">
-                <label className="field-label">Model Name</label>
-                <input 
-                  type="text" 
-                  placeholder="e.g. gemini-2.5-flash"
-                  value={settings.aiConfig.model || ''}
-                  onChange={e => setSettings({ ...settings, aiConfig: { ...settings.aiConfig, model: e.target.value }})}
-                  onBlur={() => handleSave(settings)}
-                  className="control"
-                />
+          <p className="field-help">
+            Provider credentials remain server-side. A replacement key is submitted once to this trusted-LAN LocalCast origin, stored in installation-private local storage, and never returned to or retained by the browser.
+          </p>
+          <p className="field-help">
+            LocalCast is a single-user service for a trusted LAN: any client admitted to the application origin is treated as an authorized operator. Supplied sources, transcripts, citations, chat history, and published audio are retained in local SQLite and media storage. Versioned backups contain that user content and media in plaintext, so protect and encrypt their destination at the host level. Backups exclude provider credentials, configured endpoints, environment files, and the podcast bearer token. The installation credential directory is also excluded; re-enter provider credentials after restore.
+          </p>
+          <p className="field-help">
+            On explicit generation, the selected server-side text provider receives station direction and supplied evidence, while the selected speech provider receives the final narration. OpenAI follow-up chat sends the question, the episode&apos;s complete frozen transcript, and all frozen supporting evidence snapshots used to construct grounding. A supported answer can use two external requests (draft plus semantic-support validation); an evidence-insufficient refusal ordinarily uses one. OpenAI provider-side response storage is disabled through <code>store: false</code>; LocalCast still keeps the ordered chat history in SQLite. LocalCast enables no provider tools, search, browsing, URL retrieval, file search, or general-knowledge fallback. Generated voices and audio are AI-generated.
+          </p>
+          <p className="field-help">
+            OpenAI follow-up chat is pinned to <code>gpt-5.4-mini-2026-03-17</code> with low reasoning effort. Each draft or support request is limited to 131,072 serialized UTF-8 bytes; LocalCast uses a conservative 139,264-token input proxy including reserve, with output ceilings of 2,500 draft tokens and 750 support tokens. A turn permits at most two provider calls per attempt, two attempts total, and four durable provider-call slots. Ambiguous external outcomes cannot be retried. Returned usage is retained only as bounded numeric and request-audit metadata.
+          </p>
+          <p className="field-help">
+            At standard rates recorded on 2026-08-07, the conservative supported-answer planning estimate is $0.223521 per attempt and $0.447042 with the single permitted explicit retry. Pricing is neither immutable nor enforced by LocalCast, actual usage may be lower, and LocalCast does not enforce an account-global budget; account and project spend limits remain an operator responsibility.
+          </p>
+          <section className="card card--padded" aria-labelledby="openai-credential-title">
+            <div className="form-card-header">
+              <div>
+                <h3 id="openai-credential-title" className="form-card-title"><KeyRound size={16} aria-hidden="true" /> OpenAI API key</h3>
+                <p className="field-help">
+                  {settings.credentials.openAi.configured
+                    ? `Configured${settings.credentials.openAi.displayHint ? ` · ${settings.credentials.openAi.displayHint}` : ' by deployment'}`
+                    : 'Not configured'}
+                </p>
               </div>
+              <span className={`badge ${settings.credentials.openAi.configured ? 'badge--success' : 'badge--warning'}`}>
+                {settings.credentials.openAi.configured ? 'Configured' : 'Not configured'}
+              </span>
             </div>
-          )}
-        </div>
-      </div>
-
-      <div className="card">
-        <div className="card__header card__header--plain">
-          <Mic size={20} className="icon-primary" />
-          <h2 className="card__title">Text-to-Speech (TTS)</h2>
-        </div>
-        <div className="card__body settings-stack">
-          <div className="field">
-            <label className="field-label">Voice Engine</label>
-            <select 
-              value={settings.ttsProvider}
-              onChange={e => updateSetting({...settings, ttsProvider: e.target.value as AppSettings['ttsProvider']})}
-              className="control"
-            >
-              <option value="local">Web Speech API (Browser Local)</option>
-              <option value="openai">OpenAI TTS</option>
-              <option value="elevenlabs">ElevenLabs</option>
-            </select>
-          </div>
-          
-          {settings.ttsProvider !== 'local' && (
-            <div className="field">
-              <label className="field-label">
-                <Key size={16} className="icon-muted" />
-                API Key
-              </label>
-              <input 
-                type="password" 
-                placeholder="Enter API Key"
-                value={settings.ttsConfig.apiKey || ''}
-                onChange={e => setSettings({ ...settings, ttsConfig: { ...settings.ttsConfig, apiKey: e.target.value }})}
-                onBlur={() => handleSave(settings)}
-                className="control"
-              />
+            <p className="field-help">A LocalCast-managed key takes precedence over the existing deployment environment key. The complete stored value is never returned.</p>
+            <div className="form-actions">
+              <button
+                ref={replaceCredentialButton}
+                type="button"
+                className="button button--secondary"
+                onClick={() => { setProviderFeedback(undefined); setCredentialDialogOpen(true); }}
+              >
+                <KeyRound size={16} aria-hidden="true" /> Replace API key
+              </button>
+              <button
+                type="button"
+                className="button button--primary"
+                onClick={() => void testOpenAiConnection()}
+                disabled={!settings.credentials.openAi.configured || isTestingConnection}
+              >
+                <RefreshCw size={16} aria-hidden="true" /> {isTestingConnection ? 'Testing…' : 'Test connection'}
+              </button>
             </div>
+            {providerFeedback && (
+              <p className="inline-notice" role={providerFeedback.kind} aria-live={providerFeedback.kind === 'status' ? 'polite' : undefined}>
+                {providerFeedback.message}
+              </p>
+            )}
+          </section>
+          <dl className="content-grid content-grid--two">
+            {(['text', 'speech'] as const).map(kind => {
+              const provider = settings.providers[kind];
+              return (
+                <div className="card card--padded" key={kind}>
+                  <dt className="field-label">{kind === 'text' ? 'Text generation' : 'Speech generation'}</dt>
+                  <dd>
+                    <strong>{provider.adapter}</strong>
+                    <p>
+                      <span className={`badge ${['NOT CONFIGURED', 'CONFIGURED UNVERIFIED'].includes(provider.status) ? 'badge--warning' : 'badge--primary'}`}>
+                        {provider.status}
+                      </span>
+                    </p>
+                    <p className="field-help">{provider.reason}</p>
+                    {provider.model && <p className="field-help">Model: {provider.model}{provider.voice ? ` · voice: ${provider.voice}` : ''}</p>}
+                    {provider.verifiedAt && <p className="field-help">Verified: {new Date(provider.verifiedAt).toLocaleString()}</p>}
+                  </dd>
+                </div>
+              );
+            })}
+          </dl>
+          {!settings.generationEnabled && (
+            <p className="empty-state" role="status">
+              Sync and generate remains disabled until both configured providers have deterministic contract evidence or current live verification.
+            </p>
           )}
         </div>
       </div>

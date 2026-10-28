@@ -1,0 +1,292 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'"><title>LocalCast local generation trace</title><style>body{max-width:1000px;margin:2rem auto;padding:0 1rem;font:16px system-ui;line-height:1.5;color:#17212b;background:#fff}pre{white-space:pre-wrap;overflow-wrap:anywhere;padding:1rem;background:#f1f3f5}summary{cursor:pointer}h2{margin-top:2rem}</style><main>
+<h1>LocalCast generation trace</h1><p>Private local diagnostic. Raw evidence can contain personal or licensed content. No scripts, remote resources, or network requests.</p>
+<p>Attempt 3878de35-57ae-4f17-b350-74fb93cab0c5 · 2026-10-15T18:22:49.963Z · expires 2026-10-16T18:22:49.963Z</p>
+<p>Status: failed. Redacted: false. Incomplete: false. A running trace with no outcome may be interrupted; it is not proof of completion.</p>
+<h2>Publication gate and observed stages</h2><pre>{
+  &quot;code&quot;: &quot;UNSUPPORTED_GENERATED_CLAIM&quot;,
+  &quot;diagnostic&quot;: {
+    &quot;stage&quot;: &quot;semantic_support&quot;,
+    &quot;category&quot;: &quot;unsupported_claims&quot;,
+    &quot;rejectedCount&quot;: 1
+  }
+}</pre><pre>[
+  &quot;drafting&quot;,
+  &quot;validating&quot;
+]</pre>
+<p>TTS reached: false. Publication entered: false. Publication commit observed: false. Unrecorded stages in running or incomplete traces are unknown.</p>
+<h2>Original generated narration and selected references</h2><p>Original extracted provider output, before canonical IDs and the local disclosure were added. For malformed output, inspect the raw draft response below.</p><pre>{&quot;sections&quot;:[{&quot;title&quot;:&quot;Fixture&quot;,&quot;type&quot;:&quot;news_summary&quot;,&quot;segments&quot;:[{&quot;kind&quot;:&quot;factual&quot;,&quot;text&quot;:&quot;A person explicitly requests each LocalCast episode. The worker processes one generation job at a time. The database retains immutable supplied evidence. Each factual statement must have a verbatim supporting excerpt. The application does not search for new material or invent missing facts.&quot;,&quot;citations&quot;:[&quot;E01&quot;]}]}]}</pre>
+<h2>Frozen source text</h2><pre>[
+  {
+    &quot;id&quot;: &quot;synthetic-snapshot&quot;,
+    &quot;kind&quot;: &quot;note&quot;,
+    &quot;title&quot;: &quot;Synthetic operational facts&quot;,
+    &quot;body&quot;: &quot;A person explicitly requests each LocalCast episode. The worker processes one generation job at a time. The database retains immutable supplied evidence. Each factual statement must have a verbatim supporting excerpt. The application does not search for new material or invent missing facts.&quot;,
+    &quot;contentSha256&quot;: &quot;40a49fdc63d0b56b9ea4f6c2802bf776264aabdec0df5e56d5bb34c9d8e45898&quot;,
+    &quot;networkScope&quot;: &quot;user_supplied&quot;
+  }
+]</pre>
+<h2>Derived catalog and exact excerpts</h2><pre>{
+  &quot;entries&quot;: [
+    {
+      &quot;reference&quot;: &quot;E01&quot;,
+      &quot;snapshotId&quot;: &quot;synthetic-snapshot&quot;,
+      &quot;originalIdentity&quot;: {
+        &quot;kind&quot;: &quot;note&quot;,
+        &quot;originalId&quot;: &quot;synthetic-snapshot&quot;,
+        &quot;contentSha256&quot;: &quot;40a49fdc63d0b56b9ea4f6c2802bf776264aabdec0df5e56d5bb34c9d8e45898&quot;
+      },
+      &quot;excerpt&quot;: &quot;A person explicitly requests each LocalCast episode. The worker processes one generation job at a time. The database retains immutable supplied evidence. Each factual statement must have a verbatim supporting excerpt. The application does not search for new material or invent missing facts.&quot;,
+      &quot;startOffset&quot;: 0,
+      &quot;endOffset&quot;: 291
+    }
+  ],
+  &quot;sources&quot;: [
+    {
+      &quot;kind&quot;: &quot;note&quot;,
+      &quot;title&quot;: &quot;Synthetic operational facts&quot;,
+      &quot;references&quot;: [
+        {
+          &quot;reference&quot;: &quot;E01&quot;,
+          &quot;excerpt&quot;: &quot;A person explicitly requests each LocalCast episode. The worker processes one generation job at a time. The database retains immutable supplied evidence. Each factual statement must have a verbatim supporting excerpt. The application does not search for new material or invent missing facts.&quot;
+        }
+      ]
+    }
+  ]
+}</pre>
+<h2>Claims and claimed supporting evidence</h2><p>Canonical claim IDs, text, and excerpts. The provisional supportStatus in transformed sections is not a classifier decision.</p><pre>[
+  {
+    &quot;id&quot;: &quot;section-synthetic-run-disclosure&quot;,
+    &quot;title&quot;: &quot;AI audio disclosure&quot;,
+    &quot;type&quot;: &quot;intro&quot;,
+    &quot;segments&quot;: [
+      {
+        &quot;id&quot;: &quot;claim-synthetic-run-disclosure&quot;,
+        &quot;kind&quot;: &quot;transition&quot;,
+        &quot;text&quot;: &quot;This LocalCast audio was generated by AI.&quot;,
+        &quot;citations&quot;: [],
+        &quot;supportStatus&quot;: &quot;not_required&quot;,
+        &quot;speakerRole&quot;: &quot;host&quot;
+      }
+    ]
+  },
+  {
+    &quot;id&quot;: &quot;section-synthetic-run-0&quot;,
+    &quot;title&quot;: &quot;Source summary&quot;,
+    &quot;type&quot;: &quot;news_summary&quot;,
+    &quot;segments&quot;: [
+      {
+        &quot;id&quot;: &quot;claim-synthetic-run-0-0&quot;,
+        &quot;kind&quot;: &quot;factual&quot;,
+        &quot;text&quot;: &quot;A person explicitly requests each LocalCast episode. The worker processes one generation job at a time. The database retains immutable supplied evidence. Each factual statement must have a verbatim supporting excerpt. The application does not search for new material or invent missing facts.&quot;,
+        &quot;citations&quot;: [
+          {
+            &quot;snapshotId&quot;: &quot;synthetic-snapshot&quot;,
+            &quot;excerpt&quot;: &quot;A person explicitly requests each LocalCast episode. The worker processes one generation job at a time. The database retains immutable supplied evidence. Each factual statement must have a verbatim supporting excerpt. The application does not search for new material or invent missing facts.&quot;
+          }
+        ],
+        &quot;supportStatus&quot;: &quot;supported&quot;,
+        &quot;speakerRole&quot;: &quot;host&quot;
+      }
+    ]
+  }
+]</pre>
+<h2>Original semantic-support result</h2><p>These are the original classifier results. Missing IDs, duplicate IDs, unsupported, and uncertain results fail closed. The current classifier schema does not request explanatory reasons.</p><pre>{
+  &quot;results&quot;: [
+    {
+      &quot;claimId&quot;: &quot;claim-synthetic-run-0-0&quot;,
+      &quot;status&quot;: &quot;uncertain&quot;
+    }
+  ]
+}</pre><pre>[
+  {
+    &quot;index&quot;: 0,
+    &quot;claimId&quot;: &quot;claim-synthetic-run-0-0&quot;,
+    &quot;status&quot;: &quot;uncertain&quot;
+  }
+]</pre>
+<h2>Offline deterministic replay</h2><p>Uses this build's parser, reference resolver, membership and length rules. No provider, speech, publication, or production-state access. Semantic support is not recomputed.</p><pre>{
+  &quot;semanticSupport&quot;: &quot;ORIGINAL VERDICT ONLY; no offline classifier was run&quot;,
+  &quot;originalVerdict&quot;: {
+    &quot;results&quot;: [
+      {
+        &quot;claimId&quot;: &quot;claim-synthetic-run-0-0&quot;,
+        &quot;status&quot;: &quot;uncertain&quot;
+      }
+    ]
+  },
+  &quot;providerRequests&quot;: 0,
+  &quot;published&quot;: false,
+  &quot;deterministic&quot;: &quot;PASS&quot;,
+  &quot;gate&quot;: &quot;complete&quot;,
+  &quot;narration&quot;: &quot;This LocalCast audio was generated by AI.\n\nA person explicitly requests each LocalCast episode. The worker processes one generation job at a time. The database retains immutable supplied evidence. Each factual statement must have a verbatim supporting excerpt. The application does not search for new material or invent missing facts.&quot;,
+  &quot;resolved&quot;: [
+    {
+      &quot;title&quot;: &quot;Fixture&quot;,
+      &quot;type&quot;: &quot;news_summary&quot;,
+      &quot;segments&quot;: [
+        {
+          &quot;kind&quot;: &quot;factual&quot;,
+          &quot;text&quot;: &quot;A person explicitly requests each LocalCast episode. The worker processes one generation job at a time. The database retains immutable supplied evidence. Each factual statement must have a verbatim supporting excerpt. The application does not search for new material or invent missing facts.&quot;,
+          &quot;citations&quot;: [
+            {
+              &quot;snapshotId&quot;: &quot;synthetic-snapshot&quot;,
+              &quot;excerpt&quot;: &quot;A person explicitly requests each LocalCast episode. The worker processes one generation job at a time. The database retains immutable supplied evidence. Each factual statement must have a verbatim supporting excerpt. The application does not search for new material or invent missing facts.&quot;
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}</pre>
+<h2>Raw artifacts</h2><details><summary>attempt — claimed generation job — 3 ms</summary><pre>{
+  &quot;jobId&quot;: &quot;synthetic-job&quot;,
+  &quot;attemptNumber&quot;: 1,
+  &quot;fixture&quot;: true
+}</pre></details><details><summary>request — synthetic fixture — 4 ms</summary><pre>{
+  &quot;id&quot;: &quot;synthetic-request&quot;,
+  &quot;runId&quot;: &quot;synthetic-run&quot;,
+  &quot;stationId&quot;: &quot;synthetic-station&quot;,
+  &quot;stationRevision&quot;: 1,
+  &quot;stationName&quot;: &quot;Synthetic example&quot;,
+  &quot;topicInstruction&quot;: &quot;Summarize the supplied facts.&quot;,
+  &quot;mode&quot;: &quot;brief&quot;,
+  &quot;briefLengthPreset&quot;: &quot;standard&quot;,
+  &quot;requestHash&quot;: &quot;synthetic-fixture&quot;,
+  &quot;requestedAt&quot;: &quot;2026-10-15T18:22:49.936Z&quot;
+}</pre></details><details><summary>evidence — synthetic fixture — 6 ms</summary><pre>[
+  {
+    &quot;id&quot;: &quot;synthetic-snapshot&quot;,
+    &quot;kind&quot;: &quot;note&quot;,
+    &quot;title&quot;: &quot;Synthetic operational facts&quot;,
+    &quot;body&quot;: &quot;A person explicitly requests each LocalCast episode. The worker processes one generation job at a time. The database retains immutable supplied evidence. Each factual statement must have a verbatim supporting excerpt. The application does not search for new material or invent missing facts.&quot;,
+    &quot;contentSha256&quot;: &quot;40a49fdc63d0b56b9ea4f6c2802bf776264aabdec0df5e56d5bb34c9d8e45898&quot;,
+    &quot;networkScope&quot;: &quot;user_supplied&quot;
+  }
+]</pre></details><details><summary>draft.request — synthetic request fixture, never transmitted — 8 ms</summary><pre>{&quot;model&quot;:&quot;synthetic-model&quot;,&quot;input&quot;:[{&quot;role&quot;:&quot;developer&quot;,&quot;content&quot;:&quot;Summarize only supplied evidence.&quot;},{&quot;role&quot;:&quot;user&quot;,&quot;content&quot;:&quot;[{\&quot;kind\&quot;:\&quot;note\&quot;,\&quot;title\&quot;:\&quot;Synthetic operational facts\&quot;,\&quot;references\&quot;:[{\&quot;reference\&quot;:\&quot;E01\&quot;,\&quot;excerpt\&quot;:\&quot;A person explicitly requests each LocalCast episode. The worker processes one generation job at a time. The database retains immutable supplied evidence. Each factual statement must have a verbatim supporting excerpt. The application does not search for new material or invent missing facts.\&quot;}]}]&quot;}]}</pre></details><details><summary>draft.response — synthetic response fixture, not a live response — 8 ms</summary><pre>{&quot;status&quot;:&quot;completed&quot;,&quot;output&quot;:[{&quot;type&quot;:&quot;message&quot;,&quot;content&quot;:[{&quot;type&quot;:&quot;output_text&quot;,&quot;text&quot;:&quot;{\&quot;sections\&quot;:[{\&quot;title\&quot;:\&quot;Fixture\&quot;,\&quot;type\&quot;:\&quot;news_summary\&quot;,\&quot;segments\&quot;:[{\&quot;kind\&quot;:\&quot;factual\&quot;,\&quot;text\&quot;:\&quot;A person explicitly requests each LocalCast episode. The worker processes one generation job at a time. The database retains immutable supplied evidence. Each factual statement must have a verbatim supporting excerpt. The application does not search for new material or invent missing facts.\&quot;,\&quot;citations\&quot;:[\&quot;E01\&quot;]}]}]}&quot;}]}]}</pre></details><details><summary>support.request — synthetic request fixture, never transmitted — 17 ms</summary><pre>{&quot;claims&quot;:[{&quot;claimId&quot;:&quot;claim-synthetic-run-0-0&quot;,&quot;claim&quot;:&quot;A person explicitly requests each LocalCast episode. The worker processes one generation job at a time. The database retains immutable supplied evidence. Each factual statement must have a verbatim supporting excerpt. The application does not search for new material or invent missing facts.&quot;,&quot;citedEvidence&quot;:[{&quot;snapshotId&quot;:&quot;synthetic-snapshot&quot;,&quot;excerpt&quot;:&quot;A person explicitly requests each LocalCast episode. The worker processes one generation job at a time. The database retains immutable supplied evidence. Each factual statement must have a verbatim supporting excerpt. The application does not search for new material or invent missing facts.&quot;}]}]}</pre></details><details><summary>support.response — explicit synthetic classifier fixture, not a semantic decision — 17 ms</summary><pre>{&quot;status&quot;:&quot;completed&quot;,&quot;output&quot;:[{&quot;type&quot;:&quot;message&quot;,&quot;content&quot;:[{&quot;type&quot;:&quot;output_text&quot;,&quot;text&quot;:&quot;{\&quot;results\&quot;:[{\&quot;claimId\&quot;:\&quot;claim-synthetic-run-0-0\&quot;,\&quot;status\&quot;:\&quot;uncertain\&quot;}]}&quot;}]}]}</pre></details>
+<h2>Parsed, transformed, and derived artifacts</h2><details><summary>provider (derived) — synthetic fixture; no provider invoked — 6 ms</summary><pre>{
+  &quot;adapter&quot;: &quot;OpenAI&quot;,
+  &quot;model&quot;: &quot;synthetic-model&quot;
+}</pre></details><details><summary>catalog (derived) — buildEvidenceCatalog — 7 ms</summary><pre>{
+  &quot;entries&quot;: [
+    {
+      &quot;reference&quot;: &quot;E01&quot;,
+      &quot;snapshotId&quot;: &quot;synthetic-snapshot&quot;,
+      &quot;originalIdentity&quot;: {
+        &quot;kind&quot;: &quot;note&quot;,
+        &quot;originalId&quot;: &quot;synthetic-snapshot&quot;,
+        &quot;contentSha256&quot;: &quot;40a49fdc63d0b56b9ea4f6c2802bf776264aabdec0df5e56d5bb34c9d8e45898&quot;
+      },
+      &quot;excerpt&quot;: &quot;A person explicitly requests each LocalCast episode. The worker processes one generation job at a time. The database retains immutable supplied evidence. Each factual statement must have a verbatim supporting excerpt. The application does not search for new material or invent missing facts.&quot;,
+      &quot;startOffset&quot;: 0,
+      &quot;endOffset&quot;: 291
+    }
+  ],
+  &quot;sources&quot;: [
+    {
+      &quot;kind&quot;: &quot;note&quot;,
+      &quot;title&quot;: &quot;Synthetic operational facts&quot;,
+      &quot;references&quot;: [
+        {
+          &quot;reference&quot;: &quot;E01&quot;,
+          &quot;excerpt&quot;: &quot;A person explicitly requests each LocalCast episode. The worker processes one generation job at a time. The database retains immutable supplied evidence. Each factual statement must have a verbatim supporting excerpt. The application does not search for new material or invent missing facts.&quot;
+        }
+      ]
+    }
+  ]
+}</pre></details><details><summary>stage (derived) — synthetic fixture — 7 ms</summary><pre>drafting</pre></details><details><summary>draft.text (transformed) — synthetic output text — 9 ms</summary><pre>{&quot;sections&quot;:[{&quot;title&quot;:&quot;Fixture&quot;,&quot;type&quot;:&quot;news_summary&quot;,&quot;segments&quot;:[{&quot;kind&quot;:&quot;factual&quot;,&quot;text&quot;:&quot;A person explicitly requests each LocalCast episode. The worker processes one generation job at a time. The database retains immutable supplied evidence. Each factual statement must have a verbatim supporting excerpt. The application does not search for new material or invent missing facts.&quot;,&quot;citations&quot;:[&quot;E01&quot;]}]}]}</pre></details><details><summary>draft.parsed (parsed) — episodeDraftSchema — 10 ms</summary><pre>{
+  &quot;sections&quot;: [
+    {
+      &quot;title&quot;: &quot;Fixture&quot;,
+      &quot;type&quot;: &quot;news_summary&quot;,
+      &quot;segments&quot;: [
+        {
+          &quot;kind&quot;: &quot;factual&quot;,
+          &quot;text&quot;: &quot;A person explicitly requests each LocalCast episode. The worker processes one generation job at a time. The database retains immutable supplied evidence. Each factual statement must have a verbatim supporting excerpt. The application does not search for new material or invent missing facts.&quot;,
+          &quot;citations&quot;: [
+            &quot;E01&quot;
+          ]
+        }
+      ]
+    }
+  ]
+}</pre></details><details><summary>citations.resolved (transformed) — resolveEvidenceReferences — 14 ms</summary><pre>[
+  {
+    &quot;title&quot;: &quot;Fixture&quot;,
+    &quot;type&quot;: &quot;news_summary&quot;,
+    &quot;segments&quot;: [
+      {
+        &quot;kind&quot;: &quot;factual&quot;,
+        &quot;text&quot;: &quot;A person explicitly requests each LocalCast episode. The worker processes one generation job at a time. The database retains immutable supplied evidence. Each factual statement must have a verbatim supporting excerpt. The application does not search for new material or invent missing facts.&quot;,
+        &quot;citations&quot;: [
+          {
+            &quot;snapshotId&quot;: &quot;synthetic-snapshot&quot;,
+            &quot;excerpt&quot;: &quot;A person explicitly requests each LocalCast episode. The worker processes one generation job at a time. The database retains immutable supplied evidence. Each factual statement must have a verbatim supporting excerpt. The application does not search for new material or invent missing facts.&quot;
+          }
+        ]
+      }
+    ]
+  }
+]</pre></details><details><summary>sections (transformed) — sectionsForResolvedDraft; supportStatus is provisional — 15 ms</summary><pre>[
+  {
+    &quot;id&quot;: &quot;section-synthetic-run-disclosure&quot;,
+    &quot;title&quot;: &quot;AI audio disclosure&quot;,
+    &quot;type&quot;: &quot;intro&quot;,
+    &quot;segments&quot;: [
+      {
+        &quot;id&quot;: &quot;claim-synthetic-run-disclosure&quot;,
+        &quot;kind&quot;: &quot;transition&quot;,
+        &quot;text&quot;: &quot;This LocalCast audio was generated by AI.&quot;,
+        &quot;citations&quot;: [],
+        &quot;supportStatus&quot;: &quot;not_required&quot;,
+        &quot;speakerRole&quot;: &quot;host&quot;
+      }
+    ]
+  },
+  {
+    &quot;id&quot;: &quot;section-synthetic-run-0&quot;,
+    &quot;title&quot;: &quot;Source summary&quot;,
+    &quot;type&quot;: &quot;news_summary&quot;,
+    &quot;segments&quot;: [
+      {
+        &quot;id&quot;: &quot;claim-synthetic-run-0-0&quot;,
+        &quot;kind&quot;: &quot;factual&quot;,
+        &quot;text&quot;: &quot;A person explicitly requests each LocalCast episode. The worker processes one generation job at a time. The database retains immutable supplied evidence. Each factual statement must have a verbatim supporting excerpt. The application does not search for new material or invent missing facts.&quot;,
+        &quot;citations&quot;: [
+          {
+            &quot;snapshotId&quot;: &quot;synthetic-snapshot&quot;,
+            &quot;excerpt&quot;: &quot;A person explicitly requests each LocalCast episode. The worker processes one generation job at a time. The database retains immutable supplied evidence. Each factual statement must have a verbatim supporting excerpt. The application does not search for new material or invent missing facts.&quot;
+          }
+        ],
+        &quot;supportStatus&quot;: &quot;supported&quot;,
+        &quot;speakerRole&quot;: &quot;host&quot;
+      }
+    ]
+  }
+]</pre></details><details><summary>deterministic.passed (derived) — assertGeneratedEpisode — 16 ms</summary><pre>{
+  &quot;citations&quot;: &quot;passed&quot;,
+  &quot;length&quot;: &quot;passed&quot;,
+  &quot;actualWords&quot;: 50,
+  &quot;minimumWords&quot;: 48,
+  &quot;maximumWords&quot;: 50
+}</pre></details><details><summary>stage (derived) — synthetic fixture — 16 ms</summary><pre>validating</pre></details><details><summary>support.parsed (parsed) — explicit synthetic classifier fixture — 17 ms</summary><pre>{
+  &quot;results&quot;: [
+    {
+      &quot;claimId&quot;: &quot;claim-synthetic-run-0-0&quot;,
+      &quot;status&quot;: &quot;uncertain&quot;
+    }
+  ]
+}</pre></details><details><summary>support.decisions (derived) — fixture association — 18 ms</summary><pre>[
+  {
+    &quot;index&quot;: 0,
+    &quot;claimId&quot;: &quot;claim-synthetic-run-0-0&quot;,
+    &quot;status&quot;: &quot;uncertain&quot;
+  }
+]</pre></details><details><summary>outcome (derived) — generation processor — 23 ms</summary><pre>{
+  &quot;code&quot;: &quot;UNSUPPORTED_GENERATED_CLAIM&quot;,
+  &quot;diagnostic&quot;: {
+    &quot;stage&quot;: &quot;semantic_support&quot;,
+    &quot;category&quot;: &quot;unsupported_claims&quot;,
+    &quot;rejectedCount&quot;: 1
+  }
+}</pre></details>
+</main></html>

@@ -1,4 +1,4 @@
-import type {Source, SourceItem} from '../../types';
+import type {MaterialSearchResult, Source, SourceItem} from '../../types';
 import type {SourceService} from './index';
 import {apiRequest} from './httpClient';
 
@@ -11,9 +11,16 @@ export class ApiSourceService implements SourceService {
     return apiRequest<SourceItem[]>(`/sources/${encodeURIComponent(sourceId)}/items?limit=50`);
   }
 
-  async addSource(source: Omit<Source, 'id' | 'addedAt'>): Promise<Source> {
+  async addSource(source: Pick<Source, 'type' | 'name' | 'url' | 'description' | 'category' | 'isActive'>): Promise<Source> {
     return apiRequest<Source>('/sources', {
       method: 'POST',
+      body: JSON.stringify(source),
+    });
+  }
+
+  async updateSource(id: string, source: Partial<Pick<Source, 'name' | 'url'>> & {description?: string | null; category?: string | null}): Promise<Source> {
+    return apiRequest<Source>(`/sources/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
       body: JSON.stringify(source),
     });
   }
@@ -25,8 +32,12 @@ export class ApiSourceService implements SourceService {
     });
   }
 
-  async syncSource(id: string): Promise<void> {
-    await apiRequest(`/sources/${encodeURIComponent(id)}/sync`, {method: 'POST'});
+  async syncSource(id: string): Promise<{insertedCount: number; updatedCount: number; notModified?: boolean; message?: string}> {
+    return apiRequest(`/sources/${encodeURIComponent(id)}/sync`, {method: 'POST'});
+  }
+
+  async searchMaterials(query: string): Promise<MaterialSearchResult[]> {
+    return apiRequest<MaterialSearchResult[]>(`/materials?q=${encodeURIComponent(query)}&limit=50`);
   }
 
   async deleteSource(id: string): Promise<void> {

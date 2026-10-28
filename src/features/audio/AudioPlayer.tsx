@@ -1,222 +1,141 @@
-import { useState, useEffect } from 'react';
-import { Play, Pause, SkipBack, SkipForward, X, Volume2, Maximize2, Minimize2 } from 'lucide-react';
-import { BriefingRun } from '../../types';
-import OrbVisualizer, { ORB_THEMES, OrbThemeName } from './OrbVisualizer';
-import { providerService } from '../../services';
+import {useEffect, useRef, useState} from 'react';
+import {Download, Pause, Play, RotateCcw, RotateCw, Volume2, X} from 'lucide-react';
+import type {BriefingRun} from '../../types';
 
 interface AudioPlayerProps {
   run: BriefingRun;
-  isPlaying: boolean;
-  onTogglePlay: () => void;
   onClose: () => void;
 }
 
-export default function AudioPlayer({ run, isPlaying, onTogglePlay, onClose }: AudioPlayerProps) {
-  const [progress, setProgress] = useState(0);
-  const [playbackSpeed, setPlaybackSpeed] = useState(1);
-  const [isExpanded, setIsExpanded] = useState(false);
-  const [orbTheme, setOrbTheme] = useState<OrbThemeName>('amber');
-  const [audioData, setAudioData] = useState({ level: 0, frequencies: [0,0,0] as [number,number,number] });
+const formatTime = (seconds: number): string => {
+  if (!Number.isFinite(seconds) || seconds < 0) return '0:00';
+  const whole = Math.floor(seconds);
+  return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, '0')}`;
+};
+
+export default function AudioPlayer({run, onClose}: AudioPlayerProps) {
+  const audio = useRef<HTMLAudioElement>(null);
+  const [speed, setSpeed] = useState(1);
+  const [mediaState, setMediaState] = useState('Ready');
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
+  const [duration, setDuration] = useState((run.audioAsset?.durationMs || 0) / 1000);
 
   useEffect(() => {
-    providerService.getSettings().then(settings => {
-      if (settings.orbTheme) {
-        setOrbTheme(settings.orbTheme as OrbThemeName);
-      }
-    });
-  }, [isExpanded]);
-
-  useEffect(() => {
-    let interval: any;
-    if (isPlaying) {
-      interval = setInterval(() => {
-        setProgress(p => {
-          const next = p + (0.5 * playbackSpeed);
-          return next >= 100 ? 100 : next;
-        });
-      }, 500);
+    const element = audio.current;
+    element?.pause();
+    if (element) {
+      element.currentTime = 0;
+      element.playbackRate = 1;
     }
-    return () => clearInterval(interval);
-  }, [isPlaying, playbackSpeed]);
+    setSpeed(1);
+    setMediaState('Ready');
+    setIsPlaying(false);
+    setElapsed(0);
+    setDuration((run.audioAsset?.durationMs || 0) / 1000);
+  }, [run.id, run.audioAsset?.durationMs]);
 
-  useEffect(() => {
-    if (progress >= 100 && isPlaying) {
-      onTogglePlay();
-      setTimeout(() => setProgress(0), 100);
-    }
-  }, [progress, isPlaying, onTogglePlay]);
+  if (!run.audioAsset) return null;
 
-  useEffect(() => {
-    if (isPlaying && isExpanded) {
-      let t = 0;
-      const audioInterval = setInterval(() => {
-        t += 0.1;
-        // Generate synthetic audio data for visualizer
-        const baseLevel = Math.sin(t) * 0.3 + 0.3;
-        const spike = Math.random() > 0.8 ? Math.random() * 0.5 : 0;
-        const level = Math.max(0, Math.min(1, baseLevel + spike));
-        
-        const low = Math.max(0, Math.min(1, Math.sin(t * 0.5) * 0.5 + 0.5));
-        const mid = Math.max(0, Math.min(1, Math.cos(t * 2) * 0.5 + spike));
-        const high = Math.max(0, Math.min(1, Math.sin(t * 5) * 0.5 + spike * 1.5));
-        
-        setAudioData({ level, frequencies: [low, mid, high] });
-      }, 50);
-      return () => clearInterval(audioInterval);
-    } else {
-       setAudioData({ level: 0, frequencies: [0,0,0] });
-    }
-  }, [isPlaying, isExpanded]);
-
-  const formatDuration = (ms: number) => {
-    const totalSeconds = Math.floor(ms / 1000);
-    const m = Math.floor(totalSeconds / 60);
-    const s = totalSeconds % 60;
-    return `${m}:${s.toString().padStart(2, '0')}`;
+  const seek = (seconds: number) => {
+    const element = audio.current;
+    if (!element) return;
+    const upperBound = Number.isFinite(element.duration) && element.duration > 0 ? element.duration : duration;
+    const endSafeUpperBound = upperBound > 0.05 ? upperBound - 0.05 : upperBound;
+    element.currentTime = Math.max(0, Math.min(seconds >= upperBound ? endSafeUpperBound : upperBound, seconds));
+    setElapsed(element.currentTime);
   };
 
-  const durationStr = run.audioAsset ? formatDuration(run.audioAsset.durationMs) : '0:00';
+  const togglePlayback = async () => {
+    const element = audio.current;
+    if (!element) return;
+    if (!element.paused) {
+      element.pause();
+      return;
+    }
+    try {
+      await element.play();
+    } catch {
+      setMediaState('Playback failed');
+    }
+  };
 
   return (
-    <>
-      {isExpanded && (
-        <div className="player-expanded" style={{ backgroundColor: ORB_THEMES[orbTheme].background }}>
-          <div className="player-expanded__visualizer">
-            <OrbVisualizer 
-              isActive={isPlaying} 
-              audioLevel={audioData.level} 
-              frequencies={audioData.frequencies}
-              theme={orbTheme}
-              className="orb-visualizer--fill"
-            />
-          </div>
-          
-          <div className="player-expanded__content">
-            <div className="player-expanded__header">
-              <div className="player-expanded__copy">
-                <h2 className="player-expanded__title">{run.title}</h2>
-                <p className="player-expanded__summary">{run.summary}</p>
-              </div>
-              <div>
-                <button onClick={() => setIsExpanded(false)} className="icon-button player-expanded__close" aria-label="Minimize player">
-                  <Minimize2 size={24} />
-                </button>
-              </div>
-            </div>
-            
-            <div className="player-expanded__controls">
-              <div className="player-expanded__controls-inner">
-                <div className="player-progress player-progress--expanded">
-                  <span>0:00</span>
-                  <div className="player-progress__track">
-                    <div 
-                      className="player-progress__fill"
-                      style={{
-                        width: `${progress}%`,
-                        backgroundColor: ORB_THEMES[orbTheme].core,
-                        boxShadow: '0 0 10px rgb(255 255 255 / 0.5)'
-                      }}
-                    ></div>
-                  </div>
-                  <span>{durationStr}</span>
-                </div>
-                
-                <div className="player-expanded__transport">
-                  <button className="player-expanded__side-button" aria-label="Skip back"><SkipBack size={28} /></button>
-                  <button 
-                    onClick={onTogglePlay}
-                    className="player-expanded__play"
-                    aria-label={isPlaying ? 'Pause briefing' : 'Play briefing'}
-                    style={{ 
-                      color: ORB_THEMES[orbTheme].background,
-                      boxShadow: `0 0 40px color-mix(in oklch, ${ORB_THEMES[orbTheme].accent} 20%, transparent)`
-                    }}
-                  >
-                    {isPlaying ? <Pause size={32} /> : <Play size={32} />}
-                  </button>
-                  <button className="player-expanded__side-button" aria-label="Skip forward"><SkipForward size={28} /></button>
-                </div>
-              </div>
-            </div>
+    <section className="audio-player" aria-label="Persistent episode player">
+      <div className="audio-player__inner">
+        <div className="audio-player__meta">
+          <div className="audio-player__thumb"><Volume2 size={24} aria-hidden="true" /></div>
+          <div className="audio-player__copy">
+            <h2 className="audio-player__title">{run.title}</h2>
+            <p className="audio-player__summary">AI-generated audio · {mediaState === 'Playback failed'
+              ? <span>{mediaState}</span>
+              : <span aria-live="polite" aria-atomic="true">{mediaState}</span>}</p>
           </div>
         </div>
-      )}
-
-      <div className={`audio-player${isExpanded ? ' audio-player--hidden' : ''}`}>
-        <div className="audio-player__inner">
-          
-          <div className="audio-player__meta">
-            <div className="audio-player__thumb">
-               {isPlaying ? (
-                 <OrbVisualizer 
-                  isActive={isPlaying} 
-                  audioLevel={audioData.level} 
-                  frequencies={audioData.frequencies}
-                  theme={orbTheme}
-                  className="audio-player__thumb-orb"
-                 />
-               ) : (
-                 <Volume2 size={24} />
-               )}
-            </div>
-            <div className="audio-player__copy">
-              <h4 className="audio-player__title">{run.title}</h4>
-              <p className="audio-player__summary">{run.summary || 'Daily Audio Briefing'}</p>
-            </div>
-          </div>
-
-          <div className="audio-player__center">
-            <div className="audio-player__controls">
-              <button className="audio-player__control" aria-label="Skip back"><SkipBack size={20} /></button>
-              <button 
-                onClick={onTogglePlay}
-                className="audio-player__play"
-                aria-label={isPlaying ? 'Pause briefing' : 'Play briefing'}
-              >
-                {isPlaying ? <Pause size={20} /> : <Play size={20} />}
-              </button>
-              <button className="audio-player__control" aria-label="Skip forward"><SkipForward size={20} /></button>
-            </div>
-            
-            <div className="player-progress">
-              <span>0:00</span>
-              <div className="player-progress__track">
-                <div 
-                  className="player-progress__fill"
-                  style={{ width: `${progress}%` }}
-                >
-                  <div className="player-progress__thumb"></div>
-                </div>
-              </div>
-              <span>{durationStr}</span>
-            </div>
-          </div>
-
-          <div className="audio-player__actions">
+        <audio
+          ref={audio}
+          preload="metadata"
+          src={run.audioAsset.url}
+          aria-label={`AI-generated episode media for ${run.title}`}
+          onLoadedMetadata={event => {
+            const measured = event.currentTarget.duration;
+            if (Number.isFinite(measured) && measured > 0) setDuration(measured);
+            event.currentTarget.playbackRate = speed;
+            setMediaState('Loaded');
+          }}
+          onDurationChange={event => {
+            const measured = event.currentTarget.duration;
+            if (Number.isFinite(measured) && measured > 0) setDuration(measured);
+          }}
+          onTimeUpdate={event => setElapsed(event.currentTarget.currentTime)}
+          onPlay={() => { setIsPlaying(true); setMediaState('Playing'); }}
+          onPause={() => { setIsPlaying(false); setMediaState('Paused'); }}
+          onSeeking={() => setMediaState('Seeking')}
+          onSeeked={event => { setElapsed(event.currentTarget.currentTime); setMediaState(event.currentTarget.paused ? 'Paused' : 'Playing'); }}
+          onEnded={() => { setIsPlaying(false); setMediaState('Ended'); }}
+          onError={() => { setIsPlaying(false); setMediaState('Playback failed'); }}
+        />
+        <div className="audio-player__transport" aria-label="Playback controls">
+          <button className="icon-button" onClick={() => seek(elapsed - 15)} aria-label="Skip back 15 seconds"><RotateCcw size={18} aria-hidden="true" /></button>
+          <button className="icon-button" onClick={togglePlayback} aria-label={isPlaying ? 'Pause episode' : 'Play episode'}>
+            {isPlaying ? <Pause size={20} aria-hidden="true" /> : <Play size={20} aria-hidden="true" />}
+          </button>
+          <button className="icon-button" onClick={() => seek(elapsed + 30)} aria-label="Skip forward 30 seconds"><RotateCw size={18} aria-hidden="true" /></button>
+          <span className="audio-player__time" aria-label={`${formatTime(elapsed)} elapsed of ${formatTime(duration)}`}>{formatTime(elapsed)} / {formatTime(duration)}</span>
+          <label className="audio-player__seek">
+            <span className="sr-only">Seek through episode</span>
+            <input
+              type="range"
+              min={0}
+              max={Math.max(1, duration)}
+              step={0.1}
+              value={Math.min(elapsed, Math.max(1, duration))}
+              onChange={event => seek(Number(event.target.value))}
+              aria-label="Seek through episode"
+            />
+          </label>
+        </div>
+        <div className="audio-player__actions">
+          <label>
+            <span className="sr-only">Playback speed</span>
             <select
-              value={playbackSpeed}
-              onChange={(e) => setPlaybackSpeed(Number(e.target.value))}
+              value={speed}
+              onChange={event => {
+                const value = Number(event.target.value);
+                setSpeed(value);
+                if (audio.current) audio.current.playbackRate = value;
+              }}
               className="control control--minimal"
-              title="Playback Speed"
+              aria-label="Playback speed"
             >
-              <option value={0.5}>0.5x</option>
-              <option value={0.75}>0.75x</option>
-              <option value={1}>1x</option>
-              <option value={1.25}>1.25x</option>
-              <option value={1.5}>1.5x</option>
-              <option value={1.75}>1.75x</option>
-              <option value={2}>2x</option>
+              {[0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].map(value => <option key={value} value={value}>{value}x</option>)}
             </select>
-            <button onClick={() => setIsExpanded(true)} className="icon-button" aria-label="Expand player">
-              <Maximize2 size={18} />
-            </button>
-            <button onClick={onClose} className="icon-button" aria-label="Close player">
-              <X size={18} />
-            </button>
-          </div>
-
+          </label>
+          <a className="icon-button" href={run.audioAsset.url} download={`localcast-${run.id}.mp3`} aria-label={`Download MP3 for ${run.title}`}><Download size={18} aria-hidden="true" /></a>
+          <button onClick={onClose} className="icon-button" aria-label="Close player"><X size={18} aria-hidden="true" /></button>
         </div>
       </div>
-    </>
+      {mediaState === 'Playback failed' && <p className="audio-player__error" role="alert">Playback failed. The transcript and citations remain available on the episode page.</p>}
+    </section>
   );
 }

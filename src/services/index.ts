@@ -1,35 +1,24 @@
 export * from './api';
-export * from './mock/MockAiProvider';
 
-import {ApiBriefingService, ApiProviderService, ApiSourceService, getServiceMode} from './api';
-import type {BriefingService, ProviderService, SourceService} from './api';
-import {MockBriefingService, setProviderService} from './mock/MockBriefingService';
-import {MockProviderService} from './mock/MockProviderService';
-import {MockSourceService} from './mock/MockSourceService';
+import {ApiBriefingService, ApiPodcastService, ApiProviderService, ApiSourceService, ApiStationService} from './api';
+import type {BriefingService, PodcastService, ProviderService, SourceService, StationService} from './api';
 
 interface Services {
   sourceService: SourceService;
   providerService: ProviderService;
   briefingService: BriefingService;
+  stationService: StationService;
+  podcastService: PodcastService;
 }
-
-const createMockServices = (): Services => {
-  const mockProviderService = new MockProviderService();
-  setProviderService(mockProviderService);
-
-  return {
-    sourceService: new MockSourceService(),
-    providerService: mockProviderService,
-    briefingService: new MockBriefingService(),
-  };
-};
 
 const createApiServices = (): Services => ({
   sourceService: new ApiSourceService(),
   providerService: new ApiProviderService(),
   briefingService: new ApiBriefingService(),
+  stationService: new ApiStationService(),
+  podcastService: new ApiPodcastService(),
 });
 
-const services = getServiceMode() === 'api' ? createApiServices() : createMockServices();
+const services = createApiServices();
 
-export const {sourceService, providerService, briefingService} = services;
+export const {sourceService, providerService, briefingService, stationService, podcastService} = services;

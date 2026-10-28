@@ -1,28 +1,12 @@
-import Database from 'better-sqlite3';
-import fs from 'node:fs';
-import path from 'node:path';
 import {serverConfig} from '../config';
-import {applyMigrations} from './migrations';
+import {openDatabase} from './connection';
 
-const resolveDatabasePath = (databasePath: string): string => {
-	if (databasePath === ':memory:') return databasePath;
-	return path.resolve(process.cwd(), databasePath);
-};
+export const db = openDatabase(serverConfig);
 
-const databasePath = resolveDatabasePath(serverConfig.databasePath);
-
-if (databasePath !== ':memory:') {
-	fs.mkdirSync(path.dirname(databasePath), {recursive: true});
-}
-
-export const db = new Database(databasePath);
-
-db.pragma('foreign_keys = ON');
-db.pragma('journal_mode = WAL');
-
-applyMigrations(db);
+let closed = false;
 
 export const closeDatabase = (): void => {
+	if (closed) return;
 	db.close();
+	closed = true;
 };
-

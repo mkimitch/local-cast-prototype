@@ -1,87 +1,50 @@
-import express from 'express';
-import type {NextFunction, Request, Response} from 'express';
+import type {Server} from 'node:http';
+import {createApp} from './app';
 import {serverConfig} from './config';
-import {briefingRunsRouter} from './routes/briefingRuns';
-import {followUpRouter} from './routes/followUp';
-import {healthRouter} from './routes/health';
-import {settingsRouter} from './routes/settings';
-import {sourcesRouter} from './routes/sources';
-import {rssIngestionService} from './services/rssIngestion';
+import {closeDatabase} from './database/index';
+import {openAiCredentialService} from './services/openAiCredentialService';
 
-const app = express();
+if (serverConfig.processRole !== 'app') {
+	throw new Error('LOCALCAST_PROCESS_ROLE must be app for the application entrypoint');
+}
 
-app.use(express.json({limit: '1mb'}));
+const app = createApp(serverConfig);
+let server: Server;
+let stopping = false;
 
-const isAllowedOrigin = (origin: string): boolean => (
-  serverConfig.corsOrigins.includes('*') || serverConfig.corsOrigins.includes(origin)
-);
-
-app.use((req, res, next) => {
-  const origin = req.headers.origin;
-
-  if (typeof origin === 'string' && isAllowedOrigin(origin)) {
-    res.header('Access-Control-Allow-Origin', serverConfig.corsOrigins.includes('*') ? '*' : origin);
-    res.header('Vary', 'Origin');
-  }
-
-  res.header('Access-Control-Allow-Headers', 'Content-Type');
-  res.header('Access-Control-Allow-Methods', 'GET,POST,PATCH,PUT,DELETE,OPTIONS');
-
-  if (req.method === 'OPTIONS') {
-    if (typeof origin === 'string' && !isAllowedOrigin(origin)) {
-      res.status(403).json({error: 'CORS origin is not allowed'});
-      return;
-    }
-
-    res.status(204).send();
-    return;
-  }
-
-  next();
+const closeServer = (): Promise<void> => new Promise((resolve, reject) => {
+	server.close(error => error ? reject(error) : resolve());
 });
 
-app.use('/api', healthRouter);
-app.use('/api', sourcesRouter);
-app.use('/api', briefingRunsRouter);
-app.use('/api', settingsRouter);
-app.use('/api', followUpRouter);
-
-app.use((_req, res) => {
-  res.status(404).json({error: 'Not found'});
-});
-
-app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
-  const message = error instanceof Error ? error.message : 'Unexpected server error';
-  console.error(message);
-  res.status(500).json({error: message});
-});
-
-const runScheduledRssSync = async (reason: string): Promise<void> => {
-  try {
-    const result = await rssIngestionService.syncActiveSources({force: false});
-    console.log(
-      `RSS sync ${reason}: ${result.results.length} synced, ${result.skipped.length} skipped, ${result.errors.length} failed`,
-    );
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown RSS sync error';
-    console.error(`RSS sync ${reason} failed: ${message}`);
-  }
+const shutdown = async (signal: string): Promise<void> => {
+	if (stopping) return;
+	stopping = true;
+	console.log(`LocalCast application stopping after ${signal}`);
+	const forcedExit = setTimeout(() => {
+		console.error('LocalCast application shutdown deadline exceeded');
+		server.closeAllConnections();
+		closeDatabase();
+		process.exit(1);
+	}, serverConfig.shutdownMs);
+	try {
+		await closeServer();
+	} finally {
+		clearTimeout(forcedExit);
+		closeDatabase();
+	}
 };
 
-app.listen(serverConfig.port, () => {
-  console.log(`LocalCast API listening on http://localhost:${serverConfig.port}/api`);
-  console.log(`AI provider: ${serverConfig.aiProvider}`);
+process.once('SIGTERM', () => void shutdown('SIGTERM'));
+process.once('SIGINT', () => void shutdown('SIGINT'));
 
-  if (serverConfig.rssSyncOnStart) {
-    void runScheduledRssSync('on startup');
-  }
+server = app.listen(serverConfig.port, serverConfig.host, () => {
+	const providers = openAiCredentialService.providerSummary(serverConfig);
+	console.log(`LocalCast listening on http://${serverConfig.host}:${serverConfig.port}`);
+	console.log(`Text provider: ${providers.text.status}; speech provider: ${providers.speech.status}`);
+});
 
-  if (serverConfig.rssSyncIntervalMinutes) {
-    const interval = setInterval(
-      () => void runScheduledRssSync('on interval'),
-      serverConfig.rssSyncIntervalMinutes * 60 * 1000,
-    );
-
-    interval.unref();
-  }
+server.on('error', error => {
+	console.error(`LocalCast application failed to listen: ${error.name}`);
+	closeDatabase();
+	process.exitCode = 1;
 });

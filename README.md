@@ -1,207 +1,147 @@
-# LocalCast Prototype
+# LocalCast
 
-LocalCast is a Vite + React + TypeScript prototype for a local-first personal audio briefing app. The UI, mock service layer, and accessibility settings remain usable without a backend or API keys. A first Express API and backend AI harness are available for local API-backed development.
+LocalCast is a local-first, single-user audio briefing prototype for a trusted LAN. The product contract lives in [`docs/codex/SPEC.md`](docs/codex/SPEC.md); the current implementation state and evidence are recorded in [`docs/codex/STATE.md`](docs/codex/STATE.md).
 
-## What works now
+The current checkpoint includes the completed Slice 5 grounded-chat product and the deterministic Slice 6 provider, backup/restore, accessibility, security, and privacy contracts. LocalCast supports explicit RSS/note ingestion, grounded episode generation, private podcast delivery, episode-scoped chat, Ollama/LM Studio/OpenAI text adapters, and OpenAI/Piper speech adapters. Provider status distinguishes configuration, deterministic contract evidence, and live verification; production never silently selects a mock.
 
-- Dashboard, sources, briefing runs, audio playback, settings, and accessibility preferences.
-- Mock-only frontend mode with in-browser mock services.
-- API-backed frontend mode pointed at a local Express server.
-- SQLite-backed backend stores for sources, gathered source items, settings, briefing runs, sections, and placeholder audio assets.
-- Lightweight SQLite migrations applied at API startup.
-- Server-side RSS/Atom ingestion with sync metadata, backoff, and source item review.
-- Backend AI provider seam with `mock`, `gemini`, and `openai_compatible` providers.
+## Runtime shape
 
-## Run mock-only frontend
+- React/Vite frontend and Express API share one production origin.
+- SQLite and media use separate persistent directories.
+- The API only enqueues work; one worker claims at most one generation job at a time.
+- Episode creation and feed synchronization occur only after explicit user actions.
+- Browser code always uses the relative `/api` endpoint. The Settings credential form submits a complete replacement key once to the same-origin API, clears it immediately, and never receives a stored credential back.
+- Production has no mock fallback. Provider status is honest (`NOT CONFIGURED`, `CONFIGURED UNVERIFIED`, `CONTRACT TESTED ONLY`, or `LIVE VERIFIED`), and generation remains disabled without sufficient status evidence.
+- Deterministic text/speech fakes are available only with explicit `test` runtime gates.
 
-Mock mode is the default. It does not require the backend or API keys.
+## Local development
+
+Install the locked dependencies:
 
 ```bash
-npm install
+npm ci
+```
+
+Start the API, worker, and Vite frontend in separate terminals:
+
+```bash
+npm run dev:api
+npm run dev:worker
 npm run dev:web
 ```
 
-Open the Vite URL shown in the terminal. `npm run dev` is an alias for `npm run dev:web`.
+The API defaults to `127.0.0.1:8787`, Vite to port `3000`, and development data to `data/localcast.sqlite` plus `data/media`. The frontend proxies `/api` to the API. Development starts with both providers unconfigured, so the UI is inspectable but **Sync and generate** is disabled.
 
-## Run the backend
-
-```bash
-cp .env.example .env
-npm run dev:api
-```
-
-The API listens on `http://localhost:8787/api` by default. Health check:
-
-```bash
-curl http://localhost:8787/api/health
-```
-
-The backend allows `http://localhost:3000` by default for local CORS requests. To allow a different frontend origin, set `CORS_ORIGIN` to one or more comma-separated origins. Use `CORS_ORIGIN=*` only when you intentionally want unrestricted local API access.
-
-## Run frontend against backend
-
-Start the backend in one terminal:
-
-```bash
-npm run dev:api
-```
-
-Start the frontend in API mode in another terminal:
-
-```bash
-VITE_SERVICE_MODE=api VITE_API_BASE_URL=http://localhost:8787/api npm run dev:web
-```
-
-There is also a convenience script that starts the API in the background and the API-backed frontend in the foreground:
-
-```bash
-npm run dev:all
-```
-
-For day-to-day work, two terminals are easier to stop and inspect than the combined script.
-
-## Environment variables
-
-Backend-only values are read by `server/config.ts` and are never exposed to browser code:
+Do not enable fake providers for ordinary development or production. The accepted fake configuration requires all of the following and is reserved for isolated tests:
 
 ```env
-PORT=8787
-CORS_ORIGIN=http://localhost:3000
-DATABASE_PATH=data/localcast.sqlite
-RSS_SYNC_ON_START=false
-RSS_SYNC_INTERVAL_MINUTES=
-AI_PROVIDER=mock
-AI_MODEL=mock-localcast
-AI_BASE_URL=
-AI_API_KEY=
-GEMINI_API_KEY=
+LOCALCAST_RUNTIME_MODE=test
+LOCALCAST_ALLOW_FAKE_PROVIDERS=true
+TEXT_PROVIDER=fake
+SPEECH_PROVIDER=fake
 ```
 
-Frontend values must use Vite's `VITE_*` prefix:
+## Verification
 
-```env
-VITE_SERVICE_MODE=mock
-VITE_API_BASE_URL=http://localhost:8787/api
-```
-
-`VITE_SERVICE_MODE=mock` uses `src/services/mock/*`. `VITE_SERVICE_MODE=api` uses `src/services/api/*`. If `VITE_SERVICE_MODE` is unset or any value other than `api`, the app falls back to mock mode.
-
-## Persistence
-
-The backend stores data in SQLite at `DATABASE_PATH`, defaulting to `data/localcast.sqlite`. Empty databases are bootstrapped with the same prototype sources, settings, and sample briefing run that the in-memory version used.
-
-Migrations run at API startup through `server/database/migrations.ts` and are recorded in `schema_migrations`. The current migrations create the initial schema, add RSS item identity columns/indexes, and add RSS sync metadata columns without dropping existing local data.
-
-Persisted tables include `schema_migrations`, `sources`, `source_items`, `briefing_runs`, `briefing_run_sources`, `briefing_sections`, `audio_assets`, and `app_settings`. RSS source items are fetched server-side and stored in `source_items`; manual topic source items are still generated from the source instructions during briefing creation.
-
-To reset local development data, stop the API server and remove the SQLite files:
+The credential-free full gate is:
 
 ```bash
-rm -f data/localcast.sqlite data/localcast.sqlite-wal data/localcast.sqlite-shm
+npm run verify
 ```
 
-The next API startup recreates the schema and seed data.
-
-## RSS ingestion
-
-RSS and Atom feeds are fetched by the backend only. Use the Sources screen sync button in API mode, or call the API directly:
-
-```bash
-curl -X POST http://localhost:8787/api/sources/:id/sync
-curl -X POST http://localhost:8787/api/sources/sync
-curl -X POST 'http://localhost:8787/api/sources/sync?force=true'
-curl http://localhost:8787/api/sources/:id/items
-curl 'http://localhost:8787/api/source-items?sourceId=src-1&q=ai&limit=25&offset=0'
-```
-
-Fetched items capture title, content/summary, URL, author when available, published time, gathered time, and an internal external identity. Duplicate prevention uses a stable hash of RSS guid/id/link/title data and a unique `(source_id, external_id)` SQLite index.
-
-RSS source responses include optional sync health fields: `lastSyncedAt`, `lastSyncStatus`, `lastSyncError`, `consecutiveSyncFailures`, `nextSyncAfter`, and computed `itemCount`. Failed feeds use simple backoff: first failure retries after 15 minutes, second after 1 hour, and later failures after 6 hours. Sync-all skips sources still in backoff unless `force=true` is provided.
-
-`GET /api/source-items` and `GET /api/sources/:id/items` support `limit`, `offset`, `q`, `from`, and `to`; `GET /api/source-items` also supports `sourceId`.
-
-Optional scheduler prep is disabled by default. Set `RSS_SYNC_ON_START=true` to run a backoff-aware sync when the API starts. Set `RSS_SYNC_INTERVAL_MINUTES` to a positive number to run the same sync-all path on an interval.
-
-## AI providers
-
-- `AI_PROVIDER=mock` is the default and requires no secrets.
-- `AI_PROVIDER=gemini` uses `@google/genai` on the backend. Set `GEMINI_API_KEY` and optionally `AI_MODEL`; if the key is missing, briefing generation fails gracefully with a clear server-side error while mock mode remains unaffected.
-- `AI_PROVIDER=openai_compatible` posts to an OpenAI-compatible chat completions endpoint. Use `AI_BASE_URL=http://localhost:1234` or `AI_BASE_URL=http://localhost:1234/v1` for LM Studio-style servers, and `AI_BASE_URL=http://localhost:11434` or `AI_BASE_URL=http://localhost:11434/v1` for Ollama OpenAI-compatible endpoints. `AI_API_KEY` is optional for endpoints that require a placeholder bearer token.
-
-The Settings screen may display provider and model preferences for the prototype UI, but real backend AI selection is controlled by backend environment variables. API service code strips `apiKey` fields before saving settings to the backend.
-
-## API routes
-
-- `GET /api/health`
-- `GET /api/sources`
-- `POST /api/sources`
-- `POST /api/sources/sync`
-- `POST /api/sources/:id/sync`
-- `GET /api/source-items`
-- `GET /api/sources/:id/items`
-- `PATCH /api/sources/:id`
-- `DELETE /api/sources/:id`
-- `GET /api/briefing-runs`
-- `POST /api/briefing-runs`
-- `GET /api/briefing-runs/:id`
-- `GET /api/settings`
-- `PUT /api/settings`
-- `POST /api/follow-up`
-
-Responses use the frontend contracts in `src/types.ts` for `Source`, `BriefingRun`, `BriefingSection`, and `AppSettings`.
-
-## Manual verification
+Its component commands are:
 
 ```bash
 npm run lint
+npm run test
+npm run test:integration
 npm run build
+npm run test:e2e
 npm run smoke:api
+npm run smoke:production
+npm run smoke:compose
 ```
 
-Mock mode smoke check:
+Tests use temporary databases, media directories, ports, containers, and named volumes. They do not use operator data. The Compose smoke requires a working Docker engine and may need permission to update Docker build metadata.
+
+## Production storage and Compose contract
+
+`compose.yml` defines three roles:
+
+- `storage-init` is an explicit one-time profile that authorizes and marks new SQLite/media volumes, applies migrations, and exits;
+- `app` serves the built UI and API on container port `8787`;
+- `worker` claims durable generation jobs.
+
+All roles run as the non-root `node` user with a read-only root filesystem and shared named data/media volumes. The base Compose file deliberately has no `ports` mapping. Caddy connectivity and the exact trusted-LAN origin remain operator decisions; do not expose an application port or modify Caddy implicitly.
+
+Fresh volumes are never initialized by ordinary `docker compose up`. After reviewing the resolved volume targets, an operator must explicitly authorize first-time initialization:
 
 ```bash
-npm run dev:web
+docker compose --profile init run --rm storage-init
 ```
 
-API mode smoke check:
+Only after that command succeeds may `app` and `worker` start. Losing or replacing the initialized volumes therefore causes startup failure rather than silent creation of an empty installation.
+
+Before an authorized deployment, copy `.env.example` to an untracked `.env` and replace both example values:
+
+- `LOCALCAST_INSTALLATION_ID` is a stable, unique identifier with at least 16 characters. It binds the database and media mounts together.
+- `LOCALCAST_TRUSTED_ORIGINS` is the exact comma-separated HTTP(S) browser origin allowed to send Origin-bearing requests, normally the Caddy HTTPS origin. Wildcards are rejected.
+
+Production requires absolute `DATABASE_PATH` and `MEDIA_PATH` values in distinct directories. Startup fails on missing, partial, mismatched, unreadable, unwritable, corrupt, or newer-version storage. It never seeds demo rows or silently recreates a missing initialized database.
+
+### OpenAI credential management
+
+Settings → Provider Status can replace the OpenAI API key and run an explicit connection test. A UI-managed key is stored at `.credentials/openai-api-key` beside the SQLite database in the existing LocalCast data volume. LocalCast creates the directory as mode `0700`, atomically replaces the key file at mode `0600`, never returns the complete value, and resolves credentials in this order:
+
+1. the installation credential written through LocalCast;
+2. the existing worker `OPENAI_API_KEY` environment value;
+3. unconfigured.
+
+The environment value is never copied into the installation store merely by starting LocalCast. An environment-only installation continues to generate normally, but the app cannot read that worker-only fallback; replace it once through Settings before using the UI connection test. After that replacement, app and worker read the shared protected file for new work without a container restart. No new volume or environment variable is required because the credential directory lives in the existing data volume.
+
+The connection test makes bounded authenticated model-metadata requests only for selected OpenAI capabilities. It does not generate text or audio and does not mutate LocalCast content. Successful requests update the existing provider-check records; failures retain only a safe category.
+
+## Environment contract
+
+Important server-only variables are:
+
+| Variable | Contract |
+| --- | --- |
+| `LOCALCAST_RUNTIME_MODE` | Required: `development`, `test`, or `production`. |
+| `LOCALCAST_PROCESS_ROLE` | `app`, `worker`, or `storage-init`; each entry point validates its role. |
+| `DATABASE_PATH` | SQLite path; explicit absolute path required in production. |
+| `MEDIA_PATH` | Media directory; explicit absolute path required in production. |
+| `LOCALCAST_INSTALLATION_ID` | Stable storage identity, required in production. |
+| `LOCALCAST_TRUSTED_ORIGINS` | Exact comma-separated HTTP(S) origins; no wildcard. |
+| `TEXT_PROVIDER` / `SPEECH_PROVIDER` | Explicit server-side adapter selection; supported production values are `openai`, `ollama`, or `lm_studio` for text and `openai` or `piper` for speech. |
+| `LOCALCAST_ALLOW_FAKE_PROVIDERS` | Must be false outside tests. Production rejects true. |
+
+`RSS_SYNC_ON_START` and `RSS_SYNC_INTERVAL_MINUTES` are rejected when enabled. Stored provider keys, configured endpoints, executable paths, and voices remain server-only. The dedicated Settings replacement form sends a newly entered key once to the same-origin server, which never returns a stored key through browser APIs or bundles.
+
+## Persistence and jobs
+
+Migrations `001` through `008` are ordered, additive, transactional, and recorded in `schema_migrations`. They cover storage identity, durable generation, immutable grounding, private podcast publication, and episode-scoped grounded chat.
+
+The durable phase sequence is:
+
+```text
+queued -> syncing -> selecting -> drafting -> validating -> rendering_audio -> complete | failed
+```
+
+One partial unique index enforces a single running generation lease. Later jobs remain FIFO queued. Expired leases recover to the queue with retained attempt history; shutdown interrupts and releases owned work. API enqueue and retry primitives are idempotent.
+
+## Backup and restore privacy
+
+Build the server entry points before running the versioned offline operators. Stop all writers and verify quiescence before backup:
 
 ```bash
-npm run dev:api
-VITE_SERVICE_MODE=api VITE_API_BASE_URL=http://localhost:8787/api npm run dev:web
+npm run build:server
+npm run backup:create -- --database /absolute/data/localcast.sqlite --media /absolute/media --destination /private/backups/localcast-YYYYMMDD --max-media-bytes 10737418240
+npm run backup:restore -- --backup /private/backups/localcast-YYYYMMDD --data-target /new/empty/data --media-target /new/empty/media
 ```
 
-Then add a source, start a briefing run, and confirm the detail screen polls through `queued`, `gathering`, `summarizing_sources`, `drafting`, `rendering_audio`, and `complete`.
-
-RSS ingestion smoke check:
-
-1. Add an RSS source in API mode.
-2. Click the sync button on that source.
-3. Open the source item review panel from the Sources screen.
-4. Confirm `GET /api/sources/:id/items` returns stored source items.
-5. Start a briefing run using that RSS source.
-6. Confirm the generated summary references the stored RSS item titles.
-7. Try a broken RSS URL and confirm error metadata plus `nextSyncAfter` are shown in the API response.
-
-Frontend mode build checks:
-
-```bash
-npm run build
-VITE_SERVICE_MODE=api VITE_API_BASE_URL=http://localhost:8787/api npm run build
-```
+Backups are private, checksum-bound, versioned artifacts. They contain SQLite records and published media in plaintext, including supplied source bodies, transcripts, citations, and chat history. Store them in an operator-controlled `0700` location and apply host-level encryption, retention, and deletion policy appropriate to that content. Backup artifacts deliberately exclude the `.credentials` installation directory, provider credentials, configured provider endpoints, environment files, and the podcast bearer token. A restored installation therefore requires the operator to re-enter provider credentials (or re-supply the deployment environment value), supply current server configuration, and supply a podcast token separately. Restore accepts only new or empty targets and fails closed on malformed, linked, oversized, corrupt, inconsistent, or active-work artifacts.
 
 ## Current limitations
 
-- SQLite persistence is local-file only; migrations are intentionally lightweight and prototype-scoped.
-- RSS ingestion is primarily on demand; the optional interval hook is prototype-level scheduler prep, not a durable background job system.
-- RSS fetching does not yet use conditional HTTP caching, feed ETags, or full feed history management.
-- Gmail, Calendar, auth, real TTS, podcast RSS, Docker, deployment, and vector search are not implemented.
-- Generated audio is still a placeholder asset.
-- Manual topic source items are generated from configured source instructions.
-
-## Recommended next milestones
-
-1. Add feed fetch metadata such as ETag/Last-Modified and conditional requests.
-2. Add feed item retention controls and a source item detail view.
-3. Add real TTS generation and serve generated audio assets.
-4. Add focused API tests once the contract stabilizes beyond the prototype milestone.
+Deterministic contract evidence is not live-provider verification. Caddy/LAN isolation, deployed-image inspection, non-cooperative shutdown, real capacity/read-only/corruption drills, reproducible-image comparison, and the A11Y-01 human screen-reader spot check remain operator-gated. See [`docs/codex/STATE.md`](docs/codex/STATE.md) and [`docs/codex/TEST_MATRIX.md`](docs/codex/TEST_MATRIX.md) for the exact evidence state.

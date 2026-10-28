@@ -1,5 +1,7 @@
 import {Router} from 'express';
-import {rssIngestionService} from '../services/rssIngestion';
+import {FeedFetchError} from '../services/safeFeedFetcher';
+import {materialSearchStore} from '../services/materialSearchStore';
+import {FeedSyncError, rssIngestionService} from '../services/rssIngestion';
 import {sourceStore} from '../services/sourceStore';
 import {parseCreateSourceInput, parseUpdateSourceInput} from '../validation';
 
@@ -23,6 +25,19 @@ const forceFromQuery = (value: unknown): boolean => value === 'true' || value ==
 
 sourcesRouter.get('/sources', (_req, res) => {
   res.json(sourceStore.listSources());
+});
+
+sourcesRouter.get('/materials', (req, res) => {
+  const query = optionalQueryString(req.query.q);
+  if (!query) {
+    res.json([]);
+    return;
+  }
+  if (query.length > 200) {
+    res.status(400).json({code: 'INVALID_SEARCH_QUERY', error: 'Search query must be 200 characters or fewer'});
+    return;
+  }
+  res.json(materialSearchStore.search(query, limitFromQuery(req.query.limit)));
 });
 
 sourcesRouter.get('/source-items', (req, res) => {
@@ -84,8 +99,15 @@ sourcesRouter.post('/sources/:id/sync', async (req, res) => {
   try {
     res.json(await rssIngestionService.syncSource(source));
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown RSS sync error';
-    res.status(502).json({error: message});
+    if (error instanceof FeedSyncError || error instanceof FeedFetchError) {
+      res.status(error.code === 'SOURCE_SYNC_IN_PROGRESS' ? 409 : error.retryable ? 503 : 422).json({
+        code: error.code,
+        error: error.safeMessage,
+        correlationId: res.locals.correlationId,
+      });
+      return;
+    }
+    res.status(502).json({code: 'FEED_SYNC_FAILED', error: 'The feed could not be synchronized safely', correlationId: res.locals.correlationId});
   }
 });
 
