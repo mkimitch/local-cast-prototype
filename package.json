@@ -48,7 +48,7 @@
     "express": "^4.21.2",
     "react-router-dom": "^7.18.2",
     "rss-parser": "^3.13.0",
-    "zod": "4.4.3"
+    "zod": "4.6.6"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.10.2",
